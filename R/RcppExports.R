@@ -2,54 +2,54 @@
 # Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 initparams <- function(Etype, Ttype, Stype, datafreq, obsR, obsallR, yt, damped, phi, smoothingparameters, initialstates, seasonalcoefs) {
-    .Call('_mess_initparams', PACKAGE = 'mess', Etype, Ttype, Stype, datafreq, obsR, obsallR, yt, damped, phi, smoothingparameters, initialstates, seasonalcoefs)
+    .Call('_mes_initparams', PACKAGE = 'mes', Etype, Ttype, Stype, datafreq, obsR, obsallR, yt, damped, phi, smoothingparameters, initialstates, seasonalcoefs)
 }
 
 etsmatrices <- function(matvt, vecg, phi, Cvalues, ncomponentsR, lagsModel, fittertype, Ttype, Stype, nexovars, matat, estimpersistence, estimphi, estiminit, estiminitseason, estimxreg, matFX, vecgX, gowild, estimFX, estimgX, estiminitX) {
-    .Call('_mess_etsmatrices', PACKAGE = 'mess', matvt, vecg, phi, Cvalues, ncomponentsR, lagsModel, fittertype, Ttype, Stype, nexovars, matat, estimpersistence, estimphi, estiminit, estiminitseason, estimxreg, matFX, vecgX, gowild, estimFX, estimgX, estiminitX)
+    .Call('_mes_etsmatrices', PACKAGE = 'mes', matvt, vecg, phi, Cvalues, ncomponentsR, lagsModel, fittertype, Ttype, Stype, nexovars, matat, estimpersistence, estimphi, estiminit, estiminitseason, estimxreg, matFX, vecgX, gowild, estimFX, estimgX, estiminitX)
 }
 
 fitterwrap <- function(matvt, matF, matw, yt, vecg, lagsModel, Etype, Ttype, Stype, fittertype, matxt, matat, matFX, vecgX, ot) {
-    .Call('_mess_fitterwrap', PACKAGE = 'mess', matvt, matF, matw, yt, vecg, lagsModel, Etype, Ttype, Stype, fittertype, matxt, matat, matFX, vecgX, ot)
+    .Call('_mes_fitterwrap', PACKAGE = 'mes', matvt, matF, matw, yt, vecg, lagsModel, Etype, Ttype, Stype, fittertype, matxt, matat, matFX, vecgX, ot)
 }
 
 forecasterwrap <- function(matvt, matF, matw, h, Etype, Ttype, Stype, lagsModel, matxt, matat, matFX) {
-    .Call('_mess_forecasterwrap', PACKAGE = 'mess', matvt, matF, matw, h, Etype, Ttype, Stype, lagsModel, matxt, matat, matFX)
+    .Call('_mes_forecasterwrap', PACKAGE = 'mes', matvt, matF, matw, h, Etype, Ttype, Stype, lagsModel, matxt, matat, matFX)
 }
 
 errorerwrap <- function(matvt, matF, matw, yt, h, Etype, Ttype, Stype, lagsModel, matxt, matat, matFX, ot) {
-    .Call('_mess_errorerwrap', PACKAGE = 'mess', matvt, matF, matw, yt, h, Etype, Ttype, Stype, lagsModel, matxt, matat, matFX, ot)
+    .Call('_mes_errorerwrap', PACKAGE = 'mes', matvt, matF, matw, yt, h, Etype, Ttype, Stype, lagsModel, matxt, matat, matFX, ot)
 }
 
 optimizerwrap <- function(matvt, matF, matw, yt, vecg, h, lagsModel, Etype, Ttype, Stype, multisteps, CFt, normalizer, fittertype, matxt, matat, matFX, vecgX, ot, SDerror) {
-    .Call('_mess_optimizerwrap', PACKAGE = 'mess', matvt, matF, matw, yt, vecg, h, lagsModel, Etype, Ttype, Stype, multisteps, CFt, normalizer, fittertype, matxt, matat, matFX, vecgX, ot, SDerror)
+    .Call('_mes_optimizerwrap', PACKAGE = 'mes', matvt, matF, matw, yt, vecg, h, lagsModel, Etype, Ttype, Stype, multisteps, CFt, normalizer, fittertype, matxt, matat, matFX, vecgX, ot, SDerror)
 }
 
 costfunc <- function(matvt, matF, matw, yt, vecg, h, lagsModel, Etype, Ttype, Stype, multisteps, CFt, normalizer, fittertype, matxt, matat, matFX, vecgX, ot, bounds, SDerror) {
-    .Call('_mess_costfunc', PACKAGE = 'mess', matvt, matF, matw, yt, vecg, h, lagsModel, Etype, Ttype, Stype, multisteps, CFt, normalizer, fittertype, matxt, matat, matFX, vecgX, ot, bounds, SDerror)
+    .Call('_mes_costfunc', PACKAGE = 'mes', matvt, matF, matw, yt, vecg, h, lagsModel, Etype, Ttype, Stype, multisteps, CFt, normalizer, fittertype, matxt, matat, matFX, vecgX, ot, bounds, SDerror)
 }
 
 occurenceFitterWrap <- function(matvt, matF, matw, vecg, ot, modellags, Etype, Ttype, Stype, Otype, matxt, matat, matFX, vecgX) {
-    .Call('_mess_occurenceFitterWrap', PACKAGE = 'mess', matvt, matF, matw, vecg, ot, modellags, Etype, Ttype, Stype, Otype, matxt, matat, matFX, vecgX)
+    .Call('_mes_occurenceFitterWrap', PACKAGE = 'mes', matvt, matF, matw, vecg, ot, modellags, Etype, Ttype, Stype, Otype, matxt, matat, matFX, vecgX)
 }
 
 occurrenceOptimizerWrap <- function(matvt, matF, matw, vecg, ot, modellags, Etype, Ttype, Stype, Otype, matxt, matat, matFX, vecgX, bounds) {
-    .Call('_mess_occurrenceOptimizerWrap', PACKAGE = 'mess', matvt, matF, matw, vecg, ot, modellags, Etype, Ttype, Stype, Otype, matxt, matat, matFX, vecgX, bounds)
+    .Call('_mes_occurrenceOptimizerWrap', PACKAGE = 'mes', matvt, matF, matw, vecg, ot, modellags, Etype, Ttype, Stype, Otype, matxt, matat, matFX, vecgX, bounds)
 }
 
 occurenceGeneralFitterWrap <- function(ot, modellagsA, EtypeA, TtypeA, StypeA, matvtA, matFA, matwA, vecgA, matxtA, matatA, matFXA, vecgXA, modellagsB, EtypeB, TtypeB, StypeB, matvtB, matFB, matwB, vecgB, matxtB, matatB, matFXB, vecgXB) {
-    .Call('_mess_occurenceGeneralFitterWrap', PACKAGE = 'mess', ot, modellagsA, EtypeA, TtypeA, StypeA, matvtA, matFA, matwA, vecgA, matxtA, matatA, matFXA, vecgXA, modellagsB, EtypeB, TtypeB, StypeB, matvtB, matFB, matwB, vecgB, matxtB, matatB, matFXB, vecgXB)
+    .Call('_mes_occurenceGeneralFitterWrap', PACKAGE = 'mes', ot, modellagsA, EtypeA, TtypeA, StypeA, matvtA, matFA, matwA, vecgA, matxtA, matatA, matFXA, vecgXA, modellagsB, EtypeB, TtypeB, StypeB, matvtB, matFB, matwB, vecgB, matxtB, matatB, matFXB, vecgXB)
 }
 
 occurrenceGeneralOptimizerWrap <- function(ot, bounds, modellagsA, EtypeA, TtypeA, StypeA, matvtA, matFA, matwA, vecgA, matxtA, matatA, matFXA, vecgXA, modellagsB, EtypeB, TtypeB, StypeB, matvtB, matFB, matwB, vecgB, matxtB, matatB, matFXB, vecgXB) {
-    .Call('_mess_occurrenceGeneralOptimizerWrap', PACKAGE = 'mess', ot, bounds, modellagsA, EtypeA, TtypeA, StypeA, matvtA, matFA, matwA, vecgA, matxtA, matatA, matFXA, vecgXA, modellagsB, EtypeB, TtypeB, StypeB, matvtB, matFB, matwB, vecgB, matxtB, matatB, matFXB, vecgXB)
+    .Call('_mes_occurrenceGeneralOptimizerWrap', PACKAGE = 'mes', ot, bounds, modellagsA, EtypeA, TtypeA, StypeA, matvtA, matFA, matwA, vecgA, matxtA, matatA, matFXA, vecgXA, modellagsB, EtypeB, TtypeB, StypeB, matvtB, matFB, matwB, vecgB, matxtB, matatB, matFXB, vecgXB)
 }
 
 matrixPowerWrap <- function(matA, power) {
-    .Call('_mess_matrixPowerWrap', PACKAGE = 'mess', matA, power)
+    .Call('_mes_matrixPowerWrap', PACKAGE = 'mes', matA, power)
 }
 
 simulatorwrap <- function(arrvt, matErrors, matot, matF, matw, matg, Etype, Ttype, Stype, modellags) {
-    .Call('_mess_simulatorwrap', PACKAGE = 'mess', arrvt, matErrors, matot, matF, matw, matg, Etype, Ttype, Stype, modellags)
+    .Call('_mes_simulatorwrap', PACKAGE = 'mes', arrvt, matErrors, matot, matF, matw, matg, Etype, Ttype, Stype, modellags)
 }
 
