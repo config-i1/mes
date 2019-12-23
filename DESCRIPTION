@@ -1,11 +1,11 @@
-Package: mess
+Package: mes
 Type: Package
 Title: Mixed Exponential Smoothing
 Version: 0.1.0
 Authors@R: person("Ivan", "Svetunkov", email = "ivan@svetunkov.ru", role = c("aut", "cre"),
                   comment="Lecturer at Centre for Marketing Analytics and Forecasting, Lancaster University, UK")
-URL: https://github.com/config-i1/mess
-BugReports: https://github.com/config-i1/mess/issues
+URL: https://github.com/config-i1/mes
+BugReports: https://github.com/config-i1/mes/issues
 Language: en-GB
 Description: The functions in the package are based on the Single Source of Error state space model
              by Hyndman et al., (2008, <doi: 10.1007/978-3-540-71918-2>). They make the framework more general,

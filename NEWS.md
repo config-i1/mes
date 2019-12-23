@@ -1,4 +1,4 @@
-mess v0.1.0 (Release data: 2019-12-23)
+mes v0.1.0 (Release data: 2019-12-23)
 ==============
 
 Changes:
