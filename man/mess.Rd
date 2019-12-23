@@ -219,9 +219,9 @@ vignette: \code{vignette("mess","mess")}.
 # Model selection using a specified pool of models
 ourModel <- mess(rnorm(100,100,10),model=c("ANN","AAM","AMdA"))
 
-summary(ourModel)
-forecast(ourModel)
-plot(forecast(ourModel))
+\dontrun{summary(ourModel)}
+\dontrun{forecast(ourModel)}
+\dontrun{plot(forecast(ourModel))}
 
 }
 \references{
