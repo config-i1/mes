@@ -1,6 +1,6 @@
 Package: mess
 Type: Package
-Title: Model of Evolving State Space
+Title: Mixed Exponential Smoothing
 Version: 0.1.0
 Authors@R: person("Ivan", "Svetunkov", email = "ivan@svetunkov.ru", role = c("aut", "cre"),
                   comment="Lecturer at Centre for Marketing Analytics and Forecasting, Lancaster University, UK")

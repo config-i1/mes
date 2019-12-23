@@ -1,4 +1,4 @@
-#' Model of Evolving State Space
+#' Mixed Exponential Smoothing
 #'
 #' Function constructs an advanced Single Source of Error model, based on ETS
 #' taxonomy.
@@ -38,7 +38,7 @@
 #' }
 #'
 #' For some more information about the model and its implementation, see the
-#' vignette: \code{vignette("mess","mess")}.
+#' vignette: \code{vignette("mes","mes")}.
 #'
 #' @template ssAuthor
 #' @template ssKeywords
@@ -56,7 +56,7 @@
 #' the trend ("N", "A", "Ad", "M" or "Md"), and the last one is for the type of
 #' seasonality ("N", "A" or "M"). In case of several lags, the seasonal components
 #' are assumed to be the same. The model is then printed out as
-#' MESS(M,Ad,M[m1],M[m2],...), where m1, m2, ... are the lags specified by the
+#' MES(M,Ad,M[m1],M[m2],...), where m1, m2, ... are the lags specified by the
 #' \code{lags} parameter.
 #'
 #' \code{ZZZ} means that the model will be selected based on the
@@ -74,7 +74,7 @@
 #' finer tuning (pool of models). For example, \code{model=c("ANN","AAA")} will
 #' estimate only two models and select the best of them.
 #'
-#' Also \code{model} can accept a previously estimated mess model and use all
+#' Also \code{model} can accept a previously estimated mes model and use all
 #' its parameters.
 #'
 #' Keep in mind that model selection with "Z" components uses Branch and Bound
@@ -182,7 +182,7 @@
 #' You can read more about these parameters in the documentation of
 #' \link[nloptr]{nloptr} function.
 #'
-#' @return Object of class "mess" is returned. It contains the list of the
+#' @return Object of class "mes" is returned. It contains the list of the
 #' following values:
 #'
 #' @seealso \code{\link[forecast]{ets}, \link[smooth]{es}}
@@ -190,7 +190,7 @@
 #' @examples
 #'
 #' # Model selection using a specified pool of models
-#' ourModel <- mess(rnorm(100,100,10),model=c("ANN","AAM","AMdA"))
+#' ourModel <- mes(rnorm(100,100,10),model=c("ANN","AAM","AMdA"))
 #'
 #' \dontrun{summary(ourModel)}
 #' \dontrun{forecast(ourModel)}
@@ -202,8 +202,8 @@
 #' @importFrom statmod dinvgauss
 #' @importFrom nloptr nloptr
 #' @importFrom numDeriv hessian
-#' @export mess
-mess <- function(y, model="ZZZ", lags=c(1,1,frequency(y)), date=NULL,
+#' @export mes
+mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)), date=NULL,
                  persistence=NULL, phi=NULL, initial=c("optimal","backcasting"),
                  loss=c("likelihood","MSE","MAE","HAM","MSEh","TMSE","GTMSE","MSCE"),
                  distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
