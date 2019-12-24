@@ -87,14 +87,10 @@
 #' the data is not periodic. The parameter \code{date} is then needed in order
 #' to setup the appropriate time series structure.
 #' @param date The vector of dates for the corresponding values of \code{y}.
-#' @param persistence Persistence vector \eqn{g}, containing smoothing
-#' parameters. If \code{NULL}, then estimated.
-#' @param phi Value of damping parameter. If \code{NULL} then it is estimated.
-#' Only applicable for damped-trend models.
-#' @param initial Can be either character or a vector of initial states. If it
-#' is character, then it can be \code{"optimal"}, meaning that the initial
-#' states are optimised, or \code{"backcasting"}, meaning that the initials are
-#' produced using backcasting procedure (advised for data with high frequency).
+#' @param distribution what density function to assume for the error term. The full
+#' name of the distribution should be provided, starting with the letter "d" -
+#' "density". The names align with the names of distribution functions in R.
+#' For example, see \link[stats]{dnorm}.
 #' @param loss The type of Loss Function used in optimization. \code{loss} can
 #' be:
 #' \itemize{
@@ -118,10 +114,14 @@
 #' Finally, just for fun the absolute and half analogues of multistep estimators
 #' are available: \code{MAEh}, \code{TMAE}, \code{GTMAE}, \code{MACE}, \code{TMAE},
 #' \code{HAMh}, \code{THAM}, \code{GTHAM}, \code{CHAM}.
-#' @param distribution what density function to assume for the error term. The full
-#' name of the distribution should be provided, starting with the letter "d" -
-#' "density". The names align with the names of distribution functions in R.
-#' For example, see \link[stats]{dnorm}.
+#' @param persistence Persistence vector \eqn{g}, containing smoothing
+#' parameters. If \code{NULL}, then estimated.
+#' @param phi Value of damping parameter. If \code{NULL} then it is estimated.
+#' Only applicable for damped-trend models.
+#' @param initial Can be either character or a vector of initial states. If it
+#' is character, then it can be \code{"optimal"}, meaning that the initial
+#' states are optimised, or \code{"backcasting"}, meaning that the initials are
+#' produced using backcasting procedure (advised for data with high frequency).
 #' @param occurrence The type of model used in probability estimation. Can be
 #' \code{"none"} - none,
 #' \code{"fixed"} - constant probability,
@@ -205,14 +205,14 @@
 #' @importFrom numDeriv hessian
 #' @export mes
 mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)), date=NULL,
-                 persistence=NULL, phi=NULL, initial=c("optimal","backcasting"),
-                 loss=c("likelihood","MSE","MAE","HAM","MSEh","TMSE","GTMSE","MSCE"),
-                 distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
-                                "dlnorm","dbcnorm","dinvgauss"),
-                 occurrence=c("none","auto","fixed","general","odds-ratio","inverse-odds-ratio","direct"),
-                 ic=c("AICc","AIC","BIC","BICc"), bounds=c("usual","admissible","none"),
-                 xreg=NULL, xregDo=c("use","select"), xregInitial=NULL, xregPersistence=0,
-                 silent=TRUE, fast=FALSE, ...){
+                distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
+                               "dlnorm","dbcnorm","dinvgauss"),
+                loss=c("likelihood","MSE","MAE","HAM","MSEh","TMSE","GTMSE","MSCE"),
+                persistence=NULL, phi=NULL, initial=c("optimal","backcasting"),
+                occurrence=c("none","auto","fixed","general","odds-ratio","inverse-odds-ratio","direct"),
+                ic=c("AICc","AIC","BIC","BICc"), bounds=c("usual","admissible","none"),
+                xreg=NULL, xregDo=c("use","select"), xregInitial=NULL, xregPersistence=0,
+                silent=TRUE, fast=FALSE, ...){
     # Copyright (C) 2019 - Inf  Ivan Svetunkov
     # Methods to implement:
     # cvar() - conditional variance, predict(), forecast(), plot() with options of what to plot, resid() et al., vcov(), confint(),
@@ -226,9 +226,6 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)), date=NULL,
 
 # If a previous model provided as a model, write down the variables
     if(is.mes(model) || is.mes.sim(model)){
-        if(is.omes(model$occurrence)){
-            occurrence <- model$occurrence;
-        }
         # If this is the simulated data, extract the parameters
         # if(is.mes.sim(model) & !is.null(dim(model$data))){
         #     warning("The provided model has several submodels. Choosing a random one.",call.=FALSE);
@@ -248,7 +245,16 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)), date=NULL,
         #         occurrence <- "a";
         #     }
         # }
+        lags <- model$lags;
+        date <- model$date;
+        distribution <- model$distribution;
+        loss <- model$loss;
+        persistence <- model$persistence;
         phi <- model$phi;
+        initial <- model$initial;
+        occurrence <- model$occurrence;
+        ic <- model$ic;
+        bounds <- model$bounds;
         if(is.null(xreg)){
             xreg <- model$xreg;
         }
@@ -271,50 +277,56 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)), date=NULL,
         #     initial <- "o";
         # }
     }
-    # else if(forecast::is.ets(model)){
-    #     # Extract smoothing parameters
-    #     i <- 1;
-    #     persistence <- coef(model)[i];
-    #     if(model$components[2]!="N"){
-    #         i <- i+1;
-    #         persistence <- c(persistence,coef(model)[i]);
-    #         if(model$components[3]!="N"){
-    #             i <- i+1;
-    #             persistence <- c(persistence,coef(model)[i]);
-    #         }
-    #     }
-    #     else{
-    #         if(model$components[3]!="N"){
-    #             i <- i+1;
-    #             persistence <- c(persistence,coef(model)[i]);
-    #         }
-    #     }
-    #
-    #     # Damping parameter
-    #     if(model$components[4]=="TRUE"){
-    #         i <- i+1;
-    #         phi <- coef(model)[i];
-    #     }
-    #
-    #     # Initials
-    #     i <- i+1;
-    #     initial <- coef(model)[i];
-    #     if(model$components[2]!="N"){
-    #         i <- i+1;
-    #         initial <- c(initial,coef(model)[i]);
-    #     }
-    #
-    #     # Initials of seasonal component
-    #     if(model$components[3]!="N"){
-    #         if(model$components[2]!="N"){
-    #             initialSeason <- rev(model$states[1,-c(1:2)]);
-    #         }
-    #         else{
-    #             initialSeason <- rev(model$states[1,-c(1)]);
-    #         }
-    #     }
-    #     model <- modelType(model);
-    # }
+    else if(inherits(model,"ets")){
+        # Extract smoothing parameters
+        i <- 1;
+        lags <- 1;
+        persistence <- coef(model)[i];
+        if(model$components[2]!="N"){
+            i <- i+1;
+            persistence <- c(persistence,coef(model)[i]);
+            if(model$components[3]!="N"){
+                i <- i+1;
+                persistence <- c(persistence,coef(model)[i]);
+            }
+        }
+        else{
+            if(model$components[3]!="N"){
+                i <- i+1;
+                persistence <- c(persistence,coef(model)[i]);
+            }
+        }
+
+        # Damping parameter
+        if(model$components[4]=="TRUE"){
+            i <- i+1;
+            phi <- coef(model)[i];
+        }
+
+        # Initials
+        i <- i+1;
+        initial <- coef(model)[i];
+        # Initial for the trend
+        if(model$components[2]!="N"){
+            i <- i+1;
+            lags <- c(lags,1);
+            initial <- c(initial,coef(model)[i]);
+        }
+
+        # Initials of seasonal component
+        if(model$components[3]!="N"){
+            if(model$components[2]!="N"){
+                initial <- c(initial,rev(model$states[1,-c(1:2)]));
+            }
+            else{
+                initial <- c(initial,rev(model$states[1,-c(1)]));
+            }
+            lags <- c(lags,model$m);
+        }
+        model <- modelType(model);
+        distribution <- "dnorm";
+        loss <- "likelihood";
+    }
     else if(is.character(model)){
         # Everything is okay
     }
@@ -322,5 +334,11 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)), date=NULL,
         warning("A model of an unknown class was provided. Switching to 'ZZZ'.",call.=FALSE);
         model <- "ZZZ";
     }
+
+    # Check the parameters of the function and create variables based on them
+    parametersChecker(y, model, lags, date, persistence, phi, initial,
+                      loss, distribution, occurrence, ic, bounds,
+                      xreg, xregDo, xregInitial, xregPersistence,
+                      silent, fast, ParentEnvironment=environment(), ...);
 
 }
