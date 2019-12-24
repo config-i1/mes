@@ -1,6 +1,6 @@
 #include <RcppArmadillo.h>
 #include <iostream>
-#include "ssGeneral.h"
+#include "mesGeneral.h"
 // [[Rcpp::depends(RcppArmadillo)]]
 
 using namespace Rcpp;

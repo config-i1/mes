@@ -198,6 +198,7 @@
 #'
 #' @importFrom forecast forecast
 #' @importFrom greybox dlaplace dalaplace ds dbcnorm stepwise
+#' @importFrom smooth modelType
 #' @importFrom stats frequency dnorm dlogis dt dlnorm
 #' @importFrom statmod dinvgauss
 #' @importFrom nloptr nloptr
@@ -219,5 +220,107 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)), date=NULL,
     # Parameters that were moved to forecast() and predict() functions:
     # h=10, holdout=FALSE, cumulative=FALSE,
     # interval=c("none","parametric","likelihood","semiparametric","nonparametric","confidence"), level=0.95,
+
+    # Start measuring the time of calculations
+    startTime <- Sys.time();
+
+# If a previous model provided as a model, write down the variables
+    if(is.mes(model) || is.mes.sim(model)){
+        if(is.omes(model$occurrence)){
+            occurrence <- model$occurrence;
+        }
+        # If this is the simulated data, extract the parameters
+        # if(is.mes.sim(model) & !is.null(dim(model$data))){
+        #     warning("The provided model has several submodels. Choosing a random one.",call.=FALSE);
+        #     i <- round(runif(1,1:length(model$persistence)));
+        #     persistence <- model$persistence[,i];
+        #     initial <- model$initial[,i];
+        #     initialSeason <- model$initialSeason[,i];
+        #     if(any(model$iprob!=1)){
+        #         occurrence <- "a";
+        #     }
+        # }
+        # else{
+        #     persistence <- model$persistence;
+        #     initial <- model$initial;
+        #     initialSeason <- model$initialSeason;
+        #     if(any(model$iprob!=1)){
+        #         occurrence <- "a";
+        #     }
+        # }
+        phi <- model$phi;
+        if(is.null(xreg)){
+            xreg <- model$xreg;
+        }
+        else{
+            if(is.null(model$xreg)){
+                xreg <- NULL;
+            }
+            else{
+                if(ncol(xreg)!=ncol(model$xreg)){
+                    xreg <- xreg[,colnames(model$xreg)];
+                }
+            }
+        }
+
+        xregInitial <- model$xregInitial;
+        xregPersistence <- model$xregPersistence;
+
+        model <- modelType(model);
+        # if(any(unlist(gregexpr("C",model))!=-1)){
+        #     initial <- "o";
+        # }
+    }
+    # else if(forecast::is.ets(model)){
+    #     # Extract smoothing parameters
+    #     i <- 1;
+    #     persistence <- coef(model)[i];
+    #     if(model$components[2]!="N"){
+    #         i <- i+1;
+    #         persistence <- c(persistence,coef(model)[i]);
+    #         if(model$components[3]!="N"){
+    #             i <- i+1;
+    #             persistence <- c(persistence,coef(model)[i]);
+    #         }
+    #     }
+    #     else{
+    #         if(model$components[3]!="N"){
+    #             i <- i+1;
+    #             persistence <- c(persistence,coef(model)[i]);
+    #         }
+    #     }
+    #
+    #     # Damping parameter
+    #     if(model$components[4]=="TRUE"){
+    #         i <- i+1;
+    #         phi <- coef(model)[i];
+    #     }
+    #
+    #     # Initials
+    #     i <- i+1;
+    #     initial <- coef(model)[i];
+    #     if(model$components[2]!="N"){
+    #         i <- i+1;
+    #         initial <- c(initial,coef(model)[i]);
+    #     }
+    #
+    #     # Initials of seasonal component
+    #     if(model$components[3]!="N"){
+    #         if(model$components[2]!="N"){
+    #             initialSeason <- rev(model$states[1,-c(1:2)]);
+    #         }
+    #         else{
+    #             initialSeason <- rev(model$states[1,-c(1)]);
+    #         }
+    #     }
+    #     model <- modelType(model);
+    # }
+    else if(is.character(model)){
+        # Everything is okay
+    }
+    else{
+        warning("A model of an unknown class was provided. Switching to 'ZZZ'.",call.=FALSE);
+        model <- "ZZZ";
+    }
 
 }

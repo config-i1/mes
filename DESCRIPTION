@@ -11,7 +11,7 @@ Description: The functions in the package are based on the Single Source of Erro
              by Hyndman et al., (2008, <doi: 10.1007/978-3-540-71918-2>). They make the framework more general,
              encompassing the classical ETS as a special case of the MESS model. This allows taking the multiple
              frequencies in the data into account (including the fractional frequencies), treating missing values
-             and dealing with intermittent data (Svetunkov & Boylan, 2017, <doi: 10.13140/RG.2.2.35897.06242>)
+             and dealing with intermittent data (Svetunkov & Boylan, 2017, <doi: 10.13140/RG.2.2.35897.06242>).
 License: GPL (>=2)
 Depends:
     R (>= 3.5.0),
@@ -21,6 +21,7 @@ Imports:
     stats,
     graphics,
     forecast (>= 7.0),
+    smooth (>= 2.5.0),
     nloptr,
     utils,
     numDeriv,
