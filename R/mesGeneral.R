@@ -296,9 +296,16 @@ parametersChecker <- function(y, model, lags, date, persistence, phi, initia, lo
                              "GPL","aMSEh","aTMSE","aGTMSE","aGPL"));
 
     if(any(loss==c("MSEh","TMSE","GTMSE","MSCE","MAEh","TMAE","GTMAE","MACE",
-                     "HAMh","THAM","GTHAM","CHAM",
-                     "GPL","aMSEh","aTMSE","aGTMSE","aGPL"))){
-        multisteps <- TRUE;
+                   "HAMh","THAM","GTHAM","CHAM",
+                   "GPL","aMSEh","aTMSE","aGTMSE","aGPL"))){
+        if(!is.null(h) && h>0){
+            multisteps <- TRUE;
+        }
+        else{
+            stop("The horizon \"h\" needs to be specified and be positive in order for the multistep loss to work.",
+                 call.=FALSE);
+            multisteps <- FALSE;
+        }
     }
     else{
         multisteps <- FALSE;
@@ -415,18 +422,123 @@ parametersChecker <- function(y, model, lags, date, persistence, phi, initia, lo
     }
 
     #### Occurrence variable ####
+    if(is.omes(occurrence)){
+        occurrenceModel <- occurrence;
+        occurrence <- occurrenceModel$occurrence;
+        occurrenceModelProvided <- TRUE;
+        distributionOccurrence <- occurrenceModel$distribution;
+    }
+    # else if(is.list(occurrence)){
+    #     warning(paste0("occurrence is not of the class omes. ",
+    #                    "We will try to extract the type of model, but cannot promise anything."),
+    #             call.=FALSE);
+    #     occurrenceModel <- modelType(occurrence);
+    #     occurrence <- occurrence$occurrence;
+    #     occurrenceModelProvided <- FALSE;
+    # }
+    else{
+        occurrenceModelProvided <- FALSE;
+    }
+    pFitted <- matrix(1, obsInsample, 1);
+
+    if(is.numeric(occurrence)){
+        # If it is data, then it should correspond to the in-sample.
+        if(any(occurrence!=1) && (length(occurrence)!=obsInsample)){
+            warning(paste0("Length of the occurrences variable is ",length(occurrence),
+                           " when it should be ",obsInsample,".\n",
+                           "Switching to occurrence='fixed'."),call.=FALSE);
+            occurrence <- "f";
+        }
+        else if(all(occurrence==1)){
+            occurrence <- "n";
+            occurrenceModelProvided <- FALSE;
+            nParamOccurrence <- 0;
+        }
+        else{
+            if(any(occurrence<0,occurrence>1)){
+                warning(paste0("Parameter 'occurrence' should contain values between zero and one.\n",
+                               "Converting to appropriate vector."),call.=FALSE);
+                occurrence[] <- (occurrence!=0)*1;
+            }
+
+            # "p" stand for "provided", meaning that we have been provided the values of p
+            occurrence <- "p";
+            pFitted[] <- occurrence;
+            occurrenceModelProvided <- FALSE;
+            nParamOccurrence <- 0;
+        }
+    }
+
+    occurrence <- match.arg(occurrence,c("none","auto","fixed","general","odds-ratio","inverse-odds-ratio","direct","provided"));
+    ot <- (yInSample!=0)*1;
+    obsNonzero <- sum(ot);
+    obsZero <- obsInSample - obsNonzero;
+    zt <- matrix(yInSample[ot==1],obsNonzero,1);
+
+    # If the data is not occurrence, let's assume that the parameter was switched unintentionally.
+    if(all(ot==1) & all(occurrence!=c("n","p","provided"))){
+        occurrence <- "n";
+        occurrenceModelProvided <- FALSE;
+    }
+
+    if(occurrenceModelProvided){
+        parametersNumber[2,3] <- nparam(occurrenceModel);
+    }
 
     #### Information Criteria ####
-    ic <- ic[1];
-    if(all(ic!=c("AICc","AIC","BIC","BICc"))){
-        warning(paste0("Strange type of information criteria defined: ",ic,". Switching to 'AICc'."),
-                call.=FALSE);
-        ic <- "AICc";
-    }
+    ic <- match.arg(ic,c("AICc","AIC","BIC","BICc"));
 
     #### Bounds for the smoothing parameters ####
     bounds <- match.arg(bounds,c("usual","admissible","none"));
 
     #### Explanatory variables: xreg, xregDo, xregInitial, xregPersistence ####
+    # Not implemented yet
 
+    assign("y",y,ParentEnvironment);
+
+    assign("obsInsample",obsInsample,ParentEnvironment);
+    assign("obsStates",obsStates,ParentEnvironment);
+    assign("obsNonzero",obsNonzero,ParentEnvironment);
+    assign("obsZero",obsZero,ParentEnvironment);
+
+    assign("parametersNumber",parametersNumber,ParentEnvironment);
+
+    assign("model",model,ParentEnvironment);
+    assign("Etype",Etype,ParentEnvironment);
+    assign("Ttype",Ttype,ParentEnvironment);
+    assign("SType",SType,ParentEnvironment);
+    assign("modelsPool",modelsPool,ParentEnvironment);
+    assign("damped",damped,ParentEnvironment);
+    assign("modelDo",modelDo,ParentEnvironment);
+    assign("modelIsSeasonal",modelIsSeasonal,ParentEnvironment);
+    assign("componentsNames",componentsNames,ParentEnvironment);
+    assign("componentsNumber",componentsNumber,ParentEnvironment);
+    assign("lags",lags,ParentEnvironment);
+    assign("lagsModel",lagsModel,ParentEnvironment);
+    assign("lagsModelMax",lagsModelMax,ParentEnvironment);
+    assign("lagsLength",lagsLength,ParentEnvironment);
+
+    assign("distribution",distribution,ParentEnvironment);
+    assign("loss",loss,ParentEnvironment);
+    assign("multisteps",multisteps,ParentEnvironment);
+
+    assign("persistence",persistence,ParentEnvironment);
+    assign("persistenceEstimate",persistenceEstimate,ParentEnvironment);
+    assign("phi",phi,ParentEnvironment);
+    assign("phiEstimate",phiEstimate,ParentEnvironment);
+    assign("initial",initial,ParentEnvironment);
+    assign("initialType",initialType,ParentEnvironment);
+    assign("initialValue",initialValue,ParentEnvironment);
+
+    assign("occurrenceModel",occurrenceModel,ParentEnvironment);
+    assign("occurrenceModelProvided",occurrenceModelProvided,ParentEnvironment);
+    assign("occurrence",occurrence,ParentEnvironment);
+    assign("distributionOccurrence",distributionOccurrence,ParentEnvironment);
+    assign("pFitted",pFitted,ParentEnvironment);
+    assign("nParamOccurrence",nParamOccurrence,ParentEnvironment);
+    assign("ot",ot,ParentEnvironment);
+    assign("zt",zt,ParentEnvironment);
+
+    assign("ic",ic,ParentEnvironment);
+    assign("bounds",bounds,ParentEnvironment);
 }

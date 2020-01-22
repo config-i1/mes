@@ -207,7 +207,7 @@
 mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)), date=NULL,
                 distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
                                "dlnorm","dbcnorm","dinvgauss"),
-                loss=c("likelihood","MSE","MAE","HAM","MSEh","TMSE","GTMSE","MSCE"),
+                loss=c("likelihood","MSE","MAE","HAM","MSEh","TMSE","GTMSE","MSCE"), h=NULL,
                 persistence=NULL, phi=NULL, initial=c("optimal","backcasting"),
                 occurrence=c("none","auto","fixed","general","odds-ratio","inverse-odds-ratio","direct"),
                 ic=c("AICc","AIC","BIC","BICc"), bounds=c("usual","admissible","none"),
@@ -215,7 +215,11 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)), date=NULL,
                 silent=TRUE, fast=FALSE, ...){
     # Copyright (C) 2019 - Inf  Ivan Svetunkov
     # Methods to implement:
-    # cvar() - conditional variance, predict(), forecast(), plot() with options of what to plot, resid() et al., vcov(), confint(),
+    # cvar() - conditional variance,
+    # predict(), forecast(),
+    # plot() with options of what to plot,
+    # resid() et al.,
+    # vcov(), confint(),
     #
     # Parameters that were moved to forecast() and predict() functions:
     # h=10, holdout=FALSE, cumulative=FALSE,
@@ -224,7 +228,7 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)), date=NULL,
     # Start measuring the time of calculations
     startTime <- Sys.time();
 
-# If a previous model provided as a model, write down the variables
+# If a previous model is provided as a model, write down the variables
     if(is.mes(model) || is.mes.sim(model)){
         # If this is the simulated data, extract the parameters
         # if(is.mes.sim(model) & !is.null(dim(model$data))){
