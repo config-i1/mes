@@ -345,4 +345,81 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)), date=NULL,
                       xreg, xregDo, xregInitial, xregPersistence,
                       silent, fast, ParentEnvironment=environment(), ...);
 
+    #### The function creates the necessary matrices based on the model and provided parameters ####
+    # This is needed in order to initialise the estimation
+    creator <- function(Etype, Ttype, Stype, lagsModel, lagsModelMax,
+                        obsStates, componentsNumber, componentsNames,
+                        y, persistence, phi, initialValue, initialEstimate){
+        # Matrix of states. Time in columns, components in rows
+        matVt <- matrix(NA, componentsNumber, obsStates, dimnames=list(componentsNames,NULL));
+
+        # Measurement rowvector
+        rowvecW <- matrix(1, 1, componentsNumber);
+
+        # Transition matrix
+        matF <- diag(componentsNumber);
+
+        # Persistence vector
+        vecG <- matrix(persistence, componentsNumber, 1);
+
+        if(Ttype!="N"){
+            matF[1,2] <- phi;
+            matF[2,2] <- phi;
+
+            rowvecW[1,2] <- phi;
+        }
+
+        # Calculate the initials for the matvt and insert them
+        if(initialEstimate){
+            # For the seasonal models
+            if(Stype!="N"){
+                yDecomposition <- msdecompose(y, lags[lags!=1], type=Stype);
+                j <- 1;
+                # level
+                matvt[j,1:lagsModelMax] <- yDecomposition$initial[1];
+                j <- j+1;
+                if(Ttype!="N"){
+                    matvt[j,1:lagsModelMax] <- switch(Ttype,
+                                                      "A" = mean(diff(yDecomposition$trend),na.rm=TRUE),
+                                                      "M" = exp(mean(diff(log(yDecomposition$trend)),na.rm=TRUE)));
+                    j <- j+1;
+                }
+                for(i in j:componentsNumber){
+                    matvt[i,(lagsModelMax-lagsModel[i])+1:lagsModel[i]] <- yDecomposition$seasonal[[i]];
+                }
+            }
+            # Non-seasonal models
+            else{
+                matvt[1,1] <- mean(y);
+                if(Ttype!="N"){
+                    matvt[2,1] <- switch(Ttype,
+                                         "A" = mean(diff(y),na.rm=TRUE),
+                                         "M" = exp(mean(diff(log(y)),na.rm=TRUE)));
+                }
+            }
+        }
+        # Else, insert the provided ones
+        else{
+            j <- 1;
+            matvt[j,1:lagsModelMax] <- initialValue[j];
+            j <- j+1;
+            if(Ttype!="N"){
+                matvt[j,1:lagsModelMax] <- initialValue[j];
+                j <- j+1;
+            }
+            if(Stype!="N"){
+                for(i in j:componentsNumber){
+                    indices <- sum(lagsModel[1:(j-1)])+1:lagsModel[i];
+                    matvt[i,(lagsModelMax-lagsModel[i])+1:lagsModel[i]] <- initialValue[indices];
+                }
+            }
+        }
+
+        return(list(matvt=matvt,rowvecW=rowvecW,matF=matF,vecG=vecG));
+    }
+
+    #### The function initialises the existing matrices ####
+    # This is needed in order to do the estimation and the fit
+    initialiser <- function(){
+    }
 }

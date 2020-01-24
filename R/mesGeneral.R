@@ -260,6 +260,10 @@ parametersChecker <- function(y, model, lags, date, persistence, phi, initia, lo
     if(Stype!="N"){
         componentsNames <- c(componentsNames,"seasonal");
         componentsNumber[] <- componentsNumber+1;
+        # componentsNumberSeasonal <- 1;
+    }
+    else{
+        # componentsNumberSeasonal <- 0;
     }
 
     # Check, whether the number of lags and the number of components are the same
@@ -267,6 +271,7 @@ parametersChecker <- function(y, model, lags, date, persistence, phi, initia, lo
         if(Stype!="N"){
             componentsNames <- c(componentsNames[-length(componentsNames)],paste0("seasonal",c(1:(lagsLength-componentsNumber))));
             componentsNumber[] <- lagsLength;
+            # componentsNumberSeasonal[] <- lagsLength-componentsNumber;
         }
         else{
             lagsModel <- matrix(lags[1:componentsNumber],ncol=1);
@@ -354,13 +359,13 @@ parametersChecker <- function(y, model, lags, date, persistence, phi, initia, lo
         if(!is.numeric(phi) & (damped)){
             warning(paste0("Provided value of phi is meaningless. phi will be estimated."),
                     call.=FALSE);
-            phi <- NULL;
+            phi <- 0.95;
             phiEstimate <- TRUE;
         }
         else if(is.numeric(phi) & (phi<0 | phi>2)){
             warning(paste0("Damping parameter should lie in (0, 2) region. ",
                            "Changing to the estimation of phi."),call.=FALSE);
-            phi <- NULL;
+            phi[] <- 0.95;
             phiEstimate <- TRUE;
         }
         else{
@@ -373,14 +378,17 @@ parametersChecker <- function(y, model, lags, date, persistence, phi, initia, lo
     else{
         if(damped){
             phiEstimate <- TRUE;
+            phi <- 0.95;
         }
         else{
             phiEstimate <- FALSE;
+            phi <- 1;
         }
     }
 
     #### Vector of initial values ####
     # initial type can be: "o" - optimal, "b" - backcasting, "p" - provided.
+    initialEstimate <- TRUE;
     if(is.character(initial)){
         initialType <- match.arg(initial, c("optimal","backcasting"));
     }
@@ -415,6 +423,7 @@ parametersChecker <- function(y, model, lags, date, persistence, phi, initia, lo
                 else{
                     initialType <- "provided";
                     initialValue <- initial;
+                    initialEstimate <- FALSE;
                     parametersNumber[2,1] <- parametersNumber[2,1] + sum(lags);
                 }
             }
@@ -494,6 +503,8 @@ parametersChecker <- function(y, model, lags, date, persistence, phi, initia, lo
     #### Explanatory variables: xreg, xregDo, xregInitial, xregPersistence ####
     # Not implemented yet
 
+
+    #### Return the values to the previous environment ####
     assign("y",y,ParentEnvironment);
 
     assign("obsInsample",obsInsample,ParentEnvironment);
@@ -513,6 +524,7 @@ parametersChecker <- function(y, model, lags, date, persistence, phi, initia, lo
     assign("modelIsSeasonal",modelIsSeasonal,ParentEnvironment);
     assign("componentsNames",componentsNames,ParentEnvironment);
     assign("componentsNumber",componentsNumber,ParentEnvironment);
+    # assign("componentsNumberSeasonal",componentsNumberSeasonal,ParentEnvironment);
     assign("lags",lags,ParentEnvironment);
     assign("lagsModel",lagsModel,ParentEnvironment);
     assign("lagsModelMax",lagsModelMax,ParentEnvironment);
