@@ -339,7 +339,7 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)), date=NULL,
         model <- "ZZZ";
     }
 
-    # Check the parameters of the function and create variables based on them
+    #### Check the parameters of the function and create variables based on them ####
     parametersChecker(y, model, lags, date, persistence, phi, initial,
                       loss, distribution, occurrence, ic, bounds,
                       xreg, xregDo, xregInitial, xregPersistence,
@@ -415,14 +415,44 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)), date=NULL,
             }
         }
 
-        return(list(matVt=matVt,rowvecW=rowvecW,matF=matF,vecG=vecG));
+        return(list(matVt=matVt, rowvecW=rowvecW, matF=matF, vecG=vecG));
     }
 
     #### The function fills in the existing matrices with values of A ####
     # This is needed in order to do the estimation and the fit
-    filler <- function(Ttype, Stype, componentsNumber,
-                       lagsModel, lagsModelMax, obsStates,
-                       matVt, rowvecW, matF, vecG, A){
+    filler <- function(Ttype, Stype, componentsNumber, lagsModel, lagsModelMax,
+                       matVt, rowvecW, matF, vecG, A,
+                       persistenceEstimate, phiEstimate, initialType){
+        j <- 1;
+        # Fill in persistence
+        if(persistenceEstimate){
+            vecG[] <- A[j:componentsNumber];
+            j <- j+componentsNumber;
+        }
+
+        if(phiEstimate){
+            rowvecW[1,2] <- A[j];
+            matF[1:2,2] <- A[j];
+            j <- j+1;
+        }
+
+        if(initialType=="optimal"){
+            i <- 1;
+            matVt[i,1:lagsModelMax] <- A[j];
+            j <- j+1;
+            i <- i+1;
+            if(Ttype!="N"){
+                matVt[i,1:lagsModelMax] <- A[j];
+                j <- j+1;
+                i <- i+1;
+            }
+            if(Stype!="N"){
+                for(k in i:componentsNumber){
+                    matVt[k,(lagsModelMax-lagsModel[k])+1:lagsModel[k]] <- A[j+0:(lagsModel[k]-1)];
+                    j <- j+lagsModel[k];
+                }
+            }
+        }
 
         return(list(matVt=matVt, rowvecW=rowvecW, matF=matF, vecG=vecG));
     }
