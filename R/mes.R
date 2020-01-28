@@ -86,7 +86,6 @@
 #' lags=c(1,1,12). If fractional numbers are provided, then it is assumed that
 #' the data is not periodic. The parameter \code{date} is then needed in order
 #' to setup the appropriate time series structure.
-#' @param date The vector of dates for the corresponding values of \code{y}.
 #' @param distribution what density function to assume for the error term. The full
 #' name of the distribution should be provided, starting with the letter "d" -
 #' "density". The names align with the names of distribution functions in R.
@@ -96,6 +95,7 @@
 #' \itemize{
 #' \item \code{likelihood} - the model is estimated via the maximisation of the
 #' likelihood of the function specified in \code{distribution};
+#' \item \code{LASSO} - use LASSO to shrink the parameters of the model;
 #' \item \code{MSE} (Mean Squared Error),
 #' \item \code{MAE} (Mean Absolute Error),
 #' \item \code{HAM} (Half Absolute Moment),
@@ -204,10 +204,10 @@
 #' @importFrom nloptr nloptr
 #' @importFrom numDeriv hessian
 #' @export mes
-mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)), date=NULL,
+mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
                 distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
                                "dlnorm","dbcnorm","dinvgauss"),
-                loss=c("likelihood","MSE","MAE","HAM","MSEh","TMSE","GTMSE","MSCE"), h=NULL,
+                loss=c("likelihood","LASSO","MSE","MAE","HAM","MSEh","TMSE","GTMSE","MSCE"), h=NULL,
                 persistence=NULL, phi=NULL, initial=c("optimal","backcasting"),
                 occurrence=c("none","auto","fixed","general","odds-ratio","inverse-odds-ratio","direct"),
                 ic=c("AICc","AIC","BIC","BICc"), bounds=c("usual","admissible","none"),

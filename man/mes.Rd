@@ -4,16 +4,16 @@
 \alias{mes}
 \title{Mixed Exponential Smoothing}
 \usage{
-mes(y, model = "ZZZ", lags = c(1, 1, frequency(y)), date = NULL,
-  persistence = NULL, phi = NULL, initial = c("optimal",
-  "backcasting"), loss = c("likelihood", "MSE", "MAE", "HAM", "MSEh",
-  "TMSE", "GTMSE", "MSCE"), distribution = c("default", "dnorm",
-  "dlogis", "dlaplace", "dt", "ds", "dalaplace", "dlnorm", "dbcnorm",
-  "dinvgauss"), occurrence = c("none", "auto", "fixed", "general",
-  "odds-ratio", "inverse-odds-ratio", "direct"), ic = c("AICc", "AIC",
-  "BIC", "BICc"), bounds = c("usual", "admissible", "none"),
-  xreg = NULL, xregDo = c("use", "select"), xregInitial = NULL,
-  xregPersistence = 0, silent = TRUE, fast = FALSE, ...)
+mes(y, model = "ZZZ", lags = c(1, 1, frequency(y)),
+  distribution = c("default", "dnorm", "dlogis", "dlaplace", "dt", "ds",
+  "dalaplace", "dlnorm", "dbcnorm", "dinvgauss"), loss = c("likelihood",
+  "LASSO", "MSE", "MAE", "HAM", "MSEh", "TMSE", "GTMSE", "MSCE"), h = NULL,
+  persistence = NULL, phi = NULL, initial = c("optimal", "backcasting"),
+  occurrence = c("none", "auto", "fixed", "general", "odds-ratio",
+  "inverse-odds-ratio", "direct"), ic = c("AICc", "AIC", "BIC", "BICc"),
+  bounds = c("usual", "admissible", "none"), xreg = NULL,
+  xregDo = c("use", "select"), xregInitial = NULL, xregPersistence = 0,
+  silent = TRUE, fast = FALSE, ...)
 }
 \arguments{
 \item{y}{Vector, containing data needed to be forecasted. If a matrix is
@@ -57,24 +57,17 @@ lags=c(1,1,12). If fractional numbers are provided, then it is assumed that
 the data is not periodic. The parameter \code{date} is then needed in order
 to setup the appropriate time series structure.}
 
-\item{date}{The vector of dates for the corresponding values of \code{y}.}
-
-\item{persistence}{Persistence vector \eqn{g}, containing smoothing
-parameters. If \code{NULL}, then estimated.}
-
-\item{phi}{Value of damping parameter. If \code{NULL} then it is estimated.
-Only applicable for damped-trend models.}
-
-\item{initial}{Can be either character or a vector of initial states. If it
-is character, then it can be \code{"optimal"}, meaning that the initial
-states are optimised, or \code{"backcasting"}, meaning that the initials are
-produced using backcasting procedure (advised for data with high frequency).}
+\item{distribution}{what density function to assume for the error term. The full
+name of the distribution should be provided, starting with the letter "d" -
+"density". The names align with the names of distribution functions in R.
+For example, see \link[stats]{dnorm}.}
 
 \item{loss}{The type of Loss Function used in optimization. \code{loss} can
 be:
 \itemize{
 \item \code{likelihood} - the model is estimated via the maximisation of the
 likelihood of the function specified in \code{distribution};
+\item \code{LASSO} - use LASSO to shrink the parameters of the model;
 \item \code{MSE} (Mean Squared Error),
 \item \code{MAE} (Mean Absolute Error),
 \item \code{HAM} (Half Absolute Moment),
@@ -94,10 +87,16 @@ Finally, just for fun the absolute and half analogues of multistep estimators
 are available: \code{MAEh}, \code{TMAE}, \code{GTMAE}, \code{MACE}, \code{TMAE},
 \code{HAMh}, \code{THAM}, \code{GTHAM}, \code{CHAM}.}
 
-\item{distribution}{what density function to assume for the error term. The full
-name of the distribution should be provided, starting with the letter "d" -
-"density". The names align with the names of distribution functions in R.
-For example, see \link[stats]{dnorm}.}
+\item{persistence}{Persistence vector \eqn{g}, containing smoothing
+parameters. If \code{NULL}, then estimated.}
+
+\item{phi}{Value of damping parameter. If \code{NULL} then it is estimated.
+Only applicable for damped-trend models.}
+
+\item{initial}{Can be either character or a vector of initial states. If it
+is character, then it can be \code{"optimal"}, meaning that the initial
+states are optimised, or \code{"backcasting"}, meaning that the initials are
+produced using backcasting procedure (advised for data with high frequency).}
 
 \item{occurrence}{The type of model used in probability estimation. Can be
 \code{"none"} - none,

@@ -1,4 +1,4 @@
-parametersChecker <- function(y, model, lags, date, persistence, phi, initia, loss, distribution, occurrence, ic, bounds,
+parametersChecker <- function(y, model, lags, persistence, phi, initia, loss, distribution, occurrence, ic, bounds,
                               xreg, xregDo, xregInitial, xregPersistence, silent, fast, ParentEnvironment, ...){
 
     # The function checks the provided parameters of mes and/or omes
@@ -287,14 +287,12 @@ parametersChecker <- function(y, model, lags, date, persistence, phi, initia, lo
     # Define the number of rows that should be in the matvt
     obsStates <- obsInSample + 2*lagsModelMax;
 
-    #### Check the dates ####
-
     #### Distribution selected ####
     distribution <- match.arg(distribution,c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
                                              "dlnorm","dbcnorm","dinvgauss"));
 
     #### Loss function type ####
-    loss <- match.arg(loss,c("likelihood","MSE","MAE","HAM",
+    loss <- match.arg(loss,c("likelihood","LASSO","MSE","MAE","HAM",
                              "MSEh","TMSE","GTMSE","MSCE",
                              "MAEh","TMAE","GTMAE","MACE",
                              "HAMh","THAM","GTHAM","CHAM",
