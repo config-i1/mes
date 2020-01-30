@@ -295,12 +295,12 @@ parametersChecker <- function(y, model, lags, persistence, phi, initia, loss, di
     loss <- match.arg(loss,c("likelihood","LASSO","MSE","MAE","HAM",
                              "MSEh","TMSE","GTMSE","MSCE",
                              "MAEh","TMAE","GTMAE","MACE",
-                             "HAMh","THAM","GTHAM","CHAM",
-                             "GPL","aMSEh","aTMSE","aGTMSE","aGPL"));
+                             "HAMh","THAM","GTHAM","CHAM","GPL",
+                             "aMSEh","aTMSE","aGTMSE","aMSCE","aGPL"));
 
     if(any(loss==c("MSEh","TMSE","GTMSE","MSCE","MAEh","TMAE","GTMAE","MACE",
-                   "HAMh","THAM","GTHAM","CHAM",
-                   "GPL","aMSEh","aTMSE","aGTMSE","aGPL"))){
+                   "HAMh","THAM","GTHAM","CHAM","GPL",
+                   "aMSEh","aTMSE","aGTMSE","aMSCE","aGPL"))){
         if(!is.null(h) && h>0){
             multisteps <- TRUE;
         }
