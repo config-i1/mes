@@ -488,4 +488,20 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
 
         return(list(matVt=matVt, rowvecW=rowvecW, matF=matF, vecG=vecG));
     }
+
+    #### The function initialises the vector A for ETS ####
+    initialiser <- function(...){
+    }
+
+    ##### Cost Function for ETS #####
+    CF <- function(A){
+    }
+
+    #### The function estimates the ETS model and returns A, logLik, nParam and CF(A) ####
+    estimator <- function(...){
+    }
+
+    ##### This function uses residuals in order to determine the needed xreg #####
+    XregSelector <- function(listToReturn){
+    }
 }
