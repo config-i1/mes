@@ -1,4 +1,4 @@
-parametersChecker <- function(y, model, lags, persistence, phi, initia, loss, distribution, occurrence, ic, bounds,
+parametersChecker <- function(y, model, lags, persistence, phi, initial, distribution, loss, h, holdout, occurrence, ic, bounds,
                               xreg, xregDo, xregInitial, xregPersistence, silent, fast, ParentEnvironment, ...){
 
     # The function checks the provided parameters of mes and/or omes
@@ -7,10 +7,10 @@ parametersChecker <- function(y, model, lags, persistence, phi, initia, loss, di
         y <- y$data;
     }
     else if(inherits(y,"Mdata")){
-        # h <- y$h;
-        # holdout <- TRUE;
-        # y <- ts(c(y$x,y$xx),start=start(y$x),frequency=frequency(y$x));
-        y <- y$x;
+        h <- y$h;
+        holdout <- TRUE;
+        y <- ts(c(y$x,y$xx),start=start(y$x),frequency=frequency(y$x));
+        yInsample <- y$x;
     }
 
     if(!is.numeric(y)){
@@ -37,10 +37,13 @@ parametersChecker <- function(y, model, lags, persistence, phi, initia, loss, di
     }
 
     # Define obs, the number of observations of in-sample
-    obsInSample <- length(y);
+    obsAll <- length(y) + (1 - holdout)*h;
+    obsInSample <- length(y) - holdout*h;
     # dataFreq <- frequency(y);
     # dataStart <- start(y);
     # yForecastStart <- time(y)[obsInSample]+deltat(y);
+    yInsample <- y[1:obsInSample];
+    yHoldout <- y[-c(1:obsInSample)];
 
     # Number of parameters to estimate / provided
     parametersNumber <- matrix(0,2,4,
@@ -499,7 +502,122 @@ parametersChecker <- function(y, model, lags, persistence, phi, initia, loss, di
     bounds <- match.arg(bounds,c("usual","admissible","none"));
 
     #### Explanatory variables: xreg, xregDo, xregInitial, xregPersistence ####
-    # Not implemented yet
+    xregDo <- match.arg(xregDo,c("use","select"));
+    xregExist <- !is.null(xreg);
+    if(!xregExist){
+        xregDo <- "use";
+    }
+
+    # Use alm() in order to fit the preliminary model for xreg
+    if(xregExist){
+        xregProvided <- TRUE;
+        xregModel <- vector("list",2);
+
+        # If the initials are not provided, estimate them using ALM.
+        if(is.null(xregInitial)){
+            xregInitialsProvided <- FALSE;
+            xregInitialsEstimate <- TRUE;
+            # The function returns an ALM model
+            xregInitialiser <- function(Etype,distribution){
+                # Fix the default distribution for ALM
+                if(distribution=="default"){
+                    distribution <- switch(Etype,
+                                           "A"="dnorm",
+                                           "M"="dinvgauss");
+                }
+                # Return the estimated model based on the provided xreg
+                if(Etype=="M" && any(distribution==c("dnorm","dlogis","dlaplace","dt","ds","dalaplace"))){
+                    return(alm(log(y)~xreg,distribution=distribution,subset=c(1:obsInsample)));
+                }
+                else{
+                    return(alm(y~xreg,distribution=distribution,subset=c(1:obsInsample)));
+                }
+            }
+
+            if(Etype!="Z"){
+                testModel <- xregInitialiser(Etype,distribution);
+                if(Etype=="A"){
+                    xregModel[[1]]$xregInitial <- testModel$coefficients[-1];
+                    xregModel[[1]]$data <- testModel$data[,-1];
+                    xregModel[[1]]$other <- testModel$other;
+                }
+                else{
+                    xregModel[[2]]$xregInitial <- testModel$coefficients[-1];
+                    xregModel[[2]]$data <- testModel$data[,-1];
+                    xregModel[[2]]$other <- testModel$other;
+                }
+            }
+            # If we are selecting the appropriate error, produce two models: for "M" and for "A"
+            else{
+                # Additive model
+                testModel <- xregInitialiser("A",distribution);
+                xregModel[[1]]$xregInitial <- testModel$coefficients[-1];
+                xregModel[[1]]$data <- testModel$data[,-1];
+                xregModel[[1]]$other <- testModel$other;
+                # Multiplicative model
+                testModel[] <- xregInitialiser("M",distribution);
+                xregModel[[2]]$xregInitial <- testModel$coefficients[-1];
+                xregModel[[2]]$data <- testModel$data[,-1];
+                xregModel[[2]]$other <- testModel$other;
+            }
+
+            # Write down the number and names of parameters
+            xregNumber <- ncol(testModel$data)-1;
+            xregNames <- names(testModel$coefficients)[-1];
+        }
+        else{
+            xregInitialsProvided <- TRUE;
+            xregInitialsEstimate <- FALSE;
+
+            xregModel[[1]]$xregInitial <- xregInitial;
+            xregModel[[1]]$data <- xreg;
+            if(Etype=="Z"){
+                xregModel[[2]]$xregInitial <- xregInitial;
+                xregModel[[2]]$data <- xreg;
+            }
+
+            # Write down the number and names of parameters
+            xregNumber <- ncol(xregModel[[1]]$data);
+            xregNames <- names(xregModel[[1]]$xregInitial);
+        }
+
+        # Process the persistence for xreg
+        if(!is.null(xregPersistence)){
+            if(length(xregPersistence)!=xregNumber && length(xregPersistence)!=1){
+                warning("The length of the provided xregPersistence variables is wrong. Reverting to the estimation.",
+                        call.=FALSE);
+                xregPersistence <- rep(0.5,xregNumber);
+                xregPersistenceProvided <- FALSE;
+                xregPersistenceEstimate <- TRUE;
+            }
+            else if(length(xregPersistence)==1){
+                xregPersistence <- rep(xregPersistence,xregNumber);
+                xregPersistenceProvided <- TRUE;
+                xregPersistenceEstimate <- FALSE;
+            }
+            else{
+                xregPersistenceProvided <- TRUE;
+                xregPersistenceEstimate <- FALSE;
+            }
+        }
+        else{
+            xregPersistence <- rep(0.05,xregNumber);
+            xregPersistenceProvided <- FALSE;
+            xregPersistenceEstimate <- TRUE;
+        }
+        xregEstimate <- any(xregInitialsEstimate,xregPersistenceEstimate);
+    }
+    else{
+        xregProvided <- FALSE;
+        xregEstimate <- FALSE;
+        xregInitialsProvided <- FALSE;
+        xregInitialsEstimate <- FALSE;
+        xregPersistenceProvided <- FALSE;
+        xregPersistenceEstimate <- FALSE;
+        xregModel <- NULL;
+        xregNumber <- 0;
+        xregNames <- NULL;
+    }
 
 
     #### Return the values to the previous environment ####
@@ -551,4 +669,15 @@ parametersChecker <- function(y, model, lags, persistence, phi, initia, loss, di
 
     assign("ic",ic,ParentEnvironment);
     assign("bounds",bounds,ParentEnvironment);
+
+    assign("xregModel",xregModel,ParentEnvironment);
+    assign("xregNumber",xregNumber,ParentEnvironment);
+    assign("xregNames",xregNames,ParentEnvironment);
+    assign("xregProvided",xregProvided,ParentEnvironment);
+    assign("xregEstimate",xregEstimate,ParentEnvironment);
+    assign("xregInitialsProvided",xregInitialsProvided,ParentEnvironment);
+    assign("xregInitialsEstimate",xregInitialsEstimate,ParentEnvironment);
+    assign("xregPersistenceProvided",xregPersistenceProvided,ParentEnvironment);
+    assign("xregPersistenceEstimate",xregPersistenceEstimate,ParentEnvironment);
+    assign("xregPersistence",xregPersistence,ParentEnvironment);
 }

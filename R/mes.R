@@ -197,7 +197,7 @@
 #' \dontrun{plot(forecast(ourModel))}
 #'
 #' @importFrom forecast forecast
-#' @importFrom greybox dlaplace dalaplace ds dbcnorm stepwise
+#' @importFrom greybox dlaplace dalaplace ds dbcnorm stepwise alm
 #' @importFrom smooth modelType
 #' @importFrom stats frequency dnorm dlogis dt dlnorm
 #' @importFrom statmod dinvgauss
@@ -207,7 +207,8 @@
 mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
                 distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
                                "dlnorm","dbcnorm","dinvgauss"),
-                loss=c("likelihood","LASSO","MSE","MAE","HAM","MSEh","TMSE","GTMSE","MSCE"), h=NULL,
+                loss=c("likelihood","LASSO","MSE","MAE","HAM","MSEh","TMSE","GTMSE","MSCE"),
+                h=NULL, holdout=FALSE,
                 persistence=NULL, phi=NULL, initial=c("optimal","backcasting"),
                 occurrence=c("none","auto","fixed","general","odds-ratio","inverse-odds-ratio","direct"),
                 ic=c("AICc","AIC","BIC","BICc"), bounds=c("usual","admissible","none"),
@@ -341,26 +342,32 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
 
     #### Check the parameters of the function and create variables based on them ####
     parametersChecker(y, model, lags, date, persistence, phi, initial,
-                      loss, distribution, occurrence, ic, bounds,
+                      distribution, loss, h, holdout, occurrence, ic, bounds,
                       xreg, xregDo, xregInitial, xregPersistence,
                       silent, fast, ParentEnvironment=environment(), ...);
 
     #### The function creates the necessary matrices based on the model and provided parameters ####
     # This is needed in order to initialise the estimation
-    creator <- function(Ttype, Stype, lagsModel, lagsModelMax,
+    creator <- function(Etype, Ttype, Stype, lagsModel, lagsModelMax,
                         obsStates, componentsNumber, componentsNames,
-                        y, persistence, phi, initialValue, initialEstimate){
+                        y, persistence, phi, initialValue, initialEstimate,
+                        xregProvided, xregInitialsProvided, xregPersistence,
+                        xregModel, xregNumber, xregNames){
         # Matrix of states. Time in columns, components in rows
-        matVt <- matrix(NA, componentsNumber, obsStates, dimnames=list(componentsNames,NULL));
+        matVt <- matrix(NA, componentsNumber+xregNumber, obsStates, dimnames=list(c(componentsNames,xregNames),NULL));
 
         # Measurement rowvector
-        rowvecW <- matrix(1, 1, componentsNumber, dimnames=list(NULL,componentsNames));
+        rowvecW <- matrix(1, 1, componentsNumber+xregNumber, dimnames=list(NULL,c(componentsNames,xregNames)));
 
         # Transition matrix
-        matF <- diag(componentsNumber);
+        matF <- diag(componentsNumber+xregNumber);
 
         # Persistence vector
-        vecG <- matrix(persistence, componentsNumber, 1, dimnames=list(componentsNames,NULL));
+        vecG <- matrix(0, componentsNumber+xregNumber, 1, dimnames=list(c(componentsNames,xregNames),NULL));
+        vecG[1:componentsNumber] <- persistence;
+        if(xregProvided){
+            vecG[componentsNumber+1:xregNumber] <- xregPersistence;
+        }
 
         if(Ttype!="N"){
             matF[1,2] <- phi;
@@ -415,6 +422,16 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
             }
         }
 
+        # Fill in the initials for xreg
+        if(xregInitialsProvided){
+            if(Etype=="A"){
+                matVt[componentsNumber+1:xregNumber,1:lagsModelMax] <- xregModel[[1]]$xregInitial;
+            }
+            else{
+                matVt[componentsNumber+1:xregNumber,1:lagsModelMax] <- xregModel[[2]]$xregInitial;
+            }
+        }
+
         return(list(matVt=matVt, rowvecW=rowvecW, matF=matF, vecG=vecG));
     }
 
@@ -422,20 +439,30 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
     # This is needed in order to do the estimation and the fit
     filler <- function(Ttype, Stype, componentsNumber, lagsModel, lagsModelMax,
                        matVt, rowvecW, matF, vecG, A,
-                       persistenceEstimate, phiEstimate, initialType){
+                       persistenceEstimate, phiEstimate, initialType,
+                       xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
+                       xregNumber){
         j <- 1;
         # Fill in persistence
         if(persistenceEstimate){
-            vecG[] <- A[j:componentsNumber];
+            vecG[j:componentsNumber] <- A[j:componentsNumber];
             j <- j+componentsNumber;
         }
 
+        # Persistence if xreg is provided
+        if(xregPersistenceEstimate){
+            vecG[j+1:xregNumber] <- A[j+1:xregNumber];
+            j <- j+xregNumber;
+        }
+
+        # Damping parameter
         if(phiEstimate){
             rowvecW[1,2] <- A[j];
             matF[1:2,2] <- A[j];
             j <- j+1;
         }
 
+        # Initials
         if(initialType=="optimal"){
             i <- 1;
             matVt[i,1:lagsModelMax] <- A[j];
@@ -452,6 +479,11 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
                     j <- j+lagsModel[k];
                 }
             }
+        }
+
+        # Initials of the xreg
+        if(xregInitialsEstimate){
+            matVt[componentsNumber+1:xregNumber,1:lagsModelMax] <- A[j+1:xregNumber];
         }
 
         return(list(matVt=matVt, rowvecW=rowvecW, matF=matF, vecG=vecG));
