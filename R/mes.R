@@ -349,31 +349,36 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
     #### The function creates the necessary matrices based on the model and provided parameters ####
     # This is needed in order to initialise the estimation
     creator <- function(Etype, Ttype, Stype, lagsModel, lagsModelMax,
-                        obsStates, componentsNumber, componentsNames,
+                        obsStates, obsInsample, componentsNumber, componentsNames,
                         y, persistence, phi, initialValue, initialEstimate,
                         xregProvided, xregInitialsProvided, xregPersistence,
-                        xregModel, xregNumber, xregNames){
+                        xregModel, xregData, xregNumber, xregNames){
         # Matrix of states. Time in columns, components in rows
         matVt <- matrix(NA, componentsNumber+xregNumber, obsStates, dimnames=list(c(componentsNames,xregNames),NULL));
 
         # Measurement rowvector
-        rowvecW <- matrix(1, 1, componentsNumber+xregNumber, dimnames=list(NULL,c(componentsNames,xregNames)));
+        matWt <- matrix(1, obsInsample, componentsNumber+xregNumber, dimnames=list(NULL,c(componentsNames,xregNames)));
+        # If xreg are provided, then fill in the respective values in Wt vector
+        if(xregProvided){
+            matWt[,componentsNumber+1:xregNumber] <- xregData;
+        }
 
         # Transition matrix
         matF <- diag(componentsNumber+xregNumber);
 
         # Persistence vector
         vecG <- matrix(0, componentsNumber+xregNumber, 1, dimnames=list(c(componentsNames,xregNames),NULL));
-        vecG[1:componentsNumber] <- persistence;
+        vecG[1:componentsNumber,] <- persistence;
         if(xregProvided){
-            vecG[componentsNumber+1:xregNumber] <- xregPersistence;
+            vecG[componentsNumber+1:xregNumber,] <- xregPersistence;
         }
 
+        # Damping parameter value
         if(Ttype!="N"){
             matF[1,2] <- phi;
             matF[2,2] <- phi;
 
-            rowvecW[1,2] <- phi;
+            matWt[,2] <- phi;
         }
 
         # Calculate the initials for the matVt and insert them
@@ -432,13 +437,13 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
             }
         }
 
-        return(list(matVt=matVt, rowvecW=rowvecW, matF=matF, vecG=vecG));
+        return(list(matVt=matVt, matWt=matWt, matF=matF, vecG=vecG));
     }
 
     #### The function fills in the existing matrices with values of A ####
     # This is needed in order to do the estimation and the fit
     filler <- function(Ttype, Stype, componentsNumber, lagsModel, lagsModelMax,
-                       matVt, rowvecW, matF, vecG, A,
+                       matVt, matWt, matF, vecG, A,
                        persistenceEstimate, phiEstimate, initialType,
                        xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
                        xregNumber){
@@ -457,7 +462,7 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
 
         # Damping parameter
         if(phiEstimate){
-            rowvecW[1,2] <- A[j];
+            matWt[,2] <- A[j];
             matF[1:2,2] <- A[j];
             j <- j+1;
         }
@@ -486,7 +491,7 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
             matVt[componentsNumber+1:xregNumber,1:lagsModelMax] <- A[j+1:xregNumber];
         }
 
-        return(list(matVt=matVt, rowvecW=rowvecW, matF=matF, vecG=vecG));
+        return(list(matVt=matVt, matWt=matWt, matF=matF, vecG=vecG));
     }
 
     #### The function initialises the vector A for ETS ####

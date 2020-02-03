@@ -538,12 +538,10 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
                 testModel <- xregInitialiser(Etype,distribution);
                 if(Etype=="A"){
                     xregModel[[1]]$xregInitial <- testModel$coefficients[-1];
-                    xregModel[[1]]$data <- testModel$data[,-1];
                     xregModel[[1]]$other <- testModel$other;
                 }
                 else{
                     xregModel[[2]]$xregInitial <- testModel$coefficients[-1];
-                    xregModel[[2]]$data <- testModel$data[,-1];
                     xregModel[[2]]$other <- testModel$other;
                 }
             }
@@ -552,32 +550,30 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
                 # Additive model
                 testModel <- xregInitialiser("A",distribution);
                 xregModel[[1]]$xregInitial <- testModel$coefficients[-1];
-                xregModel[[1]]$data <- testModel$data[,-1];
                 xregModel[[1]]$other <- testModel$other;
                 # Multiplicative model
                 testModel[] <- xregInitialiser("M",distribution);
                 xregModel[[2]]$xregInitial <- testModel$coefficients[-1];
-                xregModel[[2]]$data <- testModel$data[,-1];
                 xregModel[[2]]$other <- testModel$other;
             }
 
             # Write down the number and names of parameters
             xregNumber <- ncol(testModel$data)-1;
             xregNames <- names(testModel$coefficients)[-1];
+            xregData <- testModel$data[,-1];
         }
         else{
             xregInitialsProvided <- TRUE;
             xregInitialsEstimate <- FALSE;
 
             xregModel[[1]]$xregInitial <- xregInitial;
-            xregModel[[1]]$data <- xreg;
             if(Etype=="Z"){
                 xregModel[[2]]$xregInitial <- xregInitial;
-                xregModel[[2]]$data <- xreg;
             }
 
             # Write down the number and names of parameters
-            xregNumber <- ncol(xregModel[[1]]$data);
+            xregData <- xreg;
+            xregNumber <- ncol(xregData);
             xregNames <- names(xregModel[[1]]$xregInitial);
         }
 
@@ -615,6 +611,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
         xregPersistenceProvided <- FALSE;
         xregPersistenceEstimate <- FALSE;
         xregModel <- NULL;
+        xregData <- 0;
         xregNumber <- 0;
         xregNames <- NULL;
     }
@@ -671,6 +668,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
     assign("bounds",bounds,ParentEnvironment);
 
     assign("xregModel",xregModel,ParentEnvironment);
+    assign("xregData",xregData,ParentEnvironment);
     assign("xregNumber",xregNumber,ParentEnvironment);
     assign("xregNames",xregNames,ParentEnvironment);
     assign("xregProvided",xregProvided,ParentEnvironment);
