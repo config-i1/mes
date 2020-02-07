@@ -1,7 +1,7 @@
 parametersChecker <- function(y, model, lags, persistence, phi, initial, distribution, loss, h, holdout, occurrence, ic, bounds,
                               xreg, xregDo, xregInitial, xregPersistence, silent, fast, ParentEnvironment, ...){
 
-    # The function checks the provided parameters of mes and/or omes
+    # The function checks the provided parameters of mes and/or oes
     ##### data #####
     if(any(is.mes.sim(y))){
         y <- y$data;
@@ -432,14 +432,14 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
     }
 
     #### Occurrence variable ####
-    if(is.omes(occurrence)){
+    if(is.oes(occurrence)){
         occurrenceModel <- occurrence;
         occurrence <- occurrenceModel$occurrence;
         occurrenceModelProvided <- TRUE;
         distributionOccurrence <- occurrenceModel$distribution;
     }
     # else if(is.list(occurrence)){
-    #     warning(paste0("occurrence is not of the class omes. ",
+    #     warning(paste0("occurrence is not of the class oes. ",
     #                    "We will try to extract the type of model, but cannot promise anything."),
     #             call.=FALSE);
     #     occurrenceModel <- modelType(occurrence);

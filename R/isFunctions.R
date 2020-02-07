@@ -27,18 +27,6 @@ is.mes <- function(x){
 
 #' @rdname isFunctions
 #' @export
-is.omes <- function(x){
-    return(inherits(x,"omes"))
-}
-
-#' @rdname isFunctions
-#' @export
 is.mes.sim <- function(x){
     return(inherits(x,"sim.mes"))
-}
-
-#' @rdname isFunctions
-#' @export
-is.omes.sim <- function(x){
-    return(inherits(x,"sim.omes"))
 }
