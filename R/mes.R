@@ -33,7 +33,7 @@
 #' \item \link[stats]{dt} - T-distribution,
 #' \item \link[greybox]{ds} - S-distribution,
 #' \item \link[stats]{dlnorm} - Log normal distribution,
-#' \item \link[greybox]{dbcnorm} - Box-Cox normal distribution,
+# \item \link[greybox]{dbcnorm} - Box-Cox normal distribution,
 #' \item \link[statmod]{dinvgauss} - Inverse Gaussian distribution,
 #' }
 #'
@@ -141,7 +141,7 @@
 #' procedure.
 #' @param bounds The type of bounds for the persistence to use in the model
 #' estimation. Can be either \code{admissible} - guaranteeing the stability of the
-#' model, \code{usual} - restricting the values with (0, 1) or \code{none} - no
+#' model, \code{traditional} - restricting the values with (0, 1) or \code{none} - no
 #' restrictions (potentially dangerous).
 #' @param silent Specifies, whether to provide the progress of the function or not.
 #' If \code{TRUE}, then the function will print what it does and how much it has
@@ -168,19 +168,26 @@
 #' make the function also produce Fisher Information matrix, which then can be
 #' used to calculated variances of smoothing parameters and initial states of
 #' the model. This is used in the \link[stats]{vcov} method.
-#' Parameters \code{A}, \code{ALower} and \code{AUpper} can be passed via
-#' ellipsis as well. In this case they will be used for optimisation. \code{A}
-#' sets the initial values before the optimisation, \code{ALower} and
-#' \code{AUpper} define lower and upper bounds for the search inside of the
-#' specified \code{bounds}. These values should have the length equal
-#' to the number of parameters to estimate.
-#' You can also pass parameters to the optimiser: 1. \code{maxeval} - maximum
-#' number of evaluations to carry out (default is 100); 2. \code{xtol_rel} -
-#' the precision of the optimiser (the default is 1E-6); 3. \code{algorithm} -
-#' the algorithm to use in optimisation (\code{"NLOPT_LN_SBPLX"} by default).
-#' 4. \code{print_level} - the level of output for the optimiser (0 by default).
-#' You can read more about these parameters in the documentation of
-#' \link[nloptr]{nloptr} function.
+#' Starting values of parameters canbe passed via \code{x0}, while the upper and lower
+#' bounds should be passed in \code{ub} and \code{lb} respectively. In this case they
+#' will be used for optimisation. These values should have the length equal
+#' to the number of parameters to estimate in the following order:
+#' \enumerate{
+#' \item All smoothing parameters (for the states and then for the explanatory variables);
+#' \item Damping parameter (if needed);
+#' \item All the initial values (for the states and then for the explanatory variables).
+#' }
+#' You can also pass parameters to the optimiser in order to fine tune its work:
+#' \itemize{
+#' \item \code{maxeval} - maximum number of evaluations to carry out (default is 100);
+#' \item \code{maxtime} - stop, when the optimisation time (in seconds) exceeds this;
+#' \item \code{xtol_rel} - the precision of the optimiser (the default is 1E-6);
+#' \item \code{algorithm} - the algorithm to use in optimisation
+#' (\code{"NLOPT_LN_BOBYQA"} by default);
+#' \item \code{print_level} - the level of output for the optimiser (0 by default).
+#' }
+#' You can read more about these parameters by running the function
+#' \link[nloptr]{nloptr.print.options()}.
 #'
 #' @return Object of class "mes" is returned. It contains the list of the
 #' following values:
@@ -197,7 +204,7 @@
 #' \dontrun{plot(forecast(ourModel))}
 #'
 #' @importFrom forecast forecast
-#' @importFrom greybox dlaplace dalaplace ds dbcnorm stepwise alm
+#' @importFrom greybox dlaplace dalaplace ds stepwise alm
 #' @importFrom smooth modelType
 #' @importFrom stats frequency dnorm dlogis dt dlnorm
 #' @importFrom statmod dinvgauss
@@ -206,12 +213,12 @@
 #' @export mes
 mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
                 distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
-                               "dlnorm","dbcnorm","dinvgauss"),
+                               "dlnorm","dinvgauss"),
                 loss=c("likelihood","LASSO","MSE","MAE","HAM","MSEh","TMSE","GTMSE","MSCE"),
                 h=NULL, holdout=FALSE,
                 persistence=NULL, phi=NULL, initial=c("optimal","backcasting"),
                 occurrence=c("none","auto","fixed","general","odds-ratio","inverse-odds-ratio","direct"),
-                ic=c("AICc","AIC","BIC","BICc"), bounds=c("usual","admissible","none"),
+                ic=c("AICc","AIC","BIC","BICc"), bounds=c("traditional","admissible","none"),
                 xreg=NULL, xregDo=c("use","select"), xregInitial=NULL, xregPersistence=0,
                 silent=TRUE, fast=FALSE, ...){
     # Copyright (C) 2019 - Inf  Ivan Svetunkov
@@ -229,7 +236,7 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
     # Start measuring the time of calculations
     startTime <- Sys.time();
 
-# If a previous model is provided as a model, write down the variables
+    # If a previous model is provided as a model, write down the variables
     if(is.mes(model) || is.mes.sim(model)){
         # If this is the simulated data, extract the parameters
         # if(is.mes.sim(model) & !is.null(dim(model$data))){
@@ -350,7 +357,7 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
     # This is needed in order to initialise the estimation
     creator <- function(Etype, Ttype, Stype, lagsModel, lagsModelMax,
                         obsStates, obsInsample, componentsNumber, componentsNames,
-                        y, persistence, phi, initialValue, initialEstimate,
+                        yInsample, persistence, phi, initialValue, initialEstimate,
                         xregProvided, xregInitialsProvided, xregPersistence,
                         xregModel, xregData, xregNumber, xregNames){
         # Matrix of states. Time in columns, components in rows
@@ -385,7 +392,7 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
         if(initialEstimate){
             # For the seasonal models
             if(Stype!="N"){
-                yDecomposition <- msdecompose(y, lags[lags!=1], type=Stype);
+                yDecomposition <- msdecompose(yInsample, lags[lags!=1], type=Stype);
                 j <- 1;
                 # level
                 matVt[j,1:lagsModelMax] <- yDecomposition$initial[1];
@@ -402,11 +409,11 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
             }
             # Non-seasonal models
             else{
-                matVt[1,1] <- mean(y);
+                matVt[1,1] <- mean(yInsample);
                 if(Ttype!="N"){
                     matVt[2,1] <- switch(Ttype,
-                                         "A" = mean(diff(y),na.rm=TRUE),
-                                         "M" = exp(mean(diff(log(y)),na.rm=TRUE)));
+                                         "A" = mean(diff(yInsample),na.rm=TRUE),
+                                         "M" = exp(mean(diff(log(yInsample)),na.rm=TRUE)));
                 }
             }
         }
@@ -442,45 +449,45 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
 
     #### The function fills in the existing matrices with values of A ####
     # This is needed in order to do the estimation and the fit
-    filler <- function(Ttype, Stype, componentsNumber, lagsModel, lagsModelMax,
-                       matVt, matWt, matF, vecG, A,
+    filler <- function(B,
+                       Ttype, Stype, componentsNumber, lagsModel, lagsModelMax,
+                       matVt, matWt, matF, vecG,
                        persistenceEstimate, phiEstimate, initialType,
-                       xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
-                       xregNumber){
+                       xregInitialsEstimate, xregPersistenceEstimate, xregNumber){
         j <- 1;
         # Fill in persistence
         if(persistenceEstimate){
-            vecG[j:componentsNumber] <- A[j:componentsNumber];
+            vecG[j:componentsNumber] <- B[j:componentsNumber];
             j <- j+componentsNumber;
         }
 
         # Persistence if xreg is provided
         if(xregPersistenceEstimate){
-            vecG[j+1:xregNumber] <- A[j+1:xregNumber];
+            vecG[j+1:xregNumber] <- B[j+1:xregNumber];
             j <- j+xregNumber;
         }
 
         # Damping parameter
         if(phiEstimate){
-            matWt[,2] <- A[j];
-            matF[1:2,2] <- A[j];
+            matWt[,2] <- B[j];
+            matF[1:2,2] <- B[j];
             j <- j+1;
         }
 
         # Initials
         if(initialType=="optimal"){
             i <- 1;
-            matVt[i,1:lagsModelMax] <- A[j];
+            matVt[i,1:lagsModelMax] <- B[j];
             j <- j+1;
             i <- i+1;
             if(Ttype!="N"){
-                matVt[i,1:lagsModelMax] <- A[j];
+                matVt[i,1:lagsModelMax] <- B[j];
                 j <- j+1;
                 i <- i+1;
             }
             if(Stype!="N"){
                 for(k in i:componentsNumber){
-                    matVt[k,(lagsModelMax-lagsModel[k])+1:lagsModel[k]] <- A[j+0:(lagsModel[k]-1)];
+                    matVt[k,(lagsModelMax-lagsModel[k])+1:lagsModel[k]] <- B[j+0:(lagsModel[k]-1)];
                     j <- j+lagsModel[k];
                 }
             }
@@ -488,25 +495,353 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
 
         # Initials of the xreg
         if(xregInitialsEstimate){
-            matVt[componentsNumber+1:xregNumber,1:lagsModelMax] <- A[j+1:xregNumber];
+            matVt[componentsNumber+1:xregNumber,1:lagsModelMax] <- B[j+1:xregNumber];
         }
 
         return(list(matVt=matVt, matWt=matWt, matF=matF, vecG=vecG));
     }
 
-    #### The function initialises the vector A for ETS ####
-    initialiser <- function(...){
+    #### The function initialises the vector B for ETS ####
+    initialiser <- function(Etype, Ttype, Stype,
+                            componentsNumber, lagsModel, lagsModelMax, matVt,
+                            persistenceEstimate, phiEstimate, initialType,
+                            xregInitialsEstimate, xregPersistenceEstimate, xregNumber){
+        # Persistence of states, persistence of xreg, phi, initials, initials for xreg
+        B <- vector("numeric",persistenceEstimate*componentsNumber+xregPersistenceEstimate*xregNumber+phiEstimate+
+                        (initialType=="optimal")*sum(lagsModel)+xregInitialsEstimate*xregNumber);
+        j <- 1;
+        # Fill in persistence
+        if(persistenceEstimate){
+            B[j:componentsNumber] <- switch(Etype,
+                                            "A"=c(0.3,0.2,0.1),
+                                            "M"=c(0.1,0.05,0.01))[j:componentsNumber];
+            j <- j+componentsNumber;
+        }
+
+        # Persistence if xreg is provided
+        if(xregPersistenceEstimate){
+            B[j+1:xregNumber] <- rep(switch(Etype,
+                                            "A"=0.1,
+                                            "M"=0.01),xregNumber);
+            j <- j+xregNumber;
+        }
+
+        # Damping parameter
+        if(phiEstimate){
+            B[j] <- 0.95;
+            j <- j+1;
+        }
+
+        # Initials
+        if(initialType=="optimal"){
+            i <- 1;
+            B[j] <- matVt[i,lagsModelMax];
+            j <- j+1;
+            i <- i+1;
+            if(Ttype!="N"){
+                B[j] <- matVt[i,lagsModelMax];
+                j <- j+1;
+                i <- i+1;
+            }
+            if(Stype!="N"){
+                for(k in i:componentsNumber){
+                    B[j+0:(lagsModel[k]-1)] <- matVt[k,(lagsModelMax-lagsModel[k])+1:lagsModel[k]];
+                    j <- j+lagsModel[k];
+                }
+            }
+        }
+
+        # Initials of the xreg
+        if(xregInitialsEstimate){
+            B[j+1:xregNumber] <- matVt[componentsNumber+1:xregNumber,lagsModelMax];
+        }
+
+        return(B);
     }
 
     ##### Cost Function for ETS #####
-    CF <- function(A){
+    CF <- function(B,
+                   Etype, Ttype, Stype, yInSample,
+                   ot, otLogical, occurrenceModel,
+                   componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
+                   matVt, matWt, matF, vecG, componentsNumberSeasonal,
+                   persistenceEstimate, phiEstimate, initialType,
+                   xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
+                   xregNumber,
+                   bounds, loss, distribution, h, multisteps, other){
+        ##### !!! distribution should not be default here !!! ####
+
+        # Fill in the matrices
+        mesElements <- filler(B,
+                              Ttype, Stype, componentsNumber, lagsModel, lagsModelMax,
+                              matVt, matWt, matF, vecG,
+                              persistenceEstimate, phiEstimate, initialType,
+                              xregInitialsEstimate, xregPersistenceEstimate, xregNumber);
+
+        if(bounds=="traditional"){
+            if(any(mesElements$vecG>1) || any(mesElements$vecG<0)){
+                return(1E+300);
+            }
+        }
+        else if(bounds=="admissible"){
+            # We check the condition only for the last row of matWt
+            eigenValues <- eigen(mesElements$matF - mesElements$vecG %*% mesElements$matWt[obsInsample,],
+                                 only.values=TRUE)$values;
+            if(any(eigenValues>1+1E-50)){
+                return(eigenValues*1E+100);
+            }
+        }
+
+        mesFitted <- mesFitterWrap(mesElements$matVt, mesElements$matWt, mesElements$matF, mesElements$vecG,
+                                   lagsModelAll, Etype, Ttype, Stype, componentsNumberSeasonal,
+                                   yInSample, ot, initialType=="backcasting");
+
+        if(!multisteps){
+            if(loss=="likelihood"){
+                # Scale for different functions
+                scale <- switch(distribution,
+                                "dnorm"=sqrt(sum(mesFitted$errors[otLogical]^2)/obsInsample),
+                                "dlogis"=sqrt(sum(mesFitted$errors^2)/obsInsample * 3 / pi^2),
+                                "dlaplace"=sum(abs(mesFitted$errors))/obsInsample,
+                                "dt"=abs(other),
+                                "ds"=sum(sqrt(abs(mesFitted$errors[otLogical]))) / (obsInsample*2),
+                                "dalaplace"=sum(mesFitted$errors[otLogical]*(other-(mesFitted$errors[otLogical]<=0)*1))/obsInsample,
+                                "dlnorm"=sqrt(sum(log(1+mesFitted$errors[otLogical])^2)/obsInsample),
+                                "dinvgauss"=sum((mesFitted$errors[otLogical])^2/(1+mesFitted$errors[otLogical]))/obsInsample/mesFitted$yfit[otLogical]);
+
+                # Calculate the likelihood
+                CFValue <- -sum(switch(distribution,
+                                       "dnorm"=dnorm(x=yInSample[otLogical], mean=mesFitted$yfit[otLogical],
+                                                     sd=scale, log=TRUE),
+                                       "dlogis"=dlogis(x=yInSample[otLogical], location=mesFitted$yfit[otLogical],
+                                                       scale=scale, log=TRUE),
+                                       "dlaplace"=dlaplace(q=yInSample[otLogical], mu=mesFitted$yfit[otLogical],
+                                                           scale=scale, log=TRUE),
+                                       "dt"=dt(mesFitted$errors, df=scale, log=TRUE),
+                                       "ds"=ds(q=yInSample[otLogical],mu=mesFitted$yfit[otLogical],
+                                               scale=scale, log=TRUE),
+                                       "dalaplace"=dalaplace(q=yInSample[otLogical], mu=mesFitted$yfit[otLogical],
+                                                             scale=scale, alpha=other, log=TRUE),
+                                       "dlnorm"=dlnorm(x=yInSample[otLogical], meanlog=mesFitted$yfit[otLogical],
+                                                       sdlog=scale, log=TRUE),
+                                       "dinvgauss"=dinvgauss(x=yInSample[otLogical], mean=mesFitted$yfit[otLogical],
+                                                             dispersion=scale, log=TRUE)));
+
+                # Differential entropy for the logLik of occurrence model
+                if(occurrenceModel){
+                    CFValue <- CFValue + switch(distribution,
+                                                "dnorm" =,
+                                                "dlnorm" = obsZero*(log(sqrt(2*pi)*scale)+0.5),
+                                                "dlogis" = obsZero*2,
+                                                "dlaplace" =,
+                                                "dalaplace" = obsZero*(1 + log(2*scale)),
+                                                "dt" = obsZero*((scale+1)/2 *
+                                                                    (digamma((scale+1)/2)-digamma(scale/2)) +
+                                                                    log(sqrt(scale) * beta(scale/2,0.5))),
+                                                "ds" = obsZero*(2 + 2*log(2*scale)),
+                                                "dinvgauss" = obsZero*(0.5*(log(pi/2)+1+suppressWarnings(log(scale)))));
+                }
+            }
+            else if(loss=="MSE"){
+                CFValue <- mean(mesFitted$errors^2);
+            }
+            else if(loss=="MAE"){
+                CFValue <- mean(abs(mesFitted$errors));
+            }
+            else if(loss=="HAM"){
+                CFValue <- mean(sqrt(abs(mesFitted$errors)));
+            }
+            else if(loss=="LASSO"){
+                # "B" needs to be normalised! Multiply by means of variables
+                CFValue <- mean(mesFitted$errors^2) + other * sum(abs(B));
+            }
+        }
+        else{
+            # Call for the Rcpp function to produce a matrix of multistep errors
+            # The function should produce vector forecasts for the whole sample (Nikos' style)
+            # loss==c("MSEh","TMSE","GTMSE","MSCE","MAEh","TMAE","GTMAE","MACE",
+            #         "HAMh","THAM","GTHAM","CHAM","GPL",
+            #         "aMSEh","aTMSE","aGTMSE","aMSCE","aGPL")
+        }
+
+        return(CFValue);
     }
 
-    #### The function estimates the ETS model and returns A, logLik, nParam and CF(A) ####
-    estimator <- function(...){
+    #### The function returns log-likelihood of the model ####
+    logLikES <- function(B,
+                         Etype, Ttype, Stype, yInSample,
+                         ot, otLogical, occurrenceModel, pFitted,
+                         componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
+                         matVt, matWt, matF, vecG, componentsNumberSeasonal,
+                         persistenceEstimate, phiEstimate, initialType,
+                         xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
+                         xregNumber,
+                         bounds, loss, distribution, h, multisteps, other){
+        if(!multisteps){
+            if(loss=="LASSO"){
+                return(0);
+            }
+            else{
+                distributionNew <- switch(loss,
+                                          "MSE"="dnorm",
+                                          "MAE"="dlaplace",
+                                          "HAM"="ds",
+                                          distribution)
+                logLikReturn <- CF(B,
+                                   Etype, Ttype, Stype, yInSample, ot, otLogical, occurrenceModel,
+                                   componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
+                                   matVt, matWt, matF, vecG, componentsNumberSeasonal,
+                                   persistenceEstimate, phiEstimate, initialType,
+                                   xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
+                                   xregNumber,
+                                   bounds, "likelihood", distribution, h, multisteps, other);
+
+                # If this is an occurrence model, add the probabilities
+                if(occurrenceModel){
+                    if(any(c(1-pFitted[!otLogical]==0,pFitted[otLogical]==0))){
+                        # return(-Inf);
+                        ptNew <- pFitted[(pFitted!=0) & (pFitted!=1)];
+                        otNew <- ot[(pFitted!=0) & (pFitted!=1)];
+
+                        # Just return the original likelihood if the probability is weird
+                        if(length(ptNew)==0){
+                            return(logLikReturn);
+                        }
+                        else{
+                            return(logLikReturn + sum(log(ptNew[otNew==1])) + sum(log(1-ptNew[otNew==0])));
+                        }
+                    }
+                }
+            }
+        }
+        else{
+            # Use the predictive likelihoods from the GPL paper:
+            # - Normal for MSEh, MSCE, GPL and their analytical counterparts
+            # - Laplace for MAEh and MACE,
+            # - S for HAMh and CHAM
+        }
+    }
+
+    #### The function estimates the ETS model and returns B, logLik, nParam and CF(B) ####
+    estimator <- function(Etype, Ttype, Stype, lagsModel, lagsModelAll, lagsModelMax,
+                          obsStates, obsInsample, componentsNumber, componentsNames,
+                          componentsNumberSeasonal,
+                          yInsample, persistence, persistenceEstimate, phi, phiEstimate,
+                          initialType, initialValue, initialEstimate,
+                          xregProvided, xregInitialsProvided, xregInitialsEstimate,
+                          xregPersistence, xregPersistenceEstimate,
+                          xregModel, xregData, xregNumber, xregNames,
+                          ot, otLogical, occurrenceModel, pFitted,
+                          bounds, loss, distribution, h, multisteps, other){
+
+        # Create the matrices for the specific ETS model
+        esCreated <- creator(Etype, Ttype, Stype, lagsModel, lagsModelMax,
+                             obsStates, obsInsample, componentsNumber, componentsNames,
+                             yInsample, persistence, phi, initialValue, initialEstimate,
+                             xregProvided, xregInitialsProvided, xregPersistence,
+                             xregModel, xregData, xregNumber, xregNames);
+
+        if(is.null(x0)){
+            # Create the vector of initials for the optimisation
+            B <- initialiser(Etype, Ttype, Stype,
+                             componentsNumber, lagsModel, lagsModelMax, esCreated$matVt,
+                             persistenceEstimate, phiEstimate, initialType,
+                             xregInitialsEstimate, xregPersistenceEstimate, xregNumber);
+        }
+        else{
+            B <- x0;
+        }
+
+        # Parameters are chosen to speed up the optimisation process and have decent accuracy
+        res <- nloptr(B, CF, lb=lb, ub=ub,
+                      opts=list(algorithm=algorithm, xtol_rel=xtol_rel, maxeval=maxeval, maxtime=maxtime, print_level=print_level),
+                      Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
+                      ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel,
+                      componentsNumber=componentsNumber, lagsModel=lagsModel, lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
+                      matVt=esCreated$matVt, matWt=esCreated$matWt, matF=esCreated$matF, vecG=esCreated$vecG,
+                      componentsNumberSeasonal=componentsNumberSeasonal,
+                      persistenceEstimate=persistenceEstimate, phiEstimate=phiEstimate, initialType=initialType,
+                      xregProvided=xregProvided, xregInitialsEstimate=xregInitialsEstimate,
+                      xregPersistenceEstimate=xregPersistenceEstimate, xregNumber=xregNumber,
+                      bounds=bounds, loss=loss, distribution=distribution, h=h, multisteps=multisteps, other=other);
+
+        # Prepare the values to return
+        B[] <- res$solution;
+        CFValue <- res$objective;
+        # In case of likelihood, we typically have one more parameter to estimate - scale
+        nParamEstimated <- length(B) + loss=="likelihood";
+        logLikESValue <- logLikES(B,
+                                  Etype, Ttype, Stype, yInSample,
+                                  ot, otLogical, occurrenceModel, pFitted,
+                                  componentsNumber, lagsModel, lagsModelMax,
+                                  matVt, matWt, matF, vecG, componentsNumberSeasonal,
+                                  persistenceEstimate, phiEstimate, initialType,
+                                  xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
+                                  xregNumber,
+                                  bounds, loss, distribution, h, multisteps, other);
+
+        return(list(B=B, CFValue=CFValue, nParamEstimated=nParamEstimated, logLikESValue=logLikESValue));
     }
 
     ##### This function uses residuals in order to determine the needed xreg #####
     XregSelector <- function(listToReturn){
     }
+
+    ##### Either estimate the model or create a pool #####
+    if(modelDo=="estimate"){
+        # Deal with occurrence model
+        if(occurrenceModel && !occurrenceModelProvided){
+            oesModel <- oes(yInsample, model=model, initial=initial, occurrence=occurrence, ic=ic, h=h,
+                            holdout=FALSE, bounds=bounds, xreg=xreg, xregDo=xregDo);
+            pFitted[] <- fitted(oesModel);
+            parametersNumber[1,3] <- nparam(oesModel);
+        }
+
+        # Estimate the parameters of the demand sizes model
+        esEstimator <- estimator(Etype, Ttype, Stype, lagsModel, lagsModelAll, lagsModelMax,
+                                 obsStates, obsInsample, componentsNumber, componentsNames,
+                                 componentsNumberSeasonal,
+                                 yInsample, persistence, persistenceEstimate, phi, phiEstimate,
+                                 initialType, initialValue, initialEstimate,
+                                 xregProvided, xregInitialsProvided, xregInitialsEstimate,
+                                 xregPersistence, xregPersistenceEstimate,
+                                 xregModel, xregData, xregNumber, xregNames,
+                                 ot, otLogical, occurrenceModel, pFitted,
+                                 bounds, loss, distribution, h, multisteps, other);
+        list2env(esEstimator);
+        parametersNumber[1,4] <- nParamEstimated;
+
+        # Create the matrices for the specific ETS model
+        esCreated <- creator(Etype, Ttype, Stype, lagsModel, lagsModelMax,
+                             obsStates, obsInsample, componentsNumber, componentsNames,
+                             yInsample, persistence, phi, initialValue, initialEstimate,
+                             xregProvided, xregInitialsProvided, xregPersistence,
+                             xregModel, xregData, xregNumber, xregNames);
+        list2env(esCreated);
+
+        # Fill in the matrices
+        mesElements <- filler(B,
+                              Ttype, Stype, componentsNumber, lagsModel, lagsModelMax,
+                              matVt, matWt, matF, vecG,
+                              persistenceEstimate, phiEstimate, initialType,
+                              xregInitialsEstimate, xregPersistenceEstimate, xregNumber);
+
+        # Fit the model to the data
+        mesFitted <- mesFitterWrap(mesElements$matVt, mesElements$matWt, mesElements$matF, mesElements$vecG,
+                                   lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal,
+                                   yInSample, ot, initialType=="backcasting");
+
+        errors <- mesFitted$errors;
+        yFitted <- mesFitted$yfit;
+        matVt[] <- mesFitted$matVt;
+    }
+
+    return(structure(list(model=modelName, formula=mesFormula, timeElapsed=Sys.time()-startTime,
+                          y=yInsample, holdout=yHoldout, fitted=yFitted, residuals=errors,
+                          states=matVt, persistence=persistence, phi=phi, transition=matF,
+                          measurement=matw, initialType=initialType, initial=initialValue,
+                          nParam=parametersNumber, occurrence=occurrenceModel, xreg=xreg,
+                          xregInitial=xregInitial, xregPersistence=xregPersistence,
+                          ICs=ICs, logLik=logLikESValue, lossValue=CFValue, loss=loss,
+                          distribution=distribution, B=B), class=c("mes","smooth")));
 }

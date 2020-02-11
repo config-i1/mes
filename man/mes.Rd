@@ -6,12 +6,12 @@
 \usage{
 mes(y, model = "ZZZ", lags = c(1, 1, frequency(y)),
   distribution = c("default", "dnorm", "dlogis", "dlaplace", "dt", "ds",
-  "dalaplace", "dlnorm", "dbcnorm", "dinvgauss"), loss = c("likelihood",
-  "LASSO", "MSE", "MAE", "HAM", "MSEh", "TMSE", "GTMSE", "MSCE"), h = NULL,
+  "dalaplace", "dlnorm", "dinvgauss"), loss = c("likelihood", "LASSO", "MSE",
+  "MAE", "HAM", "MSEh", "TMSE", "GTMSE", "MSCE"), h = NULL, holdout = FALSE,
   persistence = NULL, phi = NULL, initial = c("optimal", "backcasting"),
   occurrence = c("none", "auto", "fixed", "general", "odds-ratio",
   "inverse-odds-ratio", "direct"), ic = c("AICc", "AIC", "BIC", "BICc"),
-  bounds = c("usual", "admissible", "none"), xreg = NULL,
+  bounds = c("traditional", "admissible", "none"), xreg = NULL,
   xregDo = c("use", "select"), xregInitial = NULL, xregPersistence = 0,
   silent = TRUE, fast = FALSE, ...)
 }
@@ -119,7 +119,7 @@ procedure.}
 
 \item{bounds}{The type of bounds for the persistence to use in the model
 estimation. Can be either \code{admissible} - guaranteeing the stability of the
-model, \code{usual} - restricting the values with (0, 1) or \code{none} - no
+model, \code{traditional} - restricting the values with (0, 1) or \code{none} - no
 restrictions (potentially dangerous).}
 
 \item{xreg}{The vector (either numeric or time series) or the matrix (or
@@ -153,19 +153,26 @@ construction.}
 make the function also produce Fisher Information matrix, which then can be
 used to calculated variances of smoothing parameters and initial states of
 the model. This is used in the \link[stats]{vcov} method.
-Parameters \code{A}, \code{ALower} and \code{AUpper} can be passed via
-ellipsis as well. In this case they will be used for optimisation. \code{A}
-sets the initial values before the optimisation, \code{ALower} and
-\code{AUpper} define lower and upper bounds for the search inside of the
-specified \code{bounds}. These values should have the length equal
-to the number of parameters to estimate.
-You can also pass parameters to the optimiser: 1. \code{maxeval} - maximum
-number of evaluations to carry out (default is 100); 2. \code{xtol_rel} -
-the precision of the optimiser (the default is 1E-6); 3. \code{algorithm} -
-the algorithm to use in optimisation (\code{"NLOPT_LN_SBPLX"} by default).
-4. \code{print_level} - the level of output for the optimiser (0 by default).
-You can read more about these parameters in the documentation of
-\link[nloptr]{nloptr} function.}
+Starting values of parameters canbe passed via \code{x0}, while the upper and lower
+bounds should be passed in \code{ub} and \code{lb} respectively. In this case they
+will be used for optimisation. These values should have the length equal
+to the number of parameters to estimate in the following order:
+\enumerate{
+\item All smoothing parameters (for the states and then for the explanatory variables);
+\item Damping parameter (if needed);
+\item All the initial values (for the states and then for the explanatory variables).
+}
+You can also pass parameters to the optimiser in order to fine tune its work:
+\itemize{
+\item \code{maxeval} - maximum number of evaluations to carry out (default is 100);
+\item \code{maxtime} - stop, when the optimisation time (in seconds) exceeds this;
+\item \code{xtol_rel} - the precision of the optimiser (the default is 1E-6);
+\item \code{algorithm} - the algorithm to use in optimisation
+(\code{"NLOPT_LN_BOBYQA"} by default);
+\item \code{print_level} - the level of output for the optimiser (0 by default).
+}
+You can read more about these parameters by running the function
+\link[nloptr]{nloptr.print.options()}.}
 }
 \value{
 Object of class "mes" is returned. It contains the list of the
@@ -206,7 +213,6 @@ Inverse Gaussian is used for the Multiplicative error models.
 \item \link[stats]{dt} - T-distribution,
 \item \link[greybox]{ds} - S-distribution,
 \item \link[stats]{dlnorm} - Log normal distribution,
-\item \link[greybox]{dbcnorm} - Box-Cox normal distribution,
 \item \link[statmod]{dinvgauss} - Inverse Gaussian distribution,
 }
 

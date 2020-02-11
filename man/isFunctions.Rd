@@ -2,18 +2,12 @@
 % Please edit documentation in R/isFunctions.R
 \name{is.mes}
 \alias{is.mes}
-\alias{is.omes}
 \alias{is.mes.sim}
-\alias{is.omes.sim}
 \title{MES classes checkers}
 \usage{
 is.mes(x)
 
-is.omes(x)
-
 is.mes.sim(x)
-
-is.omes.sim(x)
 }
 \arguments{
 \item{x}{The object to check.}

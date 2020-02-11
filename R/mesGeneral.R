@@ -263,10 +263,10 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
     if(Stype!="N"){
         componentsNames <- c(componentsNames,"seasonal");
         componentsNumber[] <- componentsNumber+1;
-        # componentsNumberSeasonal <- 1;
+        componentsNumberSeasonal <- 1;
     }
     else{
-        # componentsNumberSeasonal <- 0;
+        componentsNumberSeasonal <- 0;
     }
 
     # Check, whether the number of lags and the number of components are the same
@@ -274,7 +274,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
         if(Stype!="N"){
             componentsNames <- c(componentsNames[-length(componentsNames)],paste0("seasonal",c(1:(lagsLength-componentsNumber))));
             componentsNumber[] <- lagsLength;
-            # componentsNumberSeasonal[] <- lagsLength-componentsNumber;
+            componentsNumberSeasonal[] <- lagsLength-componentsNumber;
         }
         else{
             lagsModel <- matrix(lags[1:componentsNumber],ncol=1);
@@ -292,7 +292,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
 
     #### Distribution selected ####
     distribution <- match.arg(distribution,c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
-                                             "dlnorm","dbcnorm","dinvgauss"));
+                                             "dlnorm","dinvgauss"));
 
     #### Loss function type ####
     loss <- match.arg(loss,c("likelihood","LASSO","MSE","MAE","HAM",
@@ -389,7 +389,6 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
 
     #### Vector of initial values ####
     # initial type can be: "o" - optimal, "b" - backcasting, "p" - provided.
-    initialEstimate <- TRUE;
     if(is.character(initial)){
         initialType <- match.arg(initial, c("optimal","backcasting"));
     }
@@ -424,25 +423,24 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
                 else{
                     initialType <- "provided";
                     initialValue <- initial;
-                    initialEstimate <- FALSE;
                     parametersNumber[2,1] <- parametersNumber[2,1] + sum(lags);
                 }
             }
         }
     }
+    initialEstimate <- any(initialType==c("optimal","backcasting"));
 
     #### Occurrence variable ####
     if(is.oes(occurrence)){
-        occurrenceModel <- occurrence;
-        occurrence <- occurrenceModel$occurrence;
+        oesModel <- occurrence;
+        occurrence <- oesModel$occurrence;
         occurrenceModelProvided <- TRUE;
-        distributionOccurrence <- occurrenceModel$distribution;
     }
     # else if(is.list(occurrence)){
     #     warning(paste0("occurrence is not of the class oes. ",
     #                    "We will try to extract the type of model, but cannot promise anything."),
     #             call.=FALSE);
-    #     occurrenceModel <- modelType(occurrence);
+    #     oesModel <- modelType(occurrence);
     #     occurrence <- occurrence$occurrence;
     #     occurrenceModelProvided <- FALSE;
     # }
@@ -457,10 +455,10 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
             warning(paste0("Length of the occurrences variable is ",length(occurrence),
                            " when it should be ",obsInsample,".\n",
                            "Switching to occurrence='fixed'."),call.=FALSE);
-            occurrence <- "f";
+            occurrence <- "fixed";
         }
         else if(all(occurrence==1)){
-            occurrence <- "n";
+            occurrence <- "none";
             occurrenceModelProvided <- FALSE;
             nParamOccurrence <- 0;
         }
@@ -472,7 +470,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
             }
 
             # "p" stand for "provided", meaning that we have been provided the values of p
-            occurrence <- "p";
+            occurrence <- "provided";
             pFitted[] <- occurrence;
             occurrenceModelProvided <- FALSE;
             nParamOccurrence <- 0;
@@ -480,26 +478,35 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
     }
 
     occurrence <- match.arg(occurrence,c("none","auto","fixed","general","odds-ratio","inverse-odds-ratio","direct","provided"));
-    ot <- (yInSample!=0)*1;
+    otLogical <- (yInSample!=0);
+    ot <- otLogical*1;
     obsNonzero <- sum(ot);
     obsZero <- obsInSample - obsNonzero;
-    zt <- matrix(yInSample[ot==1],obsNonzero,1);
 
     # If the data is not occurrence, let's assume that the parameter was switched unintentionally.
-    if(all(ot==1) & all(occurrence!=c("n","p","provided"))){
-        occurrence <- "n";
+    if(all(ot==1) & all(occurrence!=c("none","provided"))){
+        occurrence <- "none";
         occurrenceModelProvided <- FALSE;
     }
 
+    # This variable just flags, whether we have the occurence in the model or not
+    if(occurrence=="none"){
+        occurrenceModel <- FALSE;
+    }
+    else{
+        occurrenceModel <- TRUE;
+    }
+
+    # Update the number of parameters
     if(occurrenceModelProvided){
-        parametersNumber[2,3] <- nparam(occurrenceModel);
+        parametersNumber[2,3] <- nparam(oesModel);
     }
 
     #### Information Criteria ####
     ic <- match.arg(ic,c("AICc","AIC","BIC","BICc"));
 
     #### Bounds for the smoothing parameters ####
-    bounds <- match.arg(bounds,c("usual","admissible","none"));
+    bounds <- match.arg(bounds,c("traditional","admissible","none"));
 
     #### Explanatory variables: xreg, xregDo, xregInitial, xregPersistence ####
     xregDo <- match.arg(xregDo,c("use","select"));
@@ -602,6 +609,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
             xregPersistenceEstimate <- TRUE;
         }
         xregEstimate <- any(xregInitialsEstimate,xregPersistenceEstimate);
+        lagsModelAll <- rbind(lagsModel,rep(1,xregNumber));
     }
     else{
         xregProvided <- FALSE;
@@ -614,19 +622,77 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
         xregData <- 0;
         xregNumber <- 0;
         xregNames <- NULL;
+        lagsModelAll <- lagsModel;
     }
 
+    #### Process ellipsis ####
+    ellipsis <- list(...);
+
+    # Parameters for the optimiser
+    if(is.null(ellipsis$maxeval)){
+        maxeval <- 100;
+    }
+    else{
+        maxeval <- ellipsis$maxeval;
+    }
+    if(is.null(ellipsis$maxtime)){
+        maxtime <- -1;
+    }
+    else{
+        maxtime <- ellipsis$maxtime;
+    }
+    if(is.null(ellipsis$xtol_rel)){
+        xtol_rel <- 1E-6;
+    }
+    else{
+        xtol_rel <- ellipsis$xtol_rel;
+    }
+    if(is.null(ellipsis$algorithm)){
+        algorithm <- "NLOPT_LN_BOBYQA";
+    }
+    else{
+        algorithm <- ellipsis$algorithm;
+    }
+    if(is.null(ellipsis$print_level)){
+        print_level <- 0;
+    }
+    else{
+        print_level <- ellipsis$print_level;
+    }
+    # The following three arguments are used for the function itself, not the options
+    if(is.null(ellipsis$lb)){
+        lb <- NULL;
+    }
+    else{
+        lb <- ellipsis$lb;
+    }
+    if(is.null(ellipsis$ub)){
+        ub <- NULL;
+    }
+    else{
+        ub <- ellipsis$ub;
+    }
+    if(is.null(ellipsis$x0)){
+        x0 <- NULL;
+    }
+    else{
+        x0 <- ellipsis$x0;
+    }
 
     #### Return the values to the previous environment ####
+    # Actuals
     assign("y",y,ParentEnvironment);
+    assign("yHoldout",yHoldout,ParentEnvironment);
+    assign("yInsample",yInsample,ParentEnvironment);
 
+    # Number of observations and parameters
     assign("obsInsample",obsInsample,ParentEnvironment);
     assign("obsStates",obsStates,ParentEnvironment);
     assign("obsNonzero",obsNonzero,ParentEnvironment);
     assign("obsZero",obsZero,ParentEnvironment);
-
     assign("parametersNumber",parametersNumber,ParentEnvironment);
 
+    # Model type and lags
     assign("model",model,ParentEnvironment);
     assign("Etype",Etype,ParentEnvironment);
     assign("Ttype",Ttype,ParentEnvironment);
@@ -637,36 +703,41 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
     assign("modelIsSeasonal",modelIsSeasonal,ParentEnvironment);
     assign("componentsNames",componentsNames,ParentEnvironment);
     assign("componentsNumber",componentsNumber,ParentEnvironment);
-    # assign("componentsNumberSeasonal",componentsNumberSeasonal,ParentEnvironment);
+    assign("componentsNumberSeasonal",componentsNumberSeasonal,ParentEnvironment);
     assign("lags",lags,ParentEnvironment);
     assign("lagsModel",lagsModel,ParentEnvironment);
     assign("lagsModelMax",lagsModelMax,ParentEnvironment);
+    assign("lagsModelAll",lagsModelAll,ParentEnvironment);
     assign("lagsLength",lagsLength,ParentEnvironment);
 
-    assign("distribution",distribution,ParentEnvironment);
-    assign("loss",loss,ParentEnvironment);
-    assign("multisteps",multisteps,ParentEnvironment);
-
+    # Persistence and initials
     assign("persistence",persistence,ParentEnvironment);
     assign("persistenceEstimate",persistenceEstimate,ParentEnvironment);
     assign("phi",phi,ParentEnvironment);
     assign("phiEstimate",phiEstimate,ParentEnvironment);
     assign("initial",initial,ParentEnvironment);
     assign("initialType",initialType,ParentEnvironment);
+    assign("initialEstimate",initialEstimate,ParentEnvironment);
     assign("initialValue",initialValue,ParentEnvironment);
 
+    # Occurrence model
+    assign("oesModel",oesModel,ParentEnvironment);
     assign("occurrenceModel",occurrenceModel,ParentEnvironment);
     assign("occurrenceModelProvided",occurrenceModelProvided,ParentEnvironment);
     assign("occurrence",occurrence,ParentEnvironment);
-    assign("distributionOccurrence",distributionOccurrence,ParentEnvironment);
     assign("pFitted",pFitted,ParentEnvironment);
     assign("nParamOccurrence",nParamOccurrence,ParentEnvironment);
     assign("ot",ot,ParentEnvironment);
-    assign("zt",zt,ParentEnvironment);
+    assign("otLogical",otLogical,ParentEnvironment);
 
+    # Distribution, loss, bounds and IC
+    assign("distribution",distribution,ParentEnvironment);
+    assign("loss",loss,ParentEnvironment);
+    assign("multisteps",multisteps,ParentEnvironment);
     assign("ic",ic,ParentEnvironment);
     assign("bounds",bounds,ParentEnvironment);
 
+    # Explanatory variables
     assign("xregModel",xregModel,ParentEnvironment);
     assign("xregData",xregData,ParentEnvironment);
     assign("xregNumber",xregNumber,ParentEnvironment);
@@ -678,4 +749,14 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
     assign("xregPersistenceProvided",xregPersistenceProvided,ParentEnvironment);
     assign("xregPersistenceEstimate",xregPersistenceEstimate,ParentEnvironment);
     assign("xregPersistence",xregPersistence,ParentEnvironment);
+
+    # Ellipsis thingies
+    assign("maxeval",maxeval,ParentEnvironment);
+    assign("maxtime",maxtime,ParentEnvironment);
+    assign("xtol_rel",xtol_rel,ParentEnvironment);
+    assign("algorithm",algorithm,ParentEnvironment);
+    assign("print_level",print_level,ParentEnvironment);
+    assign("x0",x0,ParentEnvironment);
+    assign("lb",lb,ParentEnvironment);
+    assign("ub",ub,ParentEnvironment);
 }
