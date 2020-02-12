@@ -1,5 +1,9 @@
-parametersChecker <- function(y, model, lags, persistence, phi, initial, distribution, loss, h, holdout, occurrence, ic, bounds,
-                              xreg, xregDo, xregInitial, xregPersistence, silent, fast, ParentEnvironment, ...){
+parametersChecker <- function(y, model, lags, persistence, phi, initial,
+                              distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
+                                             "dlnorm","dinvgauss"),
+                              loss, h, holdout,occurrence,
+                              ic=c("AICc","AIC","BIC","BICc"), bounds=c("traditional","admissible","none"),
+                              xreg, xregDo, xregInitial, xregPersistence, silent, ParentEnvironment, ...){
 
     # The function checks the provided parameters of mes and/or oes
     ##### data #####
@@ -10,7 +14,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
         h <- y$h;
         holdout <- TRUE;
         y <- ts(c(y$x,y$xx),start=start(y$x),frequency=frequency(y$x));
-        yInsample <- y$x;
+        yInSample <- matrix(y$x,ncol=1);
     }
 
     if(!is.numeric(y)){
@@ -42,7 +46,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
     # dataFreq <- frequency(y);
     # dataStart <- start(y);
     # yForecastStart <- time(y)[obsInSample]+deltat(y);
-    yInsample <- y[1:obsInSample];
+    yInSample <- matrix(y[1:obsInSample],ncol=1);
     yHoldout <- y[-c(1:obsInSample)];
 
     # Number of parameters to estimate / provided
@@ -291,11 +295,10 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
     obsStates <- obsInSample + 2*lagsModelMax;
 
     #### Distribution selected ####
-    distribution <- match.arg(distribution,c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
-                                             "dlnorm","dinvgauss"));
+    distribution <- match.arg(distribution);
 
     #### Loss function type ####
-    loss <- match.arg(loss,c("likelihood","LASSO","MSE","MAE","HAM",
+    loss <- match.arg(loss[1],c("likelihood","LASSO","MSE","MAE","HAM",
                              "MSEh","TMSE","GTMSE","MSCE",
                              "MAEh","TMAE","GTMAE","MACE",
                              "HAMh","THAM","GTHAM","CHAM","GPL",
@@ -389,14 +392,16 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
 
     #### Vector of initial values ####
     # initial type can be: "o" - optimal, "b" - backcasting, "p" - provided.
-    if(is.character(initial)){
+    if(any(is.character(initial))){
         initialType <- match.arg(initial, c("optimal","backcasting"));
+        initialValue <- NULL;
     }
     else if(is.null(initial)){
         if(silentText){
             message("Initial value is not selected. Switching to optimal.");
         }
         initialType <- "optimal";
+        initialValue <- NULL;
     }
     else if(!is.null(initial)){
         if(!is.numeric(initial)){
@@ -446,21 +451,21 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
     # }
     else{
         occurrenceModelProvided <- FALSE;
+        oesModel <- NULL;
     }
-    pFitted <- matrix(1, obsInsample, 1);
+    pFitted <- matrix(1, obsInSample, 1);
 
     if(is.numeric(occurrence)){
         # If it is data, then it should correspond to the in-sample.
-        if(any(occurrence!=1) && (length(occurrence)!=obsInsample)){
+        if(any(occurrence!=1) && (length(occurrence)!=obsInSample)){
             warning(paste0("Length of the occurrences variable is ",length(occurrence),
-                           " when it should be ",obsInsample,".\n",
+                           " when it should be ",obsInSample,".\n",
                            "Switching to occurrence='fixed'."),call.=FALSE);
             occurrence <- "fixed";
         }
         else if(all(occurrence==1)){
             occurrence <- "none";
             occurrenceModelProvided <- FALSE;
-            nParamOccurrence <- 0;
         }
         else{
             if(any(occurrence<0,occurrence>1)){
@@ -473,13 +478,14 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
             occurrence <- "provided";
             pFitted[] <- occurrence;
             occurrenceModelProvided <- FALSE;
-            nParamOccurrence <- 0;
         }
     }
 
-    occurrence <- match.arg(occurrence,c("none","auto","fixed","general","odds-ratio","inverse-odds-ratio","direct","provided"));
+    occurrence <- match.arg(occurrence[1],c("none","auto","fixed","general","odds-ratio",
+                                            "inverse-odds-ratio","direct","provided"));
+
     otLogical <- (yInSample!=0);
-    ot <- otLogical*1;
+    ot <- matrix(otLogical*1,ncol=1);
     obsNonzero <- sum(ot);
     obsZero <- obsInSample - obsNonzero;
 
@@ -534,10 +540,10 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
                 }
                 # Return the estimated model based on the provided xreg
                 if(Etype=="M" && any(distribution==c("dnorm","dlogis","dlaplace","dt","ds","dalaplace"))){
-                    return(alm(log(y)~xreg,distribution=distribution,subset=c(1:obsInsample)));
+                    return(alm(log(y)~xreg,distribution=distribution,subset=c(1:obsInSample)));
                 }
                 else{
-                    return(alm(y~xreg,distribution=distribution,subset=c(1:obsInsample)));
+                    return(alm(y~xreg,distribution=distribution,subset=c(1:obsInSample)));
                 }
             }
 
@@ -678,15 +684,22 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
     else{
         x0 <- ellipsis$x0;
     }
+    # Additional parameter for dalaplace and LASSO
+    if(is.null(ellipsis$other)){
+        other <- NULL;
+    }
+    else{
+        other <- ellipsis$other;
+    }
 
     #### Return the values to the previous environment ####
     # Actuals
     assign("y",y,ParentEnvironment);
     assign("yHoldout",yHoldout,ParentEnvironment);
-    assign("yInsample",yInsample,ParentEnvironment);
+    assign("yInSample",yInSample,ParentEnvironment);
 
     # Number of observations and parameters
-    assign("obsInsample",obsInsample,ParentEnvironment);
+    assign("obsInSample",obsInSample,ParentEnvironment);
     assign("obsStates",obsStates,ParentEnvironment);
     assign("obsNonzero",obsNonzero,ParentEnvironment);
     assign("obsZero",obsZero,ParentEnvironment);
@@ -696,7 +709,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
     assign("model",model,ParentEnvironment);
     assign("Etype",Etype,ParentEnvironment);
     assign("Ttype",Ttype,ParentEnvironment);
-    assign("SType",SType,ParentEnvironment);
+    assign("Stype",Stype,ParentEnvironment);
     assign("modelsPool",modelsPool,ParentEnvironment);
     assign("damped",damped,ParentEnvironment);
     assign("modelDo",modelDo,ParentEnvironment);
@@ -726,7 +739,6 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
     assign("occurrenceModelProvided",occurrenceModelProvided,ParentEnvironment);
     assign("occurrence",occurrence,ParentEnvironment);
     assign("pFitted",pFitted,ParentEnvironment);
-    assign("nParamOccurrence",nParamOccurrence,ParentEnvironment);
     assign("ot",ot,ParentEnvironment);
     assign("otLogical",otLogical,ParentEnvironment);
 
@@ -759,4 +771,5 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial, distrib
     assign("x0",x0,ParentEnvironment);
     assign("lb",lb,ParentEnvironment);
     assign("ub",ub,ParentEnvironment);
+    assign("other",other,ParentEnvironment);
 }

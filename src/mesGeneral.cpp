@@ -10,6 +10,7 @@ using namespace Rcpp;
 /* # Function returns multiplicative or additive error for scalar */
 double errorf(double const &yact, double &yfit, char const &E){
     switch(E){
+        default:
         case 'A':
             return yact - yfit;
         break;
@@ -155,7 +156,7 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
 
 /* # Wrapper for fitter */
 // [[Rcpp::export]]
-RcppExport SEXP mesFitterwrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP vecG,
+RcppExport SEXP mesFitterWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP vecG,
                               SEXP lagsModelAll, SEXP Etype, SEXP Ttype, SEXP Stype,
                               SEXP componentsNumber, SEXP componentsNumberSeasonal,
                               SEXP yInSample, SEXP ot, SEXP backcasting){
@@ -188,7 +189,7 @@ RcppExport SEXP mesFitterwrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP vecG,
     NumericVector ot_n(ot);
     arma::vec vectorOt(ot_n.begin(), ot_n.size(), false);
 
-    bool backcast = as<char>(backcasting);
+    bool backcast = as<bool>(backcasting);
 
     return wrap(mesFitter(matrixVt, matrixWt, matrixF, vectorG,
                           lags, E, T, S,
