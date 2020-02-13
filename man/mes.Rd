@@ -151,7 +151,7 @@ already done.}
 make the function also produce Fisher Information matrix, which then can be
 used to calculated variances of smoothing parameters and initial states of
 the model. This is used in the \link[stats]{vcov} method.
-Starting values of parameters canbe passed via \code{x0}, while the upper and lower
+Starting values of parameters can be passed via \code{B}, while the upper and lower
 bounds should be passed in \code{ub} and \code{lb} respectively. In this case they
 will be used for optimisation. These values should have the length equal
 to the number of parameters to estimate in the following order:

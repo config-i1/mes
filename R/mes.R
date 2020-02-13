@@ -168,7 +168,7 @@
 #' make the function also produce Fisher Information matrix, which then can be
 #' used to calculated variances of smoothing parameters and initial states of
 #' the model. This is used in the \link[stats]{vcov} method.
-#' Starting values of parameters canbe passed via \code{x0}, while the upper and lower
+#' Starting values of parameters can be passed via \code{B}, while the upper and lower
 #' bounds should be passed in \code{ub} and \code{lb} respectively. In this case they
 #' will be used for optimisation. These values should have the length equal
 #' to the number of parameters to estimate in the following order:
@@ -396,7 +396,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     creator <- function(Etype, Ttype, Stype,
                         lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
                         obsStates, obsInSample, componentsNumber, componentsNumberSeasonal,
-                        componentsNames,
+                        componentsNames, otLogical,
                         yInSample, persistence, persistenceEstimate, phi,
                         initialValue, initialEstimate,
                         xregProvided, xregInitialsProvided, xregPersistence,
@@ -450,11 +450,11 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             }
             # Non-seasonal models
             else{
-                matVt[1,1] <- mean(yInSample[1:lagsModelMax]);
+                matVt[1,1] <- mean(yInSample[1:max(lagsModelMax,obsInSample*0.2)]);
                 if(Ttype!="N"){
                     matVt[2,1] <- switch(Ttype,
                                          "A" = mean(diff(yInSample),na.rm=TRUE),
-                                         "M" = exp(mean(diff(log(yInSample)),na.rm=TRUE)));
+                                         "M" = exp(mean(diff(log(yInSample[otLogical])),na.rm=TRUE)));
                 }
             }
         }
@@ -642,7 +642,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     ##### Cost Function for ETS #####
     CF <- function(B,
                    Etype, Ttype, Stype, yInSample,
-                   ot, otLogical, occurrenceModel,
+                   ot, otLogical, occurrenceModel, obsInSample,
                    componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
                    matVt, matWt, matF, vecG, componentsNumberSeasonal,
                    persistenceEstimate, phiEstimate, initialType,
@@ -686,7 +686,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                 "ds"=sum(sqrt(abs(mesFitted$errors[otLogical]))) / (obsInSample*2),
                                 "dalaplace"=sum(mesFitted$errors[otLogical]*(lambda-(mesFitted$errors[otLogical]<=0)*1))/obsInSample,
                                 "dlnorm"=sqrt(sum(log(1+mesFitted$errors[otLogical])^2)/obsInSample),
-                                "dinvgauss"=sum((mesFitted$errors[otLogical])^2/(1+mesFitted$errors[otLogical]))/obsInSample/mesFitted$yFitted[otLogical]);
+                                "dinvgauss"=sum((mesFitted$errors[otLogical])^2/(1+mesFitted$errors[otLogical]))/obsInSample);
 
                 # Calculate the likelihood
                 CFValue <- -sum(switch(distribution,
@@ -704,7 +704,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                        "dlnorm"=dlnorm(x=yInSample[otLogical], meanlog=log(mesFitted$yFitted[otLogical]),
                                                        sdlog=scale, log=TRUE),
                                        "dinvgauss"=dinvgauss(x=yInSample[otLogical], mean=mesFitted$yFitted[otLogical],
-                                                             dispersion=scale, log=TRUE)));
+                                                             dispersion=scale/mesFitted$yFitted[otLogical], log=TRUE)));
 
                 # Differential entropy for the logLik of occurrence model
                 if(occurrenceModel){
@@ -747,9 +747,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     }
 
     #### The function returns log-likelihood of the model ####
-    logLikES <- function(B,
+    logLikMES <- function(B,
                          Etype, Ttype, Stype, yInSample,
-                         ot, otLogical, occurrenceModel, pFitted,
+                         ot, otLogical, occurrenceModel, pFitted, obsInSample,
                          componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
                          matVt, matWt, matF, vecG, componentsNumberSeasonal,
                          persistenceEstimate, phiEstimate, initialType,
@@ -768,7 +768,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                           distribution);
                 logLikReturn <- -CF(B,
                                     Etype, Ttype, Stype, yInSample,
-                                    ot, otLogical, occurrenceModel,
+                                    ot, otLogical, occurrenceModel, obsInSample,
                                     componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
                                     matVt, matWt, matF, vecG, componentsNumberSeasonal,
                                     persistenceEstimate, phiEstimate, initialType,
@@ -790,6 +790,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                         else{
                             return(logLikReturn + sum(log(ptNew[otNew==1])) + sum(log(1-ptNew[otNew==0])));
                         }
+                    }
+                    else{
+                        return(logLikReturn + sum(log(pFitted[otLogical])) + sum(log(1-pFitted[!otLogical])));
                     }
                 }
                 else{
@@ -825,13 +828,13 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         mesCreated <- creator(Etype, Ttype, Stype,
                              lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
                              obsStates, obsInSample, componentsNumber, componentsNumberSeasonal,
-                             componentsNames,
+                             componentsNames, otLogical,
                              yInSample, persistence, persistenceEstimate, phi,
                              initialValue, initialEstimate,
                              xregProvided, xregInitialsProvided, xregPersistence,
                              xregModel, xregData, xregNumber, xregNames);
 
-        if(is.null(x0) && is.null(lb) && is.null(ub)){
+        if(is.null(B) && is.null(lb) && is.null(ub)){
             BValues <- initialiser(Etype, Ttype, Stype, componentsNumberSeasonal,
                                    componentsNumber, lagsModel, lagsModelMax, mesCreated$matVt,
                                    persistenceEstimate, phiEstimate, initialType,
@@ -842,7 +845,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             ub <- BValues$Bu;
         }
         else{
-            B <- x0;
+            B <- B;
         }
 
         # If the distribution is default, change it according to the error term
@@ -859,7 +862,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         res <- nloptr(B, CF, lb=lb, ub=ub,
                       opts=list(algorithm=algorithm, xtol_rel=xtol_rel, maxeval=maxeval, maxtime=maxtime, print_level=print_level),
                       Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
-                      ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel,
+                      ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, obsInSample=obsInSample,
                       componentsNumber=componentsNumber, lagsModel=lagsModel, lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
                       matVt=mesCreated$matVt, matWt=mesCreated$matWt, matF=mesCreated$matF, vecG=mesCreated$vecG,
                       componentsNumberSeasonal=componentsNumberSeasonal,
@@ -873,9 +876,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         CFValue <- res$objective;
         # In case of likelihood, we typically have one more parameter to estimate - scale
         nParamEstimated <- length(B) + (loss=="likelihood");
-        logLikESValue <- logLikES(B,
+        logLikMESValue <- logLikMES(B,
                                   Etype, Ttype, Stype, yInSample,
-                                  ot, otLogical, occurrenceModel, pFitted,
+                                  ot, otLogical, occurrenceModel, pFitted, obsInSample,
                                   componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
                                   mesCreated$matVt, mesCreated$matWt, mesCreated$matF, mesCreated$vecG, componentsNumberSeasonal,
                                   persistenceEstimate, phiEstimate, initialType,
@@ -883,7 +886,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                   xregNumber,
                                   bounds, loss, distributionNew, h, multisteps, lambda);
 
-        return(list(B=B, CFValue=CFValue, nParamEstimated=nParamEstimated, logLikESValue=logLikESValue));
+        return(list(B=B, CFValue=CFValue, nParamEstimated=nParamEstimated, logLikMESValue=logLikMESValue));
     }
 
     ##### This function uses residuals in order to determine the needed xreg #####
@@ -898,6 +901,15 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                             holdout=FALSE, bounds=bounds, xreg=xreg, xregDo=xregDo);
             pFitted[] <- fitted(oesModel);
             parametersNumber[1,3] <- nparam(oesModel);
+            # This should not happen, but just in case...
+            if(oesModel$occurrence=="n"){
+                occurrence <- "n";
+                otLogical <- rep(TRUE,obsInSample);
+                occurrenceModel <- FALSE;
+                ot <- matrix(otLogical*1,ncol=1);
+                obsNonzero <- sum(ot);
+                obsZero <- obsInSample - obsNonzero;
+            }
         }
 
         mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber);
@@ -907,7 +919,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         mesCreated <- creator(Etype, Ttype, Stype,
                              lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
                              obsStates, obsInSample, componentsNumber, componentsNumberSeasonal,
-                             componentsNames,
+                             componentsNames, otLogical,
                              yInSample, persistence, persistenceEstimate, phi,
                              initialValue, initialEstimate,
                              xregProvided, xregInitialsProvided, xregPersistence,
@@ -944,6 +956,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
 
         errors <- mesFitted$errors;
         yFitted <- mesFitted$yFitted;
+        if(occurrenceModel){
+            yFitted[] <- yFitted * pFitted;
+        }
         matVt[] <- mesFitted$matVt;
 
         # If the distribution is default, change it according to the error term
@@ -978,6 +993,6 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                           measurement=matWt, initialType=initialType, initial=initialValue,
                           nParam=parametersNumber, occurrence=oesModel, xreg=xreg,
                           xregInitial=xregInitial, xregPersistence=xregPersistence,
-                          logLik=logLikESValue, lossValue=CFValue, loss=loss,
+                          logLik=logLikMESValue, lossValue=CFValue, loss=loss,
                           distribution=distribution, B=B), class=c("mes","smooth")));
 }

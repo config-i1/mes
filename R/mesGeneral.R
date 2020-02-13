@@ -495,12 +495,9 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
                                             "inverse-odds-ratio","direct","provided"));
 
     otLogical <- (yInSample!=0);
-    ot <- matrix(otLogical*1,ncol=1);
-    obsNonzero <- sum(ot);
-    obsZero <- obsInSample - obsNonzero;
 
     # If the data is not occurrence, let's assume that the parameter was switched unintentionally.
-    if(all(ot==1) & all(occurrence!=c("none","provided"))){
+    if(all(otLogical) & all(occurrence!=c("none","provided"))){
         occurrence <- "none";
         occurrenceModelProvided <- FALSE;
     }
@@ -508,10 +505,15 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     # This variable just flags, whether we have the occurence in the model or not
     if(occurrence=="none"){
         occurrenceModel <- FALSE;
+        otLogical <- rep(TRUE,obsInSample);
     }
     else{
         occurrenceModel <- TRUE;
     }
+
+    ot <- matrix(otLogical*1,ncol=1);
+    obsNonzero <- sum(ot);
+    obsZero <- obsInSample - obsNonzero;
 
     # Update the number of parameters
     if(occurrenceModelProvided){
@@ -688,11 +690,11 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     else{
         ub <- ellipsis$ub;
     }
-    if(is.null(ellipsis$x0)){
-        x0 <- NULL;
+    if(is.null(ellipsis$B)){
+        B <- NULL;
     }
     else{
-        x0 <- ellipsis$x0;
+        B <- ellipsis$B;
     }
     # Additional parameter for dalaplace, LASSO and dt
     if(is.null(ellipsis$lambda)){
@@ -784,7 +786,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     assign("xtol_rel",xtol_rel,ParentEnvironment);
     assign("algorithm",algorithm,ParentEnvironment);
     assign("print_level",print_level,ParentEnvironment);
-    assign("x0",x0,ParentEnvironment);
+    assign("B",B,ParentEnvironment);
     assign("lb",lb,ParentEnvironment);
     assign("ub",ub,ParentEnvironment);
     assign("lambda",lambda,ParentEnvironment);
