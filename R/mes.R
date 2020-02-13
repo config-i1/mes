@@ -909,6 +909,21 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 ot <- matrix(otLogical*1,ncol=1);
                 obsNonzero <- sum(ot);
                 obsZero <- obsInSample - obsNonzero;
+                Etype[] <- switch(Etype,
+                                  "M"="A",
+                                  "Y"=,
+                                  "Z"="X",
+                                  Etype);
+                Ttype[] <- switch(Ttype,
+                                  "M"="A",
+                                  "Y"=,
+                                  "Z"="X",
+                                  Ttype);
+                Stype[] <- switch(Stype,
+                                  "M"="A",
+                                  "Y"=,
+                                  "Z"="X",
+                                  Stype);
             }
         }
 
