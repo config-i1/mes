@@ -4,16 +4,16 @@
 \alias{mes}
 \title{Mixed Exponential Smoothing}
 \usage{
-mes(y, model = "ZZZ", lags = c(1, 1, frequency(y)),
-  distribution = c("default", "dnorm", "dlogis", "dlaplace", "dt", "ds",
-  "dalaplace", "dlnorm", "dinvgauss"), loss = c("likelihood", "LASSO", "MSE",
-  "MAE", "HAM", "MSEh", "TMSE", "GTMSE", "MSCE"), h = NULL, holdout = FALSE,
-  persistence = NULL, phi = NULL, initial = c("optimal", "backcasting"),
+mes(y, model = "ZZZ", lags = c(frequency(y)), distribution = c("default",
+  "dnorm", "dlogis", "dlaplace", "dt", "ds", "dalaplace", "dlnorm",
+  "dinvgauss"), loss = c("likelihood", "LASSO", "MSE", "MAE", "HAM", "MSEh",
+  "TMSE", "GTMSE", "MSCE"), h = 0, holdout = FALSE, persistence = NULL,
+  phi = NULL, initial = c("optimal", "backcasting"),
   occurrence = c("none", "auto", "fixed", "general", "odds-ratio",
   "inverse-odds-ratio", "direct"), ic = c("AICc", "AIC", "BIC", "BICc"),
   bounds = c("traditional", "admissible", "none"), xreg = NULL,
   xregDo = c("use", "select"), xregInitial = NULL, xregPersistence = 0,
-  silent = TRUE, fast = FALSE, ...)
+  silent = TRUE, ...)
 }
 \arguments{
 \item{y}{Vector, containing data needed to be forecasted. If a matrix is
@@ -139,15 +139,13 @@ Ignored if \code{xreg} is NULL.}
 
 \item{xregPersistence}{The persistence vector \eqn{g_X}, containing smoothing
 parameters for exogenous variables. If \code{NULL}, then estimated. If \code{0}
-then each element of the vector is set to zero. Prerequisite - non-NULL \code{xreg}.}
+then each element of the vector is set to zero. Prerequisite - non-NULL \code{xreg}.
+the provided vectors are correct and will use them directly in the model
+construction.}
 
 \item{silent}{Specifies, whether to provide the progress of the function or not.
 If \code{TRUE}, then the function will print what it does and how much it has
 already done.}
-
-\item{fast}{if \code{TRUE}, then the function won't check whether
-the provided vectors are correct and will use them directly in the model
-construction.}
 
 \item{...}{Other non-documented parameters. For example \code{FI=TRUE} will
 make the function also produce Fisher Information matrix, which then can be
@@ -172,7 +170,9 @@ You can also pass parameters to the optimiser in order to fine tune its work:
 \item \code{print_level} - the level of output for the optimiser (0 by default).
 }
 You can read more about these parameters by running the function
-\link[nloptr]{nloptr.print.options()}.}
+\link[nloptr]{nloptr.print.options()}.
+Finally, the parameter \code{lambda} for LASSO, Asymmetric Laplace and df of Student's
+distribution can be provided here as well.}
 }
 \value{
 Object of class "mes" is returned. It contains the list of the
@@ -222,7 +222,7 @@ vignette: \code{vignette("mes","mes")}.
 \examples{
 
 # Model selection using a specified pool of models
-ourModel <- mes(rnorm(100,100,10),model=c("ANN","AAM","AMdA"))
+ourModel <- mes(rnorm(100,100,10),model=c("ANN","ANA","AAA"), lags=c(5,10))
 
 \dontrun{summary(ourModel)}
 \dontrun{forecast(ourModel)}

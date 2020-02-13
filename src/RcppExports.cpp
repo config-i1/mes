@@ -6,9 +6,9 @@
 
 using namespace Rcpp;
 
-// mesFitterwrap
-RcppExport SEXP mesFitterwrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP vecG, SEXP lagsModelAll, SEXP Etype, SEXP Ttype, SEXP Stype, SEXP componentsNumber, SEXP componentsNumberSeasonal, SEXP yInSample, SEXP ot, SEXP backcasting);
-RcppExport SEXP _mes_mesFitterwrap(SEXP matVtSEXP, SEXP matWtSEXP, SEXP matFSEXP, SEXP vecGSEXP, SEXP lagsModelAllSEXP, SEXP EtypeSEXP, SEXP TtypeSEXP, SEXP StypeSEXP, SEXP componentsNumberSEXP, SEXP componentsNumberSeasonalSEXP, SEXP yInSampleSEXP, SEXP otSEXP, SEXP backcastingSEXP) {
+// mesFitterWrap
+RcppExport SEXP mesFitterWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP vecG, SEXP lagsModelAll, SEXP Etype, SEXP Ttype, SEXP Stype, SEXP componentsNumber, SEXP componentsNumberSeasonal, SEXP yInSample, SEXP ot, SEXP backcasting);
+RcppExport SEXP _mes_mesFitterWrap(SEXP matVtSEXP, SEXP matWtSEXP, SEXP matFSEXP, SEXP vecGSEXP, SEXP lagsModelAllSEXP, SEXP EtypeSEXP, SEXP TtypeSEXP, SEXP StypeSEXP, SEXP componentsNumberSEXP, SEXP componentsNumberSeasonalSEXP, SEXP yInSampleSEXP, SEXP otSEXP, SEXP backcastingSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -25,13 +25,13 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< SEXP >::type yInSample(yInSampleSEXP);
     Rcpp::traits::input_parameter< SEXP >::type ot(otSEXP);
     Rcpp::traits::input_parameter< SEXP >::type backcasting(backcastingSEXP);
-    rcpp_result_gen = Rcpp::wrap(mesFitterwrap(matVt, matWt, matF, vecG, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, yInSample, ot, backcasting));
+    rcpp_result_gen = Rcpp::wrap(mesFitterWrap(matVt, matWt, matF, vecG, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, yInSample, ot, backcasting));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_mes_mesFitterwrap", (DL_FUNC) &_mes_mesFitterwrap, 13},
+    {"_mes_mesFitterWrap", (DL_FUNC) &_mes_mesFitterWrap, 13},
     {NULL, NULL, 0}
 };
 

@@ -13,8 +13,8 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     else if(inherits(y,"Mdata")){
         h <- y$h;
         holdout <- TRUE;
-        y <- ts(c(y$x,y$xx),start=start(y$x),frequency=frequency(y$x));
         yInSample <- matrix(y$x,ncol=1);
+        y <- ts(c(y$x,y$xx),start=start(y$x),frequency=frequency(y$x));
     }
 
     if(!is.numeric(y)){
@@ -224,12 +224,12 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
         lags <- lags[lags!=0];
     }
 
-    # Get rid of duplicates in seasonal lags
-    if(length(unique(lags[lags>1]))!=length(lags[lags>1])){
-        lags <- c(lags[lags==1],unique(lags[lags>1]));
-    }
-    # If we have a trend and the first lag is missing
-    if(Ttype!="N" && (length(lags)==1) || (length(lags)>=2 & !all(lags[1:2]==1))){
+    # Form the lags based on the provided stuff. Get rid of ones and leave unique seasonals
+    lags <- unique(lags[lags>1]);
+    # Add one for the level
+    lags <- c(1,lags);
+    # If we have a trend add one more lag
+    if(Ttype!="N"){
         lags <- c(1,lags);
     }
 
@@ -325,6 +325,10 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     }
     else{
         multisteps <- FALSE;
+    }
+    if(loss=="LASSO"){
+        warning("LASSO is not yet implemented properly. This is an experimental option. Use with care.",
+                call.=FALSE);
     }
 
     #### Persistence provided ####
@@ -691,12 +695,17 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     else{
         x0 <- ellipsis$x0;
     }
-    # Additional parameter for dalaplace and LASSO
-    if(is.null(ellipsis$other)){
-        other <- NULL;
+    # Additional parameter for dalaplace, LASSO and dt
+    if(is.null(ellipsis$lambda)){
+        if(distribution=="dt"){
+            lambda <- 10;
+        }
+        else{
+            lambda <- 0.5;
+        }
     }
     else{
-        other <- ellipsis$other;
+        lambda <- ellipsis$lambda;
     }
 
     #### Return the values to the previous environment ####
@@ -779,5 +788,5 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     assign("x0",x0,ParentEnvironment);
     assign("lb",lb,ParentEnvironment);
     assign("ub",ub,ParentEnvironment);
-    assign("other",other,ParentEnvironment);
+    assign("lambda",lambda,ParentEnvironment);
 }

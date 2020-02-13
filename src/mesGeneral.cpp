@@ -52,15 +52,16 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
 
     int obs = vectorYt.n_rows;
     int obsall = matrixVt.n_cols;
-    unsigned int nComponents = matrixVt.n_rows;
+    int nComponents = matrixVt.n_rows;
+    arma::uvec lagsModifier = lags;
     arma::uvec lagsInternal = lags;
-    unsigned int lagsModelMax = max(lagsInternal);
+    int lagsModelMax = max(lagsInternal);
     int lagslength = lagsInternal.n_rows;
 
     lagsInternal = lagsInternal * nComponents;
 
     for(int i=0; i<lagslength; i=i+1){
-        lagsInternal(i) = lagsInternal(i) + (lagslength - i - 1);
+        lagsModifier(i) = lagslength - i - 1;
     }
 
     arma::uvec lagrows(lagslength, arma::fill::zeros);
@@ -70,82 +71,160 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
     arma::vec vecErrors(obs, arma::fill::zeros);
 
     // Loop for the backcasting
+    unsigned int nIterations = 2;
     if(backcast){
-        unsigned int nIterations = 2;
+        nIterations = 3;
     }
-    else{
-        unsigned int nIterations = 1;
-    }
-    // for (unsigned int j=1; j<nIterations; j=j+1) {
 
-    // Loop for the model construction
-    for (unsigned int i=lagsModelMax; i<obs+lagsModelMax; i=i+1) {
-        lagrows = i * nComponents - lagsInternal + nComponents - 1;
+    // Loop for the backcast
+    for (unsigned int j=1; j<nIterations; j=j+1) {
 
-        /* # Measurement equation and the error term */
-        vecYfit(i-lagsModelMax) = wvalue(matrixVt(lagrows), matrixWt.row(i-lagsModelMax), E, T, S,
-                nNonSeasonal, nSeasonal, nComponents);
+        ////// Run forward
+        // Loop for the model construction
+        for (int i=lagsModelMax; i<obs+lagsModelMax; i=i+1) {
+            lagrows = i * nComponents - (lagsInternal + lagsModifier) + nComponents - 1;
 
-        // This is a failsafe for cases of ridiculously high and ridiculously low values
-        if(vecYfit(i-lagsModelMax) > 1e+100){
-            vecYfit(i-lagsModelMax) = vecYfit(i-lagsModelMax-1);
+            /* # Measurement equation and the error term */
+            vecYfit(i-lagsModelMax) = wvalue(matrixVt(lagrows), matrixWt.row(i-lagsModelMax), E, T, S,
+                    nNonSeasonal, nSeasonal, nComponents);
+
+            // This is a failsafe for cases of ridiculously high and ridiculously low values
+            if(vecYfit(i-lagsModelMax) > 1e+100 && (i-lagsModelMax)>0){
+                vecYfit(i-lagsModelMax) = vecYfit(i-lagsModelMax-1);
+            }
+
+            // If this is zero (intermittent), then set error to zero
+            if(vectorOt(i-lagsModelMax)==0){
+                vecErrors(i-lagsModelMax) = 0;
+            }
+            else{
+                vecErrors(i-lagsModelMax) = errorf(vectorYt(i-lagsModelMax), vecYfit(i-lagsModelMax), E);
+            }
+
+            /* # Transition equation */
+            matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, T, S, nComponents) +
+            gvalue(matrixVt(lagrows), matrixF, matrixWt.row(i-lagsModelMax), E, T, S,
+                   nNonSeasonal, nSeasonal, nComponents) % vectorG * vecErrors(i-lagsModelMax);
+
+            /* Failsafe for cases when unreasonable value for state vector was produced */
+            if(!matrixVt.col(i).is_finite()){
+                matrixVt.col(i) = matrixVt(lagrows);
+            }
+            if((S=='M') & (matrixVt(matrixVt.n_rows-1,i) <= 0)){
+                matrixVt(matrixVt.n_rows-1,i) = arma::as_scalar(matrixVt(lagrows.row(matrixVt.n_rows-1)));
+            }
+            if(T=='M'){
+                if((matrixVt(0,i) <= 0) | (matrixVt(1,i) <= 0)){
+                    matrixVt(0,i) = arma::as_scalar(matrixVt(lagrows.row(0)));
+                    matrixVt(1,i) = arma::as_scalar(matrixVt(lagrows.row(1)));
+                }
+            }
+            if(any(matrixVt.col(i)>1e+100)){
+                matrixVt.col(i) = matrixVt(lagrows);
+            }
+
+            /* Renormalise components if the seasonal model is chosen */
+            // if(S!='N'){
+            //     if(double(i+1) / double(lagsModelMax) == double((i+1) / lagsModelMax)){
+            //         matrixVt.cols(i-lagsModelMax+1,i) = normaliser(matrixVt.cols(i-lagsModelMax+1,i), obsall, lagsModelMax, S, T);
+            //     }
+            // }
+
+            /* # Transition equation for xreg */
         }
 
-        // If this is zero (intermittent), then set error to zero
-        if(vectorOt(i-lagsModelMax)==0){
-            vecErrors(i-lagsModelMax) = 0;
-        }
-        else{
-            vecErrors(i-lagsModelMax) = errorf(vectorYt(i-lagsModelMax), vecYfit(i-lagsModelMax), E);
-        }
+        // Fill in the tail of the series
+        for (int i=obs+lagsModelMax; i<obsall; i=i+1) {
+            lagrows = i * nComponents - (lagsInternal + lagsModifier) + nComponents - 1;
+            matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, T, S, nComponents);
 
-        /* # Transition equation */
-        matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, T, S, nComponents) +
-                          gvalue(matrixVt(lagrows), matrixF, matrixWt.row(i-lagsModelMax), E, T, S,
-                                 nNonSeasonal, nSeasonal, nComponents) % vectorG * vecErrors(i-lagsModelMax);
-
-        /* Failsafe for cases when unreasonable value for state vector was produced */
-        if(!matrixVt.col(i).is_finite()){
-            matrixVt.col(i) = matrixVt(lagrows);
-        }
-        if((S=='M') & (matrixVt(matrixVt.n_rows-1,i) <= 0)){
-            matrixVt(matrixVt.n_rows-1,i) = arma::as_scalar(matrixVt(lagrows.row(matrixVt.n_rows-1)));
-        }
-        if(T=='M'){
-            if((matrixVt(0,i) <= 0) | (matrixVt(1,i) <= 0)){
-                matrixVt(0,i) = arma::as_scalar(matrixVt(lagrows.row(0)));
-                matrixVt(1,i) = arma::as_scalar(matrixVt(lagrows.row(1)));
+            /* Failsafe for cases when unreasonable value for state vector was produced */
+            if(!matrixVt.col(i).is_finite()){
+                matrixVt.col(i) = matrixVt(lagrows);
+            }
+            if((S=='M') & (matrixVt(matrixVt.n_rows-1,i) <= 0)){
+                matrixVt(matrixVt.n_rows-1,i) = arma::as_scalar(matrixVt(lagrows.row(matrixVt.n_rows-1)));
+            }
+            if(T=='M'){
+                if((matrixVt(0,i) <= 0) | (matrixVt(1,i) <= 0)){
+                    matrixVt(0,i) = arma::as_scalar(matrixVt(lagrows.row(0)));
+                    matrixVt(1,i) = arma::as_scalar(matrixVt(lagrows.row(1)));
+                }
             }
         }
-        if(any(matrixVt.col(i)>1e+100)){
-            matrixVt.col(i) = matrixVt(lagrows);
-        }
 
-        /* Renormalise components if the seasonal model is chosen */
-        // if(S!='N'){
-        //     if(double(i+1) / double(lagsModelMax) == double((i+1) / lagsModelMax)){
-        //         matrixVt.cols(i-lagsModelMax+1,i) = normaliser(matrixVt.cols(i-lagsModelMax+1,i), obsall, lagsModelMax, S, T);
-        //     }
-        // }
+        ////// Backwards run
+        if(backcast && j<nIterations){
+            for (int i=obs+lagsModelMax-1; i>=lagsModelMax; i=i-1) {
+                lagrows = i * nComponents + lagsInternal - lagsModifier + nComponents - 1;
 
-        /* # Transition equation for xreg */
-    }
+                /* # Measurement equation and the error term */
+                vecYfit(i-lagsModelMax) = wvalue(matrixVt(lagrows), matrixWt.row(i-lagsModelMax), E, T, S,
+                                                 nNonSeasonal, nSeasonal, nComponents);
 
-    for (int i=obs+lagsModelMax; i<obsall; i=i+1) {
-        lagrows = i * nComponents - lagsInternal + nComponents - 1;
-        matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, T, S, nComponents);
+                // This is a failsafe for cases of ridiculously high and ridiculously low values
+                if(vecYfit(i-lagsModelMax) > 1e+100 && (i-lagsModelMax+1)<obs){
+                    vecYfit(i-lagsModelMax) = vecYfit(i-lagsModelMax+1);
+                }
 
-        /* Failsafe for cases when unreasonable value for state vector was produced */
-        if(!matrixVt.col(i).is_finite()){
-            matrixVt.col(i) = matrixVt(lagrows);
-        }
-        if((S=='M') & (matrixVt(matrixVt.n_rows-1,i) <= 0)){
-            matrixVt(matrixVt.n_rows-1,i) = arma::as_scalar(matrixVt(lagrows.row(matrixVt.n_rows-1)));
-        }
-        if(T=='M'){
-            if((matrixVt(0,i) <= 0) | (matrixVt(1,i) <= 0)){
-                matrixVt(0,i) = arma::as_scalar(matrixVt(lagrows.row(0)));
-                matrixVt(1,i) = arma::as_scalar(matrixVt(lagrows.row(1)));
+                // If this is zero (intermittent), then set error to zero
+                if(vectorOt(i-lagsModelMax)==0){
+                    vecErrors(i-lagsModelMax) = 0;
+                }
+                else{
+                    vecErrors(i-lagsModelMax) = errorf(vectorYt(i-lagsModelMax), vecYfit(i-lagsModelMax), E);
+                }
+
+                /* # Transition equation */
+                matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, T, S, nComponents) +
+                                  gvalue(matrixVt(lagrows), matrixF, matrixWt.row(i-lagsModelMax), E, T, S,
+                                         nNonSeasonal, nSeasonal, nComponents) % vectorG * vecErrors(i-lagsModelMax);
+
+                /* Failsafe for cases when unreasonable value for state vector was produced */
+                if(!matrixVt.col(i).is_finite()){
+                    matrixVt.col(i) = matrixVt(lagrows);
+                }
+                if((S=='M') & (matrixVt(matrixVt.n_rows-1,i) <= 0)){
+                    matrixVt(matrixVt.n_rows-1,i) = arma::as_scalar(matrixVt(lagrows.row(matrixVt.n_rows-1)));
+                }
+                if(T=='M'){
+                    if((matrixVt(0,i) <= 0) | (matrixVt(1,i) <= 0)){
+                        matrixVt(0,i) = arma::as_scalar(matrixVt(lagrows.row(0)));
+                        matrixVt(1,i) = arma::as_scalar(matrixVt(lagrows.row(1)));
+                    }
+                }
+                if(any(matrixVt.col(i)>1e+100)){
+                    matrixVt.col(i) = matrixVt(lagrows);
+                }
+
+                /* Renormalise components if the seasonal model is chosen */
+                // if(S!='N'){
+                //     if(double(i+1) / double(lagsModelMax) == double((i+1) / lagsModelMax)){
+                //         matrixVt.cols(i-lagsModelMax+1,i) = normaliser(matrixVt.cols(i-lagsModelMax+1,i), obsall, lagsModelMax, S, T);
+                //     }
+                // }
+
+                /* # Transition equation for xreg */
+            }
+
+            // Fill in the head of the series
+            for (int i=lagsModelMax-1; i>=0; i=i-1) {
+                lagrows = i * nComponents + lagsInternal - lagsModifier + nComponents - 1;
+                matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, T, S, nComponents);
+
+                /* Failsafe for cases when unreasonable value for state vector was produced */
+                if(!matrixVt.col(i).is_finite()){
+                    matrixVt.col(i) = matrixVt(lagrows);
+                }
+                if((S=='M') & (matrixVt(matrixVt.n_rows-1,i) <= 0)){
+                    matrixVt(matrixVt.n_rows-1,i) = arma::as_scalar(matrixVt(lagrows.row(matrixVt.n_rows-1)));
+                }
+                if(T=='M'){
+                    if((matrixVt(0,i) <= 0) | (matrixVt(1,i) <= 0)){
+                        matrixVt(0,i) = arma::as_scalar(matrixVt(lagrows.row(0)));
+                        matrixVt(1,i) = arma::as_scalar(matrixVt(lagrows.row(1)));
+                    }
+                }
             }
         }
     }

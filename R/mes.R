@@ -188,6 +188,8 @@
 #' }
 #' You can read more about these parameters by running the function
 #' \link[nloptr]{nloptr.print.options()}.
+#' Finally, the parameter \code{lambda} for LASSO, Asymmetric Laplace and df of Student's
+#' distribution can be provided here as well.
 #'
 #' @return Object of class "mes" is returned. It contains the list of the
 #' following values:
@@ -197,7 +199,7 @@
 #' @examples
 #'
 #' # Model selection using a specified pool of models
-#' ourModel <- mes(rnorm(100,100,10),model=c("ANN","AAM","AMdA"))
+#' ourModel <- mes(rnorm(100,100,10),model=c("ANN","ANA","AAA"), lags=c(5,10))
 #'
 #' \dontrun{summary(ourModel)}
 #' \dontrun{forecast(ourModel)}
@@ -211,7 +213,7 @@
 #' @importFrom nloptr nloptr
 #' @importFrom numDeriv hessian
 #' @export mes
-mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
+mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
                                "dlnorm","dinvgauss"),
                 loss=c("likelihood","LASSO","MSE","MAE","HAM","MSEh","TMSE","GTMSE","MSCE"),
@@ -646,7 +648,7 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
                    persistenceEstimate, phiEstimate, initialType,
                    xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
                    xregNumber,
-                   bounds, loss, distribution, h, multisteps, other){
+                   bounds, loss, distribution, h, multisteps, lambda){
 
         # Fill in the matrices
         mesElements <- filler(B,
@@ -680,9 +682,9 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
                                 "dnorm"=sqrt(sum(mesFitted$errors[otLogical]^2)/obsInSample),
                                 "dlogis"=sqrt(sum(mesFitted$errors^2)/obsInSample * 3 / pi^2),
                                 "dlaplace"=sum(abs(mesFitted$errors))/obsInSample,
-                                "dt"=abs(other),
+                                "dt"=abs(lambda),
                                 "ds"=sum(sqrt(abs(mesFitted$errors[otLogical]))) / (obsInSample*2),
-                                "dalaplace"=sum(mesFitted$errors[otLogical]*(other-(mesFitted$errors[otLogical]<=0)*1))/obsInSample,
+                                "dalaplace"=sum(mesFitted$errors[otLogical]*(lambda-(mesFitted$errors[otLogical]<=0)*1))/obsInSample,
                                 "dlnorm"=sqrt(sum(log(1+mesFitted$errors[otLogical])^2)/obsInSample),
                                 "dinvgauss"=sum((mesFitted$errors[otLogical])^2/(1+mesFitted$errors[otLogical]))/obsInSample/mesFitted$yFitted[otLogical]);
 
@@ -698,7 +700,7 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
                                        "ds"=ds(q=yInSample[otLogical],mu=mesFitted$yFitted[otLogical],
                                                scale=scale, log=TRUE),
                                        "dalaplace"=dalaplace(q=yInSample[otLogical], mu=mesFitted$yFitted[otLogical],
-                                                             scale=scale, alpha=other, log=TRUE),
+                                                             scale=scale, alpha=lambda, log=TRUE),
                                        "dlnorm"=dlnorm(x=yInSample[otLogical], meanlog=log(mesFitted$yFitted[otLogical]),
                                                        sdlog=scale, log=TRUE),
                                        "dinvgauss"=dinvgauss(x=yInSample[otLogical], mean=mesFitted$yFitted[otLogical],
@@ -729,8 +731,8 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
                 CFValue <- mean(sqrt(abs(mesFitted$errors)));
             }
             else if(loss=="LASSO"){
-                # "B" needs to be normalised! Multiply by means of variables
-                CFValue <- mean(mesFitted$errors^2) + other * sum(abs(B));
+                # "B" needs to be normalised...
+                CFValue <- (1-lambda)* mean(mesFitted$errors^2) + lambda * sum(abs(B));
             }
         }
         else{
@@ -753,7 +755,7 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
                          persistenceEstimate, phiEstimate, initialType,
                          xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
                          xregNumber,
-                         bounds, loss, distribution, h, multisteps, other){
+                         bounds, loss, distribution, h, multisteps, lambda){
         if(!multisteps){
             if(loss=="LASSO"){
                 return(0);
@@ -772,7 +774,7 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
                                     persistenceEstimate, phiEstimate, initialType,
                                     xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
                                     xregNumber,
-                                    bounds, "likelihood", distributionNew, h, multisteps, other);
+                                    bounds, "likelihood", distributionNew, h, multisteps, lambda);
 
                 # If this is an occurrence model, add the probabilities
                 if(occurrenceModel){
@@ -814,7 +816,7 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
                           xregPersistence, xregPersistenceEstimate,
                           xregModel, xregData, xregNumber, xregNames,
                           ot, otLogical, occurrenceModel, pFitted,
-                          bounds, loss, distribution, h, multisteps, other){
+                          bounds, loss, distribution, h, multisteps, lambda){
 
         mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber);
         list2env(mesArchitect, environment());
@@ -864,7 +866,7 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
                       persistenceEstimate=persistenceEstimate, phiEstimate=phiEstimate, initialType=initialType,
                       xregProvided=xregProvided, xregInitialsEstimate=xregInitialsEstimate,
                       xregPersistenceEstimate=xregPersistenceEstimate, xregNumber=xregNumber,
-                      bounds=bounds, loss=loss, distribution=distributionNew, h=h, multisteps=multisteps, other=other);
+                      bounds=bounds, loss=loss, distribution=distributionNew, h=h, multisteps=multisteps, lambda=lambda);
 
         # Prepare the values to return
         B[] <- res$solution;
@@ -879,7 +881,7 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
                                   persistenceEstimate, phiEstimate, initialType,
                                   xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
                                   xregNumber,
-                                  bounds, loss, distributionNew, h, multisteps, other);
+                                  bounds, loss, distributionNew, h, multisteps, lambda);
 
         return(list(B=B, CFValue=CFValue, nParamEstimated=nParamEstimated, logLikESValue=logLikESValue));
     }
@@ -923,7 +925,7 @@ mes <- function(y, model="ZZZ", lags=c(1,1,frequency(y)),
                                  xregPersistence, xregPersistenceEstimate,
                                  xregModel, xregData, xregNumber, xregNames,
                                  ot, otLogical, occurrenceModel, pFitted,
-                                 bounds, loss, distribution, h, multisteps, other);
+                                 bounds, loss, distribution, h, multisteps, lambda);
         list2env(esEstimator, environment());
         parametersNumber[1,4] <- nParamEstimated;
 
