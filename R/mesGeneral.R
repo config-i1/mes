@@ -13,8 +13,8 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     else if(inherits(y,"Mdata")){
         h <- y$h;
         holdout <- TRUE;
-        yInSample <- matrix(y$x,ncol=1);
-        y <- ts(c(y$x,y$xx),start=start(y$x),frequency=frequency(y$x));
+        lags <- frequency(y$x);
+        y <- ts(c(y$x,y$xx),start=start(y$x),frequency=lags);
     }
 
     if(!is.numeric(y)){
@@ -225,9 +225,8 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     }
 
     # Form the lags based on the provided stuff. Get rid of ones and leave unique seasonals
-    lags <- unique(lags[lags>1]);
     # Add one for the level
-    lags <- c(1,lags);
+    lags <- c(1,unique(lags[lags>1]));
     # If we have a trend add one more lag
     if(Ttype!="N"){
         lags <- c(1,lags);

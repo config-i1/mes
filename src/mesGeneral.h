@@ -19,13 +19,13 @@ inline double wvalue(arma::vec const &vecVt, arma::rowvec const &rowvecW,
     case 'N':
         switch(T){
         case 'N':
-            vecYfit = rowvecW.cols(0,nNonSeasonal+nSeasonal-1) * vecVt.rows(0,nNonSeasonal+nSeasonal-1);
+            vecYfit = vecVt.row(0);
             break;
         case 'A':
             vecYfit = rowvecW.cols(0,1) * vecVt.rows(0,1);
             break;
         case 'M':
-            vecYfit = exp(rowvecW.cols(0,nNonSeasonal+nSeasonal-1) * log(vecVt.rows(0,nNonSeasonal+nSeasonal-1)));
+            vecYfit = exp(rowvecW.cols(0,1) * log(vecVt.rows(0,1)));
             break;
         }
         break;
@@ -180,11 +180,7 @@ inline arma::vec gvalue(arma::vec const &matrixVt, arma::mat const &matrixF, arm
                 g = matrixVt;
                 break;
             case 'A':
-                g.rows(0,nSeasonal) = as_scalar(rowvecW.cols(0,nSeasonal) * matrixVt.rows(0,nSeasonal));
-                // Explanatory variables
-                if(nComponents > (nSeasonal+nNonSeasonal)){
-                    g.rows(nSeasonal+nNonSeasonal,nComponents-1) = matrixVt.rows(nSeasonal+nNonSeasonal,nComponents-1);
-                }
+                g.rows(0,nSeasonal) = matrixVt.rows(0,nSeasonal);
                 break;
             case 'M':
                 g = matrixVt;
@@ -195,6 +191,8 @@ inline arma::vec gvalue(arma::vec const &matrixVt, arma::mat const &matrixF, arm
         case 'A':
             switch(S){
             case 'N':
+                g.rows(0,1) = rowvecW.cols(0,1) * matrixVt.rows(0,1);
+                break;
             case 'A':
                 g.rows(0,nSeasonal) = as_scalar(rowvecW.cols(0,nSeasonal) * matrixVt.rows(0,nSeasonal));
                 // Explanatory variables
@@ -213,7 +211,6 @@ inline arma::vec gvalue(arma::vec const &matrixVt, arma::mat const &matrixF, arm
             switch(S){
             case 'N':
                 g.rows(0,1) = exp(matrixF.submat(0,0,1,1) * log(matrixVt.rows(0,nNonSeasonal-1)));
-                g.rows(2,nComponents-1) = matrixVt.rows(2,nComponents-1);
                 break;
             case 'A':
                 g.rows(0,2).fill(as_scalar(exp(rowvecW.cols(0,1) * log(matrixVt.rows(0,1))) + rowvecW.cols(2,nSeasonal-1) * matrixVt.rows(2,nSeasonal-1)));
