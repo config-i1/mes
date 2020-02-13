@@ -10,20 +10,20 @@ using namespace Rcpp;
 /* # Function returns multiplicative or additive error for scalar */
 double errorf(double const &yact, double &yfit, char const &E){
     switch(E){
-        default:
-        case 'A':
-            return yact - yfit;
+    default:
+    case 'A':
+        return yact - yfit;
         break;
-        case 'M':
-            if((yact==0) & (yfit==0)){
-                return 0;
-            }
-            else if((yact!=0) & (yfit==0)){
-                return R_PosInf;
-            }
-            else{
-                return (yact - yfit) / yfit;
-            }
+    case 'M':
+        if((yact==0) & (yfit==0)){
+            return 0;
+        }
+        else if((yact!=0) & (yfit==0)){
+            return R_PosInf;
+        }
+        else{
+            return (yact - yfit) / yfit;
+        }
         break;
     }
 }
@@ -45,10 +45,10 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
                unsigned int const &nNonSeasonal, unsigned int const &nSeasonal,
                arma::vec const &vectorYt, arma::vec const &vectorOt, bool const &backcast){
     /* # matrixVt should have a length of obs + lagsModelMax.
-    * # matrixWt is a matrix with nrows = obs
-    * # vecG should be a vector
-    * # lags is a vector of lags
-    */
+     * # matrixWt is a matrix with nrows = obs
+     * # vecG should be a vector
+     * # lags is a vector of lags
+     */
 
     int obs = vectorYt.n_rows;
     int obsall = matrixVt.n_cols;
@@ -99,12 +99,12 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
             vecErrors(i-lagsModelMax) = errorf(vectorYt(i-lagsModelMax), vecYfit(i-lagsModelMax), E);
         }
 
-/* # Transition equation */
+        /* # Transition equation */
         matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, T, S, nComponents) +
                           gvalue(matrixVt(lagrows), matrixF, matrixWt.row(i-lagsModelMax), E, T, S,
                                  nNonSeasonal, nSeasonal, nComponents) % vectorG * vecErrors(i-lagsModelMax);
 
-/* Failsafe for cases when unreasonable value for state vector was produced */
+        /* Failsafe for cases when unreasonable value for state vector was produced */
         if(!matrixVt.col(i).is_finite()){
             matrixVt.col(i) = matrixVt(lagrows);
         }
@@ -121,21 +121,21 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
             matrixVt.col(i) = matrixVt(lagrows);
         }
 
-/* Renormalise components if the seasonal model is chosen */
+        /* Renormalise components if the seasonal model is chosen */
         // if(S!='N'){
         //     if(double(i+1) / double(lagsModelMax) == double((i+1) / lagsModelMax)){
         //         matrixVt.cols(i-lagsModelMax+1,i) = normaliser(matrixVt.cols(i-lagsModelMax+1,i), obsall, lagsModelMax, S, T);
         //     }
         // }
 
-/* # Transition equation for xreg */
+        /* # Transition equation for xreg */
     }
 
     for (int i=obs+lagsModelMax; i<obsall; i=i+1) {
         lagrows = i * nComponents - lagsInternal + nComponents - 1;
         matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, T, S, nComponents);
 
-/* Failsafe for cases when unreasonable value for state vector was produced */
+        /* Failsafe for cases when unreasonable value for state vector was produced */
         if(!matrixVt.col(i).is_finite()){
             matrixVt.col(i) = matrixVt(lagrows);
         }
@@ -150,7 +150,7 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
         }
     }
 
-    return List::create(Named("matvt") = matrixVt.t(), Named("yfit") = vecYfit,
+    return List::create(Named("matVt") = matrixVt, Named("yFitted") = vecYfit,
                         Named("errors") = vecErrors);
 }
 
@@ -180,8 +180,8 @@ RcppExport SEXP mesFitterWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP vecG,
     char T = as<char>(Ttype);
     char S = as<char>(Stype);
 
-    unsigned int nNonSeasonal = as<int>(componentsNumber);
     unsigned int nSeasonal = as<int>(componentsNumberSeasonal);
+    unsigned int nNonSeasonal = as<int>(componentsNumber) - nSeasonal;
 
     NumericMatrix yt_n(yInSample);
     arma::vec vectorYt(yt_n.begin(), yt_n.nrow(), false);

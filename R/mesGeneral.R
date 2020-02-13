@@ -224,9 +224,13 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
         lags <- lags[lags!=0];
     }
 
-    # Get rid of duplicates in lags
-    if(length(unique(lags))!=length(lags)){
-        lags <- unique(lags);
+    # Get rid of duplicates in seasonal lags
+    if(length(unique(lags[lags>1]))!=length(lags[lags>1])){
+        lags <- c(lags[lags==1],unique(lags[lags>1]));
+    }
+    # If we have a trend and the first lag is missing
+    if(Ttype!="N" && (length(lags)==1) || (length(lags)>=2 & !all(lags[1:2]==1))){
+        lags <- c(1,lags);
     }
 
     # Lags of the model
@@ -276,14 +280,17 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     # Check, whether the number of lags and the number of components are the same
     if(lagsLength>componentsNumber){
         if(Stype!="N"){
-            componentsNames <- c(componentsNames[-length(componentsNames)],paste0("seasonal",c(1:(lagsLength-componentsNumber))));
+            # lagsModel <- matrix(lags[1:componentsNumber],ncol=1);
+            # lagsModelMax <- max(lagsModel);
+            componentsNames <- c(componentsNames[-length(componentsNames)],paste0("seasonal",c(1:(lagsLength-componentsNumber-1))));
+            componentsNumberSeasonal[] <- lagsLength-componentsNumber+1;
+            # lagsLength <- length(lagsModel);
             componentsNumber[] <- lagsLength;
-            componentsNumberSeasonal[] <- lagsLength-componentsNumber;
         }
         else{
             lagsModel <- matrix(lags[1:componentsNumber],ncol=1);
             lagsModelMax <- max(lagsModel);
-            lagsLength <- length(lags);
+            lagsLength <- length(lagsModel);
         }
     }
     else if(lagsLength<componentsNumber){
@@ -536,7 +543,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
                 if(distribution=="default"){
                     distribution <- switch(Etype,
                                            "A"="dnorm",
-                                           "M"="dinvgauss");
+                                           "M"="dlnorm");
                 }
                 # Return the estimated model based on the provided xreg
                 if(Etype=="M" && any(distribution==c("dnorm","dlogis","dlaplace","dt","ds","dalaplace"))){
@@ -572,7 +579,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
 
             # Write down the number and names of parameters
             xregNumber <- ncol(testModel$data)-1;
-            xregNames <- names(testModel$coefficients)[-1];
+            xregNames <- colnames(testModel$data)[-1];
             xregData <- testModel$data[,-1];
         }
         else{
@@ -615,7 +622,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
             xregPersistenceEstimate <- TRUE;
         }
         xregEstimate <- any(xregInitialsEstimate,xregPersistenceEstimate);
-        lagsModelAll <- rbind(lagsModel,rep(1,xregNumber));
+        lagsModelAll <- matrix(c(lagsModel,rep(1,xregNumber)),ncol=1);
     }
     else{
         xregProvided <- FALSE;
@@ -636,7 +643,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
 
     # Parameters for the optimiser
     if(is.null(ellipsis$maxeval)){
-        maxeval <- 100;
+        maxeval <- 500;
     }
     else{
         maxeval <- ellipsis$maxeval;
@@ -654,7 +661,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
         xtol_rel <- ellipsis$xtol_rel;
     }
     if(is.null(ellipsis$algorithm)){
-        algorithm <- "NLOPT_LN_BOBYQA";
+        algorithm <- "NLOPT_LN_NELDERMEAD";
     }
     else{
         algorithm <- ellipsis$algorithm;
@@ -750,6 +757,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     assign("bounds",bounds,ParentEnvironment);
 
     # Explanatory variables
+    assign("xregExist",xregExist,ParentEnvironment);
     assign("xregModel",xregModel,ParentEnvironment);
     assign("xregData",xregData,ParentEnvironment);
     assign("xregNumber",xregNumber,ParentEnvironment);

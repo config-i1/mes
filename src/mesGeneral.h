@@ -19,12 +19,13 @@ inline double wvalue(arma::vec const &vecVt, arma::rowvec const &rowvecW,
     case 'N':
         switch(T){
         case 'N':
-            vecYfit = rowvecW * vecVt;
+            vecYfit = rowvecW.cols(0,nNonSeasonal+nSeasonal-1) * vecVt.rows(0,nNonSeasonal+nSeasonal-1);
+            break;
         case 'A':
             vecYfit = rowvecW.cols(0,1) * vecVt.rows(0,1);
             break;
         case 'M':
-            vecYfit = exp(rowvecW * log(vecVt));
+            vecYfit = exp(rowvecW.cols(0,nNonSeasonal+nSeasonal-1) * log(vecVt.rows(0,nNonSeasonal+nSeasonal-1)));
             break;
         }
         break;
@@ -33,7 +34,7 @@ inline double wvalue(arma::vec const &vecVt, arma::rowvec const &rowvecW,
         switch(T){
         case 'N':
         case 'A':
-            vecYfit = rowvecW * vecVt;
+            vecYfit = rowvecW.cols(0,nNonSeasonal+nSeasonal-1) * vecVt.rows(0,nNonSeasonal+nSeasonal-1);
             break;
         case 'M':
             vecYfit = exp(rowvecW.cols(0,1) * log(vecVt.rows(0,1))) + rowvecW.cols(2,2+nSeasonal-1) * vecVt.rows(2,2+nSeasonal-1);
@@ -45,7 +46,7 @@ inline double wvalue(arma::vec const &vecVt, arma::rowvec const &rowvecW,
         switch(T){
         case 'N':
         case 'M':
-            vecYfit = exp(rowvecW * log(vecVt));
+            vecYfit = exp(rowvecW.cols(0,nNonSeasonal+nSeasonal-1) * log(vecVt.rows(0,nNonSeasonal+nSeasonal-1)));
             break;
         case 'A':
             vecYfit = rowvecW.cols(0,1) * vecVt.rows(0,1) * exp(rowvecW.cols(2,2+nSeasonal-1) * log(vecVt.rows(2,2+nSeasonal-1)));
@@ -59,12 +60,15 @@ inline double wvalue(arma::vec const &vecVt, arma::rowvec const &rowvecW,
         // If error is additive, add explanatory variables. Otherwise multiply by exp(ax)
         switch(E){
         case 'A':
-            yfit = as_scalar(vecYfit + rowvecW.cols(nNonSeasonal+nSeasonal-1,nComponents-1) * vecVt.rows(nNonSeasonal+nSeasonal-1,nComponents-1));
+            yfit = as_scalar(vecYfit + rowvecW.cols(nNonSeasonal+nSeasonal,nComponents-1) * vecVt.rows(nNonSeasonal+nSeasonal,nComponents-1));
             break;
         case 'M':
-            yfit = as_scalar(vecYfit * exp(rowvecW.cols(nNonSeasonal+nSeasonal-1,nComponents-1) * vecVt.rows(nNonSeasonal+nSeasonal-1,nComponents-1)));
+            yfit = as_scalar(vecYfit * exp(rowvecW.cols(nNonSeasonal+nSeasonal,nComponents-1) * vecVt.rows(nNonSeasonal+nSeasonal,nComponents-1)));
             break;
         }
+    }
+    else{
+        yfit = as_scalar(vecYfit);
     }
 
     return yfit;
@@ -208,7 +212,8 @@ inline arma::vec gvalue(arma::vec const &matrixVt, arma::mat const &matrixF, arm
         case 'M':
             switch(S){
             case 'N':
-                g = exp(matrixF * log(matrixVt));
+                g.rows(0,1) = exp(matrixF.submat(0,0,1,1) * log(matrixVt.rows(0,nNonSeasonal-1)));
+                g.rows(2,nComponents-1) = matrixVt.rows(2,nComponents-1);
                 break;
             case 'A':
                 g.rows(0,2).fill(as_scalar(exp(rowvecW.cols(0,1) * log(matrixVt.rows(0,1))) + rowvecW.cols(2,nSeasonal-1) * matrixVt.rows(2,nSeasonal-1)));
@@ -219,7 +224,8 @@ inline arma::vec gvalue(arma::vec const &matrixVt, arma::mat const &matrixF, arm
                 }
                 break;
             case 'M':
-                g = exp(matrixF * log(matrixVt));
+                g.rows(0,1) = exp(matrixF.submat(0,0,1,1) * log(matrixVt.rows(0,nNonSeasonal-1)));
+                g.rows(2,nComponents-1) = matrixVt.rows(2,nComponents-1);
                 break;
             }
             break;
@@ -230,16 +236,9 @@ inline arma::vec gvalue(arma::vec const &matrixVt, arma::mat const &matrixF, arm
 
     // Explanatory variables. Needed in order to update the parameters
     if(nComponents > (nSeasonal+nNonSeasonal)){
-        arma::rowvec rowvecWtxreg(1/rowvecW.cols(nSeasonal+nNonSeasonal,nComponents-1).t());
+        arma::vec rowvecWtxreg(1/rowvecW.cols(nSeasonal+nNonSeasonal,nComponents-1).t());
         rowvecWtxreg.rows(find_nonfinite(rowvecWtxreg)).fill(0);
-        switch(E){
-        case 'A':
-            g.rows(nSeasonal+nNonSeasonal,nComponents-1) = g.rows(nSeasonal+nNonSeasonal,nComponents-1)*rowvecWtxreg;
-            break;
-        case 'M':
-            g.rows(nSeasonal+nNonSeasonal,nComponents-1) = g.rows(nSeasonal+nNonSeasonal,nComponents-1)*rowvecWtxreg;
-            break;
-        }
+        g.rows(nSeasonal+nNonSeasonal,nComponents-1) = rowvecWtxreg % g.rows(nSeasonal+nNonSeasonal,nComponents-1);
     }
 
     return g;
