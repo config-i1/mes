@@ -6,9 +6,9 @@
 \usage{
 mes(y, model = "ZZZ", lags = c(frequency(y)), distribution = c("default",
   "dnorm", "dlogis", "dlaplace", "dt", "ds", "dalaplace", "dlnorm",
-  "dinvgauss"), loss = c("likelihood", "LASSO", "MSE", "MAE", "HAM", "MSEh",
-  "TMSE", "GTMSE", "MSCE"), h = 0, holdout = FALSE, persistence = NULL,
-  phi = NULL, initial = c("optimal", "backcasting"),
+  "dinvgauss"), loss = c("likelihood", "MSE", "MAE", "HAM", "LASSO", "RIDGE",
+  "MSEh", "TMSE", "GTMSE", "MSCE"), h = 0, holdout = FALSE,
+  persistence = NULL, phi = NULL, initial = c("optimal", "backcasting"),
   occurrence = c("none", "auto", "fixed", "general", "odds-ratio",
   "inverse-odds-ratio", "direct"), ic = c("AICc", "AIC", "BIC", "BICc"),
   bounds = c("traditional", "admissible", "none"), xreg = NULL,
@@ -67,10 +67,11 @@ be:
 \itemize{
 \item \code{likelihood} - the model is estimated via the maximisation of the
 likelihood of the function specified in \code{distribution};
-\item \code{LASSO} - use LASSO to shrink the parameters of the model;
 \item \code{MSE} (Mean Squared Error),
 \item \code{MAE} (Mean Absolute Error),
 \item \code{HAM} (Half Absolute Moment),
+\item \code{LASSO} - use LASSO to shrink the parameters of the model;
+\item \code{RIDGE} - use RIDGE to shrink the parameters of the model;
 \item \code{TMSE} - Trace Mean Squared Error,
 \item \code{GTMSE} - Geometric Trace Mean Squared Error,
 \item \code{MSEh} - optimisation using only h-steps ahead error,
@@ -171,8 +172,8 @@ You can also pass parameters to the optimiser in order to fine tune its work:
 }
 You can read more about these parameters by running the function
 \link[nloptr]{nloptr.print.options()}.
-Finally, the parameter \code{lambda} for LASSO, Asymmetric Laplace and df of Student's
-distribution can be provided here as well.}
+Finally, the parameter \code{lambda} for LASSO / RIDGE, Asymmetric Laplace and df
+of Student's distribution can be provided here as well.}
 }
 \value{
 Object of class "mes" is returned. It contains the list of the

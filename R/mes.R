@@ -95,10 +95,11 @@
 #' \itemize{
 #' \item \code{likelihood} - the model is estimated via the maximisation of the
 #' likelihood of the function specified in \code{distribution};
-#' \item \code{LASSO} - use LASSO to shrink the parameters of the model;
 #' \item \code{MSE} (Mean Squared Error),
 #' \item \code{MAE} (Mean Absolute Error),
 #' \item \code{HAM} (Half Absolute Moment),
+#' \item \code{LASSO} - use LASSO to shrink the parameters of the model;
+#' \item \code{RIDGE} - use RIDGE to shrink the parameters of the model;
 #' \item \code{TMSE} - Trace Mean Squared Error,
 #' \item \code{GTMSE} - Geometric Trace Mean Squared Error,
 #' \item \code{MSEh} - optimisation using only h-steps ahead error,
@@ -188,8 +189,8 @@
 #' }
 #' You can read more about these parameters by running the function
 #' \link[nloptr]{nloptr.print.options()}.
-#' Finally, the parameter \code{lambda} for LASSO, Asymmetric Laplace and df of Student's
-#' distribution can be provided here as well.
+#' Finally, the parameter \code{lambda} for LASSO / RIDGE, Asymmetric Laplace and df
+#' of Student's distribution can be provided here as well.
 #'
 #' @return Object of class "mes" is returned. It contains the list of the
 #' following values:
@@ -216,7 +217,7 @@
 mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
                                "dlnorm","dinvgauss"),
-                loss=c("likelihood","LASSO","MSE","MAE","HAM","MSEh","TMSE","GTMSE","MSCE"),
+                loss=c("likelihood","MSE","MAE","HAM","LASSO","RIDGE","MSEh","TMSE","GTMSE","MSCE"),
                 h=0, holdout=FALSE,
                 persistence=NULL, phi=NULL, initial=c("optimal","backcasting"),
                 occurrence=c("none","auto","fixed","general","odds-ratio","inverse-odds-ratio","direct"),
@@ -559,6 +560,12 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                             "M"=c(0.01,0.005,rep(0.01,componentsNumberSeasonal)))[j:componentsNumber];
             Bl[j:componentsNumber] <- rep(-5, componentsNumber);
             Bu[j:componentsNumber] <- rep(5, componentsNumber);
+            if(componentsNumberSeasonal>1){
+                names(B)[1:componentsNumber] <- c("alpha","beta",paste0("gamma",c(1:componentsNumberSeasonal)))[1:componentsNumber];
+            }
+            else{
+                names(B)[1:componentsNumber] <- c("alpha","beta",paste0("gamma"))[1:componentsNumber];
+            }
             j <- j+componentsNumber;
         }
 
@@ -569,12 +576,14 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                               "M"=0.01),xregNumber);
             Bl[j-1+1:xregNumber] <- rep(-5, xregNumber);
             Bu[j-1+1:xregNumber] <- rep(5, xregNumber);
+            names(B)[j-1+1:xregNumber] <- paste0("delta",c(1:xregNumber));
             j <- j+xregNumber;
         }
 
         # Damping parameter
         if(phiEstimate){
             B[j] <- 0.95;
+            names(B)[j] <- "phi";
             Bl[j] <- 0;
             Bu[j] <- 1;
             j <- j+1;
@@ -584,6 +593,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         if(initialType=="optimal"){
             i <- 1;
             B[j] <- matVt[i,lagsModelMax];
+            names(B)[j] <- "level";
             if(Etype=="A"){
                 Bl[j] <- -Inf;
                 Bu[j] <- Inf;
@@ -596,6 +606,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             i <- i+1;
             if(Ttype!="N"){
                 B[j] <- matVt[i,lagsModelMax];
+                names(B)[j] <- "trend";
                 if(Ttype=="A"){
                     Bl[j] <- -Inf;
                     Bu[j] <- Inf;
@@ -610,6 +621,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             if(Stype!="N"){
                 for(k in i:componentsNumber){
                     B[j+0:(lagsModel[k]-1)] <- matVt[k,(lagsModelMax-lagsModel[k])+1:lagsModel[k]];
+                    names(B)[j+0:(lagsModel[k]-1)] <- paste0("seasonal",k,"_",1:lagsModel[k]);
                     if(Stype=="A"){
                         Bl[j+0:(lagsModel[k]-1)] <- -Inf;
                         Bu[j+0:(lagsModel[k]-1)] <- Inf;
@@ -626,6 +638,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         # Initials of the xreg
         if(xregInitialsEstimate){
             B[j-1+1:xregNumber] <- matVt[componentsNumber+1:xregNumber,lagsModelMax];
+            names(B)[j-1+1:xregNumber] <- rownames(matVt)[componentsNumber+1:xregNumber];
             if(Etype=="A"){
                 Bl[j-1+1:xregNumber] <- -Inf;
                 Bu[j-1+1:xregNumber] <- Inf;
@@ -730,9 +743,59 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             else if(loss=="HAM"){
                 CFValue <- mean(sqrt(abs(mesFitted$errors)));
             }
-            else if(loss=="LASSO"){
-                # "B" needs to be normalised...
-                CFValue <- (1-lambda)* mean(mesFitted$errors^2) + lambda * sum(abs(B));
+            else if(any(loss==c("LASSO","RIDGE"))){
+                ### All of this is needed in order to normalise level, trend, seasonal and xreg parameters
+                # Define, how many elements to skip (we don't normalise smoothing parameters)
+                if(xregPersistenceEstimate){
+                    persistenceToSkip <- componentsNumber+xregNumber;
+                }
+                else{
+                    persistenceToSkip <- componentsNumber;
+                }
+                j <- 1;
+                if(phiEstimate){
+                    j[] <- 2;
+                }
+                # Standardise the level
+                if(Etype=="M"){
+                    B[persistenceToSkip+j] <- log(B[persistenceToSkip+j] / mean(yInSample[1:lagsModelMax]));
+                }
+                else{
+                    B[persistenceToSkip+j] <- B[persistenceToSkip+j] / mean(yInSample[1:lagsModelMax]);
+                }
+                # Change B values for the trend, so that it shrinks properly
+                if(Ttype=="M"){
+                    j[] <- j+1;
+                    B[persistenceToSkip+j] <- log(B[persistenceToSkip+j]);
+                }
+                else if(Ttype=="A"){
+                    j[] <- j+1;
+                    B[persistenceToSkip+j] <- B[persistenceToSkip+j]/mean(yInSample);
+                }
+                # Change B values for seasonality, so that it shrinks properly
+                if(Stype=="M"){
+                    B[persistenceToSkip+j+1:(sum(lagsModel)-j)] <- log(B[persistenceToSkip+j+1:(sum(lagsModel)-j)]);
+                }
+                else if(Stype=="A"){
+                    B[persistenceToSkip+j+1:(sum(lagsModel)-j)] <- B[persistenceToSkip+j+1:(sum(lagsModel)-j)]/mean(yInSample);
+                }
+
+                # Normalise parameters of xreg if they are additive. Otherwise leave - they will be small and close to zero
+                if(xregNumber>0 && Etype=="A"){
+                    denominator <- tail(colMeans(matWt),xregNumber);
+                    denominator[denominator<1] <- 1;
+                    B[persistenceToSkip+sum(lagsModel)+c(1:xregNumber)] <- tail(B,xregNumber) / denominator;
+                }
+
+                CFValue <- switch(loss,
+                                  "LASSO" = switch(Etype,
+                                                   "A"=(1-lambda)* sqrt(sum(mesFitted$errors^2))/obsInSample +
+                                                       lambda * sum(abs(B)),
+                                                   "M"=(1-lambda)* sqrt(sum(log(1+mesFitted$errors)^2))/obsInSample +
+                                                       lambda * sum(abs(B))),
+                                  "RIDGE" = switch(Etype,
+                                                   "A"=(1-lambda)* sqrt(sum(mesFitted$errors^2)) + lambda * sqrt(sum((B)^2)),
+                                                   "M"=(1-lambda)* sqrt(sum(log(1+mesFitted$errors)^2)) + lambda * sqrt(sum((B)^2))));
             }
         }
         else{
@@ -757,7 +820,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                          xregNumber,
                          bounds, loss, distribution, h, multisteps, lambda){
         if(!multisteps){
-            if(loss=="LASSO"){
+            if(any(loss==c("LASSO","RIDGE"))){
                 return(0);
             }
             else{
@@ -869,7 +932,8 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                       persistenceEstimate=persistenceEstimate, phiEstimate=phiEstimate, initialType=initialType,
                       xregProvided=xregProvided, xregInitialsEstimate=xregInitialsEstimate,
                       xregPersistenceEstimate=xregPersistenceEstimate, xregNumber=xregNumber,
-                      bounds=bounds, loss=loss, distribution=distributionNew, h=h, multisteps=multisteps, lambda=lambda);
+                      bounds=bounds, loss=loss, distribution=distributionNew, h=h, multisteps=multisteps,
+                      lambda=lambda);
 
         # Prepare the values to return
         B[] <- res$solution;

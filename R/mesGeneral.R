@@ -304,11 +304,11 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     distribution <- match.arg(distribution);
 
     #### Loss function type ####
-    loss <- match.arg(loss[1],c("likelihood","LASSO","MSE","MAE","HAM",
-                             "MSEh","TMSE","GTMSE","MSCE",
-                             "MAEh","TMAE","GTMAE","MACE",
-                             "HAMh","THAM","GTHAM","CHAM","GPL",
-                             "aMSEh","aTMSE","aGTMSE","aMSCE","aGPL"));
+    loss <- match.arg(loss[1],c("likelihood","MSE","MAE","HAM","LASSO","RIDGE",
+                                "MSEh","TMSE","GTMSE","MSCE",
+                                "MAEh","TMAE","GTMAE","MACE",
+                                "HAMh","THAM","GTHAM","CHAM","GPL",
+                                "aMSEh","aTMSE","aGTMSE","aMSCE","aGPL"));
 
     if(any(loss==c("MSEh","TMSE","GTMSE","MSCE","MAEh","TMAE","GTMAE","MACE",
                    "HAMh","THAM","GTHAM","CHAM","GPL",
@@ -325,8 +325,8 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     else{
         multisteps <- FALSE;
     }
-    if(loss=="LASSO"){
-        warning("LASSO is not yet implemented properly. This is an experimental option. Use with care.",
+    if(any(loss==c("LASSO","RIDGE"))){
+        warning(paste0(loss," is not yet implemented properly. This is an experimental option. Use with care."),
                 call.=FALSE);
     }
 
