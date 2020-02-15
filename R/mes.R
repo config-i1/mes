@@ -783,7 +783,8 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 # Normalise parameters of xreg if they are additive. Otherwise leave - they will be small and close to zero
                 if(xregNumber>0 && Etype=="A"){
                     denominator <- tail(colMeans(matWt),xregNumber);
-                    denominator[denominator<1] <- 1;
+                    # If it is lower than 1, then we are probably dealing with (0, 1). No need to normalise
+                    denominator[abs(denominator)<1] <- 1;
                     B[persistenceToSkip+sum(lagsModel)+c(1:xregNumber)] <- tail(B,xregNumber) / denominator;
                 }
 
