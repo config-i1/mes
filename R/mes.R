@@ -652,6 +652,20 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         return(list(B=B,Bl=Bl,Bu=Bu));
     }
 
+    ##### Function returns scale parameter for the provided parameters #####
+    scaler <- function(distribution, errors, otLogical, obsInSample, lambda){
+        scale <- switch(distribution,
+                        "dnorm"=sqrt(sum(errors[otLogical]^2)/obsInSample),
+                        "dlogis"=sqrt(sum(errors^2)/obsInSample * 3 / pi^2),
+                        "dlaplace"=sum(abs(errors))/obsInSample,
+                        "dt"=abs(lambda),
+                        "ds"=sum(sqrt(abs(errors[otLogical]))) / (obsInSample*2),
+                        "dalaplace"=sum(errors[otLogical]*(lambda-(errors[otLogical]<=0)*1))/obsInSample,
+                        "dlnorm"=sqrt(sum(log(1+errors[otLogical])^2)/obsInSample),
+                        "dinvgauss"=sum((errors[otLogical])^2/(1+errors[otLogical]))/obsInSample);
+        return(scale);
+    }
+
     ##### Cost Function for ETS #####
     CF <- function(B,
                    Etype, Ttype, Stype, yInSample,
@@ -691,15 +705,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         if(!multisteps){
             if(loss=="likelihood"){
                 # Scale for different functions
-                scale <- switch(distribution,
-                                "dnorm"=sqrt(sum(mesFitted$errors[otLogical]^2)/obsInSample),
-                                "dlogis"=sqrt(sum(mesFitted$errors^2)/obsInSample * 3 / pi^2),
-                                "dlaplace"=sum(abs(mesFitted$errors))/obsInSample,
-                                "dt"=abs(lambda),
-                                "ds"=sum(sqrt(abs(mesFitted$errors[otLogical]))) / (obsInSample*2),
-                                "dalaplace"=sum(mesFitted$errors[otLogical]*(lambda-(mesFitted$errors[otLogical]<=0)*1))/obsInSample,
-                                "dlnorm"=sqrt(sum(log(1+mesFitted$errors[otLogical])^2)/obsInSample),
-                                "dinvgauss"=sum((mesFitted$errors[otLogical])^2/(1+mesFitted$errors[otLogical]))/obsInSample);
+                scale <- scaler(distribution, mesFitted$errors, otLogical, obsInSample, lambda);
 
                 # Calculate the likelihood
                 CFValue <- -sum(switch(distribution,
@@ -1064,12 +1070,20 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                      "A"="dnorm",
                                      "M"="dinvgauss");
         }
+        else if(loss!="likelihood"){
+            distribution[] <- switch(loss,
+                                     "MAE"="dlaplace",
+                                     "HAM"="ds",
+                                     "MSE"=,
+                                     "dnorm");
+        }
 
         if(persistenceEstimate){
             persistence <- vecG;
         }
-    }
 
+        scale <- scaler(distribution, errors, otLogical, obsInSample, lambda);
+    }
 
     # Prepare the name of the model
     if(xregExist){
@@ -1083,13 +1097,487 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         modelName <- paste0("i",modelName);
     }
 
-
     return(structure(list(model=modelName, timeElapsed=Sys.time()-startTime,
                           y=yInSample, holdout=yHoldout, fitted=yFitted, residuals=errors,
-                          states=t(matVt), persistence=persistence, phi=phi, transition=matF,
+                          forecast=NA, states=ts(t(matVt), start=(time(y)[1] - deltat(y)*lagsModelMax),
+                                                 frequency=frequency(y)),
+                          persistence=persistence, phi=phi, transition=matF,
                           measurement=matWt, initialType=initialType, initial=initialValue,
                           nParam=parametersNumber, occurrence=oesModel, xreg=xreg,
                           xregInitial=xregInitial, xregPersistence=xregPersistence,
-                          logLik=logLikMESValue, lossValue=CFValue, loss=loss,
-                          distribution=distribution, B=B), class=c("mes","smooth")));
+                          logLik=logLikMESValue, lossValue=CFValue, loss=loss, scale=scale,
+                          distribution=distribution, lambda=lambda, B=B), class=c("mes","smooth")));
+}
+
+#' @export
+residuals.mes <- function(object, ...){
+    if(errorType(object)=="M"){
+        return(switch(object$distribution,
+                      "dnorm"=,
+                      "dlogis"=,
+                      "dlaplace"=,
+                      "dt"=,
+                      "ds"=,
+                      "dalaplace"=object$residuals,
+                      "dlnorm"=log(1+object$residuals),
+                      "dinvgauss"=(1+object$residuals)));
+    }
+    else{
+        return(object$residuals);
+    }
+}
+
+#' @export
+rstandard.mes <- function(model, ...){
+    obs <- nobs(model);
+    df <- obs - nparam(model);
+    errors <- residuals(model);
+    # If this is an occurrence model, then only modify the non-zero obs
+    if(is.oes(model$occurrence)){
+        residsToGo <- which(actuals(model$occurrence)!=0);
+    }
+    else{
+        residsToGo <- c(1:obs);
+    }
+    if(any(model$distribution==c("dt","dnorm","dlnorm"))){
+        return((errors - mean(errors[residsToGo])) / sqrt(sum(residuals(model)^2) / df));
+    }
+    else if(model$distribution=="ds"){
+        return((errors - mean(errors[residsToGo])) / (model$scale * obs / df)^2);
+    }
+    else if(model$distribution=="dinvgauss"){
+        return(errors / mean(errors[residsToGo]));
+    }
+    else{
+        return(errors / model$scale * obs / df);
+    }
+}
+
+#' @export
+rstudent.mes <- function(model, ...){
+    obs <- nobs(model);
+    df <- obs - nparam(model) - 1;
+    rstudentised <- errors <- residuals(model);
+    # If this is an occurrence model, then only modify the non-zero obs
+    if(is.alm(model$occurrence)){
+        residsToGo <- which(actuals(model$occurrence)!=0);
+    }
+    else{
+        residsToGo <- c(1:obs);
+    }
+    if(any(model$distribution==c("dt","dnorm","dlnorm"))){
+        errors[] <- errors - mean(errors);
+        for(i in residsToGo){
+            rstudentised[i] <- errors[i] / sqrt(sum(errors[-i]^2) / df);
+        }
+    }
+    else if(model$distribution=="ds"){
+        errors[] <- errors - mean(errors);
+        for(i in residsToGo){
+            rstudentised[i] <- errors[i] / (sum(sqrt(abs(errors[-i]))) / (2*df))^2;
+        }
+    }
+    else if(model$distribution=="dlaplace"){
+        errors[] <- errors - mean(errors);
+        for(i in residsToGo){
+            rstudentised[i] <- errors[i] / (sum(abs(errors[-i])) / df);
+        }
+    }
+    else if(model$distribution=="dalaplace"){
+        for(i in residsToGo){
+            rstudentised[i] <- errors[i] / (sum(errors[-i] * (model$lambda - (errors[-i]<=0)*1)) / df);
+        }
+    }
+    else if(model$distribution=="dlogis"){
+        errors[] <- errors - mean(errors);
+        for(i in residsToGo){
+            rstudentised[i] <- errors[i] / (sqrt(sum(errors[-i]^2) / df) * sqrt(3) / pi);
+        }
+    }
+    else if(model$distribution=="dinvgauss"){
+        for(i in residsToGo){
+            rstudentised[i] <- errors[i] / mean(errors[residsToGo][-i]);
+        }
+    }
+    else{
+        for(i in residsToGo){
+            rstudentised[i] <- errors[i] / sqrt(sum(errors[-i]^2) / df);
+        }
+    }
+    return(rstudentised);
+}
+
+#' @rdname plot.smooth
+#' @export
+plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
+                     ask=prod(par("mfcol")) < length(which) && dev.interactive(),
+                     lowess=TRUE, ...){
+    ellipsis <- list(...);
+
+    # Define, whether to wait for the hit of "Enter"
+    if(ask){
+        oask <- devAskNewPage(TRUE);
+        on.exit(devAskNewPage(oask));
+    }
+
+    # 1. Basic plot over time
+    plot1 <- function(x, ...){
+        yActuals <- actuals(x);
+        if(!is.null(x$holdout)){
+            yActuals <- ts(c(yActuals,x$holdout),start=start(yActuals),frequency=frequency(yActuals));
+        }
+        graphmaker(yActuals, x$forecast, fitted(x), main=x$model, legend=legend, parReset=FALSE, ...);
+    }
+
+    # 2 and 3: Standardised  / studentised residuals vs Fitted
+    plot2 <- function(x, type="rstandard", ...){
+        ellipsis <- list(...);
+
+        ellipsis$x <- as.vector(fitted(x));
+        if(type=="rstandard"){
+            ellipsis$y <- as.vector(rstandard(x));
+            yName <- "Standardised";
+        }
+        else{
+            ellipsis$y <- as.vector(rstudent(x));
+            yName <- "Studentised";
+        }
+
+        if(is.oes(x$occurrence)){
+            ellipsis$x <- ellipsis$x[actuals(x$occurrence)!=0];
+            ellipsis$y <- ellipsis$y[actuals(x$occurrence)!=0];
+        }
+
+        # Remove NAs
+        if(any(is.na(ellipsis$x))){
+            ellipsis$x <- ellipsis$x[!is.na(ellipsis$x)];
+            ellipsis$y <- ellipsis$y[!is.na(ellipsis$y)];
+        }
+
+        if(!any(names(ellipsis)=="main")){
+            ellipsis$main <- paste0(yName," Residuals vs Fitted");
+        }
+
+        if(!any(names(ellipsis)=="xlab")){
+            ellipsis$xlab <- "Fitted";
+        }
+        if(!any(names(ellipsis)=="ylab")){
+            ellipsis$ylab <- paste0(yName," Residuals");
+        }
+
+        if(legend){
+            if(ellipsis$x[length(ellipsis$x)]>mean(ellipsis$x)){
+                legendPosition <- "bottomright";
+            }
+            else{
+                legendPosition <- "topright";
+            }
+        }
+
+        zValues <- switch(x$distribution,
+                          "dlaplace"=qlaplace(c((1-level)/2, (1+level)/2), 0, 1),
+                          "dalaplace"=qalaplace(c((1-level)/2, (1+level)/2), 0, 1, x$lambda),
+                          "dlogis"=qlogis(c((1-level)/2, (1+level)/2), 0, 1),
+                          "dt"=qt(c((1-level)/2, (1+level)/2), nobs(x)-nparam(x)),
+                          "ds"=qs(c((1-level)/2, (1+level)/2), 0, 1),
+                          # In the next one, the scale is debiased, taking n-k into account
+                          "dinvgauss"=qinvgauss(c((1-level)/2, (1+level)/2), mean=1,
+                                                dispersion=x$scale * nobs(x) / (nobs(x)-nparam(x))),
+                          qnorm(c((1-level)/2, (1+level)/2), 0, 1));
+        outliers <- which(ellipsis$y >zValues[2] | ellipsis$y <zValues[1]);
+        # cat(paste0(round(length(outliers)/length(ellipsis$y),3)*100,"% of values are outside the bounds\n"));
+
+        if(!any(names(ellipsis)=="ylim")){
+            ellipsis$ylim <- range(c(ellipsis$y,zValues), na.rm=TRUE);
+            if(legend){
+                if(legendPosition=="bottomright"){
+                    ellipsis$ylim[1] <- ellipsis$ylim[1] - 0.2*diff(ellipsis$ylim);
+                }
+                else{
+                    ellipsis$ylim[2] <- ellipsis$ylim[2] + 0.2*diff(ellipsis$ylim);
+                }
+            }
+        }
+
+        xRange <- range(ellipsis$x, na.rm=TRUE);
+        xRange[1] <- xRange[1] - sd(ellipsis$x, na.rm=TRUE);
+        xRange[2] <- xRange[2] + sd(ellipsis$x, na.rm=TRUE);
+
+        do.call(plot,ellipsis);
+        abline(h=0, col="grey", lty=2);
+        polygon(c(xRange,rev(xRange)),c(zValues[1],zValues[1],zValues[2],zValues[2]),
+                col="lightgrey", border=NA, density=10);
+        abline(h=zValues, col="red", lty=2);
+        if(length(outliers)>0){
+            points(ellipsis$x[outliers], ellipsis$y[outliers], pch=16);
+            text(ellipsis$x[outliers], ellipsis$y[outliers], labels=outliers, pos=4);
+        }
+        if(lowess){
+            lines(lowess(ellipsis$x, ellipsis$y), col="red");
+        }
+
+        if(legend){
+            if(lowess){
+                legend(legendPosition,
+                       legend=c(paste0(round(level,3)*100,"% bounds"),"outside the bounds","LOWESS line"),
+                       col=c("red", "black","red"), lwd=c(1,NA,1), lty=c(2,1,1), pch=c(NA,16,NA));
+            }
+            else{
+                legend(legendPosition,
+                       legend=c(paste0(round(level,3)*100,"% bounds"),"outside the bounds"),
+                       col=c("red", "black"), lwd=c(1,NA), lty=c(2,1), pch=c(NA,16));
+            }
+        }
+    }
+
+    # 4 and 5. Fitted vs |Residuals| or Fitted vs Residuals^2
+    plot3 <- function(x, type="abs", ...){
+        ellipsis <- list(...);
+
+        ellipsis$x <- as.vector(fitted(x));
+        if(type=="abs"){
+            ellipsis$y <- abs(as.vector(residuals(x)));
+        }
+        else{
+            ellipsis$y <- as.vector(residuals(x))^2;
+        }
+
+        if(is.oes(x$occurrence)){
+            ellipsis$x <- ellipsis$x[ellipsis$y!=0];
+            ellipsis$y <- ellipsis$y[ellipsis$y!=0];
+        }
+        # Remove NAs
+        if(any(is.na(ellipsis$x))){
+            ellipsis$x <- ellipsis$x[!is.na(ellipsis$x)];
+            ellipsis$y <- ellipsis$y[!is.na(ellipsis$y)];
+        }
+
+        if(!any(names(ellipsis)=="main")){
+            if(type=="abs"){
+                ellipsis$main <- "|Residuals| vs Fitted";
+            }
+            else{
+                ellipsis$main <- "Residuals^2 vs Fitted";
+            }
+        }
+
+        if(!any(names(ellipsis)=="xlab")){
+            ellipsis$xlab <- "Fitted";
+        }
+        if(!any(names(ellipsis)=="ylab")){
+            if(type=="abs"){
+                ellipsis$ylab <- "|Residuals|";
+            }
+            else{
+                ellipsis$ylab <- "Residuals^2";
+            }
+        }
+
+        do.call(plot,ellipsis);
+        abline(h=0, col="grey", lty=2);
+        if(lowess){
+            lines(lowess(ellipsis$x, ellipsis$y), col="red");
+        }
+    }
+
+    # 6. Q-Q with the specified distribution
+    plot4 <- function(x, ...){
+        ellipsis <- list(...);
+
+        ellipsis$y <- residuals(x);
+        if(is.oes(x$occurrence)){
+            ellipsis$y <- ellipsis$y[actuals(x$occurrence)!=0];
+        }
+
+        if(!any(names(ellipsis)=="xlab")){
+            ellipsis$xlab <- "Theoretical Quantile";
+        }
+        if(!any(names(ellipsis)=="ylab")){
+            ellipsis$ylab <- "Actual Quantile";
+        }
+
+        if(any(x$distribution==c("dnorm","dlnorm"))){
+            if(!any(names(ellipsis)=="main")){
+                ellipsis$main <- "QQ plot of normal distribution";
+            }
+
+            do.call(qqnorm, ellipsis);
+            qqline(ellipsis$y);
+        }
+        else if(x$distribution=="dlaplace"){
+            if(!any(names(ellipsis)=="main")){
+                ellipsis$main <- "QQ-plot of Laplace distribution";
+            }
+            ellipsis$x <- qlaplace(ppoints(500), mu=0, scale=x$scale);
+
+            do.call(qqplot, ellipsis);
+            qqline(ellipsis$y, distribution=function(p) qlaplace(p, mu=0, scale=x$scale));
+        }
+        else if(x$distribution=="dalaplace"){
+            if(!any(names(ellipsis)=="main")){
+                ellipsis$main <- paste0("QQ-plot of Asymmetric Laplace with alpha=",round(x$lambda,3));
+            }
+            ellipsis$x <- qalaplace(ppoints(500), mu=0, scale=x$scale, alpha=x$lambda);
+
+            do.call(qqplot, ellipsis);
+            qqline(ellipsis$y, distribution=function(p) qalaplace(p, mu=0, scale=x$scale, alpha=x$lambda));
+        }
+        else if(x$distribution=="dlogis"){
+            if(!any(names(ellipsis)=="main")){
+                ellipsis$main <- "QQ-plot of Logistic distribution";
+            }
+            ellipsis$x <- qlogis(ppoints(500), location=0, scale=x$scale);
+
+            do.call(qqplot, ellipsis);
+            qqline(ellipsis$y, distribution=function(p) qlogis(p, location=0, scale=x$scale));
+        }
+        else if(x$distribution=="ds"){
+            if(!any(names(ellipsis)=="main")){
+                ellipsis$main <- "QQ-plot of S distribution";
+            }
+            ellipsis$x <- qs(ppoints(500), mu=0, scale=x$scale);
+
+            do.call(qqplot, ellipsis);
+            qqline(ellipsis$y, distribution=function(p) qs(p, mu=0, scale=x$scale));
+        }
+        else if(x$distribution=="dt"){
+            # Standardise residuals
+            ellipsis$y[] <- ellipsis$y / sd(ellipsis$y);
+            if(!any(names(ellipsis)=="main")){
+                ellipsis$main <- "QQ-plot of Student's distribution";
+            }
+            ellipsis$x <- qt(ppoints(500), df=x$scale);
+
+            do.call(qqplot, ellipsis);
+            qqline(ellipsis$y, distribution=function(p) qt(p, df=x$scale));
+        }
+        else if(x$distribution=="dinvgauss"){
+            # Transform residuals for something meaningful
+            # This is not 100% accurate, because the dispersion should change as well as mean...
+            if(!any(names(ellipsis)=="main")){
+                ellipsis$main <- "QQ-plot of Inverse Gaussian distribution";
+            }
+            ellipsis$x <- qinvgauss(ppoints(500), mean=1, dispersion=x$scale);
+
+            do.call(qqplot, ellipsis);
+            qqline(ellipsis$y, distribution=function(p) qinvgauss(p, mean=1, dispersion=x$scale));
+        }
+    }
+
+    # 7 and 8. ACF and PACF
+    plot5 <- function(x, type="acf", ...){
+        ellipsis <- list(...);
+
+        if(!any(names(ellipsis)=="main")){
+            if(type=="acf"){
+                ellipsis$main <- "Autocorrelation Function";
+            }
+            else{
+                ellipsis$main <- "Partial Autocorrelation Function";
+            }
+        }
+
+        if(!any(names(ellipsis)=="xlab")){
+            ellipsis$xlab <- "Lags";
+        }
+        if(!any(names(ellipsis)=="ylab")){
+            if(type=="acf"){
+                ellipsis$ylab <- "ACF";
+            }
+            else{
+                ellipsis$ylab <- "PACF";
+            }
+        }
+
+        if(!any(names(ellipsis)=="ylim")){
+            ellipsis$ylim <- c(-1,1);
+        }
+
+        if(type=="acf"){
+            theValues <- acf(residuals(x), plot=FALSE, na.action=na.pass);
+        }
+        else{
+            theValues <- pacf(residuals(x), plot=FALSE, na.action=na.pass);
+        }
+        ellipsis$x <- theValues$acf[-1];
+
+        ellipsis$type <- "h"
+
+        do.call(plot,ellipsis);
+        abline(h=0, col="black", lty=1);
+        abline(h=qnorm(c((1-level)/2, (1+level)/2),0,sqrt(1/nobs(x))), col="red", lty=2);
+    }
+
+    # 9. Plot of states
+    plot6 <- function(x, ...){
+        parDefault <- par(no.readonly = TRUE);
+        if(any(unlist(gregexpr("C",x$model))==-1)){
+            if(ncol(x$states)>10){
+                message("Too many states. Plotting them one by one on several graphs.");
+                if(is.null(ellipsis$main)){
+                    ellipsisMain <- NULL;
+                }
+                else{
+                    ellipsisMain <- ellipsis$main;
+                }
+                nPlots <- ceiling(ncol(x$states)/10);
+                for(i in 1:nPlots){
+                    if(is.null(ellipsisMain)){
+                        ellipsis$main <- paste0("States of ",x$model,", part ",i);
+                    }
+                    ellipsis$x <- x$states[,(1+(i-1)*10):min(i*10,ncol(x$states))];
+                    do.call(plot.ts, ellipsis);
+                }
+            }
+            else{
+                if(is.null(ellipsis$main)){
+                    ellipsis$main <- paste0("States of ",x$model);
+                }
+                ellipsis$x <- x$states;
+                do.call(plot.ts, ellipsis);
+            }
+        }
+        else{
+            # If we did combinations, we cannot return anything
+            message("Combination of models was done. Sorry, but there is nothing to plot.");
+        }
+        par(parDefault);
+    }
+
+    # Do plots
+    if(any(which==1)){
+        plot1(x, ...);
+    }
+
+    if(any(which==2)){
+        plot2(x, ...);
+    }
+
+    if(any(which==3)){
+        plot2(x, "rstudent", ...);
+    }
+
+    if(any(which==4)){
+        plot3(x, ...);
+    }
+
+    if(any(which==5)){
+        plot3(x, type="squared", ...);
+    }
+
+    if(any(which==6)){
+        plot4(x, ...);
+    }
+
+    if(any(which==7)){
+        plot5(x, type="acf", ...);
+    }
+
+    if(any(which==8)){
+        plot5(x, type="pacf", ...);
+    }
+
+    if(any(which==9)){
+        plot6(x, ...);
+    }
 }
