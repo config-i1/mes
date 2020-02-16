@@ -194,6 +194,36 @@
 #'
 #' @return Object of class "mes" is returned. It contains the list of the
 #' following values:
+#' \itemize{
+#' \item \code{model} - the name of the constructed model,
+#' \item \code{timeElapsed} - the time elapsed for the estimation of the model,
+#' \item \code{y} - the in-sample part of the data used for the training of the model,
+#' \item \code{holdout} - the holdout part of the data, excluded for purposes of model evaluation,
+#' \item \code{fitted} - the vector of fitted values,
+#' \item \code{residuals} - the vector of residuals,
+#' \item \code{forecast} - the point forecast for h steps ahead (by default NA is returned),
+#' \item \code{states} - the matrix of states with observations in rows and states in columns,
+#' \item \code{persisten} - the vector of smoothing parameters,
+#' \item \code{phi} - the value of damping parameter,
+#' \item \code{transition} - the transition matrix,
+#' \item \code{measurement} - the measurement matrix with observations in rows and state elements
+#' in columns,
+#' \item \code{initialType} - the type of initialisation used ("optimal" / "backcasting" / "provided"),
+#' \item \code{initial} - the initial values, including level, trend and seasonal components,
+#' \item \code{nParam} - the matrix of the estimated / provided parameters,
+#' \item \code{occurrence} - the oes model used for the occurrence part of the model,
+#' \item \code{xreg} - the matrix of explanatory variables after all expansions and transformations,
+#' \item \code{xregInitial} - the vector of initials for the parameters of explanatory variable,
+#' \item \code{xregPersistence} - the vector of smoothing parameters for the explanatory variables,
+#' \item \code{loss} - the type of loss function used in the estimation,
+#' \item \code{lossValue} - the value of that loss function,
+#' \item \code{logLik} - the value of the log-likelihood,
+#' \item \code{distribution} - the distribution function used in the calculation of the likelihood,
+#' \item \code{scale} - the value of the scale parameter,
+#' \item \code{lambda} - the value of the parameter used in LASSO / dalaplace / dt,
+#' \item \code{B} - the vector of all estimated parameters,
+#' \item \code{lags} - the vector of lags used in the model construction.
+#' }
 #'
 #' @seealso \code{\link[forecast]{ets}, \link[smooth]{es}}
 #'
@@ -1079,7 +1109,11 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         }
 
         if(persistenceEstimate){
-            persistence <- vecG;
+            persistence <- vecG[1:componentsNumber,];
+        }
+
+        if(xregPersistenceEstimate){
+            xregPersistence <- vecG[-c(1:componentsNumber),];
         }
 
         scale <- scaler(distribution, errors, otLogical, obsInSample, lambda);
@@ -1096,6 +1130,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     if(all(occurrence!=c("n","none"))){
         modelName <- paste0("i",modelName);
     }
+    if(componentsNumberSeasonal>1){
+        modelName <- paste0(modelName,"[",paste0(lags[lags!=1], collapse=", "),"]");
+    }
 
     return(structure(list(model=modelName, timeElapsed=Sys.time()-startTime,
                           y=yInSample, holdout=yHoldout, fitted=yFitted, residuals=errors,
@@ -1103,10 +1140,16 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                                  frequency=frequency(y)),
                           persistence=persistence, phi=phi, transition=matF,
                           measurement=matWt, initialType=initialType, initial=initialValue,
-                          nParam=parametersNumber, occurrence=oesModel, xreg=xreg,
+                          nParam=parametersNumber, occurrence=oesModel, xreg=xregData,
                           xregInitial=xregInitial, xregPersistence=xregPersistence,
-                          logLik=logLikMESValue, lossValue=CFValue, loss=loss, scale=scale,
-                          distribution=distribution, lambda=lambda, B=B), class=c("mes","smooth")));
+                          loss=loss, lossValue=CFValue, logLik=logLikMESValue, distribution=distribution,
+                          scale=scale, lambda=lambda, B=B, lags=lags),
+                     class=c("mes","smooth")));
+}
+
+#' @export
+coef.mes <- function(object, ...){
+    return(object$B);
 }
 
 #' @export
