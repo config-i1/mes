@@ -703,17 +703,34 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
 
                 # Calculate the likelihood
                 CFValue <- -sum(switch(distribution,
-                                       "dnorm"=dnorm(x=yInSample[otLogical], mean=mesFitted$yFitted[otLogical],
-                                                     sd=scale, log=TRUE),
-                                       "dlogis"=dlogis(x=yInSample[otLogical], location=mesFitted$yFitted[otLogical],
-                                                       scale=scale, log=TRUE),
-                                       "dlaplace"=dlaplace(q=yInSample[otLogical], mu=mesFitted$yFitted[otLogical],
-                                                           scale=scale, log=TRUE),
-                                       "dt"=dt(mesFitted$errors, df=scale, log=TRUE),
-                                       "ds"=ds(q=yInSample[otLogical],mu=mesFitted$yFitted[otLogical],
-                                               scale=scale, log=TRUE),
-                                       "dalaplace"=dalaplace(q=yInSample[otLogical], mu=mesFitted$yFitted[otLogical],
-                                                             scale=scale, alpha=lambda, log=TRUE),
+                                       "dnorm"=switch(Etype,
+                                                      "A"=dnorm(x=yInSample[otLogical], mean=mesFitted$yFitted[otLogical],
+                                                                sd=scale, log=TRUE),
+                                                      "M"=dnorm(x=yInSample[otLogical], mean=mesFitted$yFitted[otLogical],
+                                                                sd=scale*mesFitted$yFitted[otLogical], log=TRUE)),
+                                       "dlogis"=switch(Etype,
+                                                       "A"=dlogis(x=yInSample[otLogical], location=mesFitted$yFitted[otLogical],
+                                                                  scale=scale, log=TRUE),
+                                                       "M"=dlogis(x=yInSample[otLogical], location=mesFitted$yFitted[otLogical],
+                                                                  scale=scale*mesFitted$yFitted[otLogical], log=TRUE)),
+                                       "dlaplace"=switch(Etype,
+                                                         "A"=dlaplace(q=yInSample[otLogical], mu=mesFitted$yFitted[otLogical],
+                                                                      scale=scale, log=TRUE),
+                                                         "M"=dlaplace(q=yInSample[otLogical], mu=mesFitted$yFitted[otLogical],
+                                                                      scale=scale*mesFitted$yFitted[otLogical], log=TRUE)),
+                                       "dt"=switch(Etype,
+                                                   "A"=dt(mesFitted$errors[otLogical], df=scale, log=TRUE),
+                                                   "M"=dt(mesFitted$errors[otLogical]/mesFitted$yFitted[otLogical], df=scale, log=TRUE)),
+                                       "ds"=switch(Etype,
+                                                   "A"=ds(q=yInSample[otLogical],mu=mesFitted$yFitted[otLogical],
+                                                          scale=scale, log=TRUE),
+                                                   "M"=ds(q=yInSample[otLogical],mu=mesFitted$yFitted[otLogical],
+                                                          scale=scale*mesFitted$yFitted[otLogical], log=TRUE)),
+                                       "dalaplace"=switch(Etype,
+                                                          "A"=dalaplace(q=yInSample[otLogical], mu=mesFitted$yFitted[otLogical],
+                                                                        scale=scale, alpha=lambda, log=TRUE),
+                                                          "M"=dalaplace(q=yInSample[otLogical], mu=mesFitted$yFitted[otLogical],
+                                                                        scale=scale*mesFitted$yFitted[otLogical], alpha=lambda, log=TRUE)),
                                        "dlnorm"=dlnorm(x=yInSample[otLogical], meanlog=log(mesFitted$yFitted[otLogical]),
                                                        sdlog=scale, log=TRUE),
                                        "dinvgauss"=dinvgauss(x=yInSample[otLogical], mean=mesFitted$yFitted[otLogical],
@@ -812,14 +829,14 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
 
     #### The function returns log-likelihood of the model ####
     logLikMES <- function(B,
-                         Etype, Ttype, Stype, yInSample,
-                         ot, otLogical, occurrenceModel, pFitted, obsInSample,
-                         componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
-                         matVt, matWt, matF, vecG, componentsNumberSeasonal,
-                         persistenceEstimate, phiEstimate, initialType,
-                         xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
-                         xregNumber,
-                         bounds, loss, distribution, h, multisteps, lambda){
+                          Etype, Ttype, Stype, yInSample,
+                          ot, otLogical, occurrenceModel, pFitted, obsInSample,
+                          componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
+                          matVt, matWt, matF, vecG, componentsNumberSeasonal,
+                          persistenceEstimate, phiEstimate, initialType,
+                          xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
+                          xregNumber,
+                          bounds, loss, distribution, h, multisteps, lambda){
         if(!multisteps){
             if(any(loss==c("LASSO","RIDGE"))){
                 return(0);
@@ -890,13 +907,13 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
 
         # Create the matrices for the specific ETS model
         mesCreated <- creator(Etype, Ttype, Stype,
-                             lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
-                             obsStates, obsInSample, componentsNumber, componentsNumberSeasonal,
-                             componentsNames, otLogical,
-                             yInSample, persistence, persistenceEstimate, phi,
-                             initialValue, initialEstimate,
-                             xregProvided, xregInitialsProvided, xregPersistence,
-                             xregModel, xregData, xregNumber, xregNames);
+                              lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
+                              obsStates, obsInSample, componentsNumber, componentsNumberSeasonal,
+                              componentsNames, otLogical,
+                              yInSample, persistence, persistenceEstimate, phi,
+                              initialValue, initialEstimate,
+                              xregProvided, xregInitialsProvided, xregPersistence,
+                              xregModel, xregData, xregNumber, xregNames);
 
         if(is.null(B) && is.null(lb) && is.null(ub)){
             BValues <- initialiser(Etype, Ttype, Stype, componentsNumberSeasonal,
@@ -942,14 +959,14 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         # In case of likelihood, we typically have one more parameter to estimate - scale
         nParamEstimated <- length(B) + (loss=="likelihood");
         logLikMESValue <- logLikMES(B,
-                                  Etype, Ttype, Stype, yInSample,
-                                  ot, otLogical, occurrenceModel, pFitted, obsInSample,
-                                  componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
-                                  mesCreated$matVt, mesCreated$matWt, mesCreated$matF, mesCreated$vecG, componentsNumberSeasonal,
-                                  persistenceEstimate, phiEstimate, initialType,
-                                  xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
-                                  xregNumber,
-                                  bounds, loss, distributionNew, h, multisteps, lambda);
+                                    Etype, Ttype, Stype, yInSample,
+                                    ot, otLogical, occurrenceModel, pFitted, obsInSample,
+                                    componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
+                                    mesCreated$matVt, mesCreated$matWt, mesCreated$matF, mesCreated$vecG, componentsNumberSeasonal,
+                                    persistenceEstimate, phiEstimate, initialType,
+                                    xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
+                                    xregNumber,
+                                    bounds, loss, distributionNew, h, multisteps, lambda);
 
         return(list(B=B, CFValue=CFValue, nParamEstimated=nParamEstimated, logLikMESValue=logLikMESValue));
     }
@@ -997,13 +1014,13 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
 
         # Create the matrices for the specific ETS model
         mesCreated <- creator(Etype, Ttype, Stype,
-                             lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
-                             obsStates, obsInSample, componentsNumber, componentsNumberSeasonal,
-                             componentsNames, otLogical,
-                             yInSample, persistence, persistenceEstimate, phi,
-                             initialValue, initialEstimate,
-                             xregProvided, xregInitialsProvided, xregPersistence,
-                             xregModel, xregData, xregNumber, xregNames);
+                              lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
+                              obsStates, obsInSample, componentsNumber, componentsNumberSeasonal,
+                              componentsNames, otLogical,
+                              yInSample, persistence, persistenceEstimate, phi,
+                              initialValue, initialEstimate,
+                              xregProvided, xregInitialsProvided, xregPersistence,
+                              xregModel, xregData, xregNumber, xregNames);
         list2env(mesCreated, environment());
 
         # Estimate the parameters of the demand sizes model
@@ -1044,8 +1061,8 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         # If the distribution is default, change it according to the error term
         if(loss=="likelihood" && distribution=="default"){
             distribution[] <- switch(Etype,
-                                      "A"="dnorm",
-                                      "M"="dinvgauss");
+                                     "A"="dnorm",
+                                     "M"="dinvgauss");
         }
 
         if(persistenceEstimate){
