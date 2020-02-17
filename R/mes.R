@@ -1642,3 +1642,62 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
         plot6(x, ...);
     }
 }
+
+# Work in progress...
+# predict.mes <- function(object, newdata=NULL, interval=c("none", "confidence", "prediction"),
+#                         level=0.95, side=c("both","upper","lower"), ...){
+#
+#     h <- nrow(newdata);
+#     lagsModelAll <- object$lags;
+#     componentsNumber <- length(lagsModelAll);
+#     componentsNumberSeasonal <- sum(lagsModelAll>1);
+#     lagsModelMax <- max(lagsModelAll);
+#
+#     matVt <- t(object$states[obsStates-(lagsModelMax:1)+1,,drop=FALSE]);
+#     matWt <- tail(object$measurement,h);
+#     matF <- object$transition;
+#     vecG <- object$persistence;
+#
+#     model <- modelType(test);
+#     Etype <- errorType(object);
+#     Ttype <- substr(model,2,2);
+#     Stype <- substr(model,nchar(model),nchar(model));
+#
+#     mesForecast <- mesForecasterWrap(matVt, tail(matWt,h), matF, vecG,
+#                                      lagsModelAll, Etype, Ttype, Stype,
+#                                      componentsNumber, componentsNumberSeasonal, h);
+#
+#     yForecast <- mesForecast$yForecast;
+#
+#     return(yForecast);
+# }
+
+# Work in progress...
+# forecast.mes <- function(object, h=NULL, newdata=NULL,
+#                          interval=c("none", "confidence", "prediction", "nonparametric", "semiparametric"),
+#                          level=0.95, side=c("both","upper","lower"), ...){
+#
+#     h <- nrow(newdata);
+#     lagsModelAll <- object$lags;
+#     componentsNumber <- length(lagsModelAll);
+#     componentsNumberSeasonal <- sum(lagsModelAll>1);
+#     lagsModelMax <- max(lagsModelAll);
+#
+#     matVt <- t(object$states[obsStates-(lagsModelMax:1)+1,,drop=FALSE]);
+#     matWt <- tail(object$measurement,h);
+#     matF <- object$transition;
+#     vecG <- object$persistence;
+#
+#     model <- modelType(test);
+#     Etype <- errorType(object);
+#     Ttype <- substr(model,2,2);
+#     Stype <- substr(model,nchar(model),nchar(model));
+#
+#     mesForecast <- mesForecasterWrap(matVt, tail(matWt,h), matF, vecG,
+#                                      lagsModelAll, Etype, Ttype, Stype,
+#                                      componentsNumber, componentsNumberSeasonal, h);
+#
+#     yForecast <- mesForecast$yForecast;
+#
+#     return(yForecast);
+# }
