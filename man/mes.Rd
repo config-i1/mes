@@ -178,6 +178,36 @@ of Student's distribution can be provided here as well.}
 \value{
 Object of class "mes" is returned. It contains the list of the
 following values:
+\itemize{
+\item \code{model} - the name of the constructed model,
+\item \code{timeElapsed} - the time elapsed for the estimation of the model,
+\item \code{y} - the in-sample part of the data used for the training of the model,
+\item \code{holdout} - the holdout part of the data, excluded for purposes of model evaluation,
+\item \code{fitted} - the vector of fitted values,
+\item \code{residuals} - the vector of residuals,
+\item \code{forecast} - the point forecast for h steps ahead (by default NA is returned),
+\item \code{states} - the matrix of states with observations in rows and states in columns,
+\item \code{persisten} - the vector of smoothing parameters,
+\item \code{phi} - the value of damping parameter,
+\item \code{transition} - the transition matrix,
+\item \code{measurement} - the measurement matrix with observations in rows and state elements
+in columns,
+\item \code{initialType} - the type of initialisation used ("optimal" / "backcasting" / "provided"),
+\item \code{initial} - the initial values, including level, trend and seasonal components,
+\item \code{nParam} - the matrix of the estimated / provided parameters,
+\item \code{occurrence} - the oes model used for the occurrence part of the model,
+\item \code{xreg} - the matrix of explanatory variables after all expansions and transformations,
+\item \code{xregInitial} - the vector of initials for the parameters of explanatory variable,
+\item \code{xregPersistence} - the vector of smoothing parameters for the explanatory variables,
+\item \code{loss} - the type of loss function used in the estimation,
+\item \code{lossValue} - the value of that loss function,
+\item \code{logLik} - the value of the log-likelihood,
+\item \code{distribution} - the distribution function used in the calculation of the likelihood,
+\item \code{scale} - the value of the scale parameter,
+\item \code{lambda} - the value of the parameter used in LASSO / dalaplace / dt,
+\item \code{B} - the vector of all estimated parameters,
+\item \code{lags} - the vector of lags used in the model construction.
+}
 }
 \description{
 Function constructs an advanced Single Source of Error model, based on ETS

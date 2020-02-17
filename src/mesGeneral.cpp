@@ -133,28 +133,28 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
             /* # Transition equation for xreg */
         }
 
-        // Fill in the tail of the series
-        for (int i=obs+lagsModelMax; i<obsall; i=i+1) {
-            lagrows = i * nComponents - (lagsInternal + lagsModifier) + nComponents - 1;
-            matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, T, S, nComponents);
-
-            /* Failsafe for cases when unreasonable value for state vector was produced */
-            if(!matrixVt.col(i).is_finite()){
-                matrixVt.col(i) = matrixVt(lagrows);
-            }
-            if((S=='M') & (matrixVt(matrixVt.n_rows-1,i) <= 0)){
-                matrixVt(matrixVt.n_rows-1,i) = arma::as_scalar(matrixVt(lagrows.row(matrixVt.n_rows-1)));
-            }
-            if(T=='M'){
-                if((matrixVt(0,i) <= 0) | (matrixVt(1,i) <= 0)){
-                    matrixVt(0,i) = arma::as_scalar(matrixVt(lagrows.row(0)));
-                    matrixVt(1,i) = arma::as_scalar(matrixVt(lagrows.row(1)));
-                }
-            }
-        }
-
         ////// Backwards run
         if(backcast && j<nIterations){
+            // Fill in the tail of the series - this is needed for backcasting
+            for (int i=obs+lagsModelMax; i<obsall; i=i+1) {
+                lagrows = i * nComponents - (lagsInternal + lagsModifier) + nComponents - 1;
+                matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, T, S, nComponents);
+
+                /* Failsafe for cases when unreasonable value for state vector was produced */
+                if(!matrixVt.col(i).is_finite()){
+                    matrixVt.col(i) = matrixVt(lagrows);
+                }
+                if((S=='M') & (matrixVt(matrixVt.n_rows-1,i) <= 0)){
+                    matrixVt(matrixVt.n_rows-1,i) = arma::as_scalar(matrixVt(lagrows.row(matrixVt.n_rows-1)));
+                }
+                if(T=='M'){
+                    if((matrixVt(0,i) <= 0) | (matrixVt(1,i) <= 0)){
+                        matrixVt(0,i) = arma::as_scalar(matrixVt(lagrows.row(0)));
+                        matrixVt(1,i) = arma::as_scalar(matrixVt(lagrows.row(1)));
+                    }
+                }
+            }
+
             for (int i=obs+lagsModelMax-1; i>=lagsModelMax; i=i-1) {
                 lagrows = i * nComponents + lagsInternal - lagsModifier + nComponents - 1;
 
@@ -274,4 +274,73 @@ RcppExport SEXP mesFitterWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP vecG,
                           lags, E, T, S,
                           nNonSeasonal, nSeasonal,
                           vectorYt, vectorOt, backcast));
+}
+
+
+/* # Function produces the point forecasts for the specified model */
+List mesForecaster(arma::mat const &matrixVt, arma::mat const &matrixWt, arma::mat const &matrixF, arma::vec const &vectorG,
+                   arma::uvec lags, char const &E, char const &T, char const &S,
+                   unsigned int const &nNonSeasonal, unsigned int const &nSeasonal, unsigned int const &horizon){
+    unsigned int lagslength = lags.n_rows;
+    unsigned int lagsModelMax = max(lags);
+    unsigned int hh = horizon + lagsModelMax;
+    unsigned int nComponents = matrixVt.n_rows;
+    arma::uvec lagrows(lagslength, arma::fill::zeros);
+
+    arma::vec vecYfor(horizon, arma::fill::zeros);
+    arma::mat matrixVtnew(nComponents, hh, arma::fill::zeros);
+
+    lags = lags * nComponents;
+
+    for(unsigned int i=0; i<lagslength; i=i+1){
+        lags(i) = lags(i) + (lagslength - i - 1);
+    }
+
+    matrixVtnew.submat(0,0,nComponents-1,lagsModelMax-1) = matrixVt.submat(0,0,nComponents-1,lagsModelMax-1);
+
+/* # Fill in the new xt matrix using F. Do the forecasts. */
+    for (unsigned int i=lagsModelMax; i<hh; i=i+1) {
+        lagrows = i * nComponents - lags + nComponents - 1;
+        matrixVtnew.col(i) = fvalue(matrixVtnew(lagrows), matrixF, T, S, nComponents);
+
+        vecYfor.row(i-lagsModelMax) = (wvalue(matrixVtnew(lagrows), matrixWt.row(i-lagsModelMax), E, T, S,
+                                              nNonSeasonal, nSeasonal, nComponents));
+    }
+
+    return List::create(Named("matVt") = matrixVtnew, Named("yForecast") = vecYfor);
+}
+
+/* # Wrapper for forecaster */
+// [[Rcpp::export]]
+RcppExport SEXP mesForecasterWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP vecG,
+                                  SEXP lagsModelAll, SEXP Etype, SEXP Ttype, SEXP Stype,
+                                  SEXP componentsNumber, SEXP componentsNumberSeasonal, SEXP h){
+
+    NumericMatrix matvt_n(matVt);
+    arma::mat matrixVt(matvt_n.begin(), matvt_n.nrow(), matvt_n.ncol(), false);
+
+    NumericMatrix matWt_n(matWt);
+    arma::mat matrixWt(matWt_n.begin(), matWt_n.nrow(), matWt_n.ncol(), false);
+
+    NumericMatrix matF_n(matF);
+    arma::mat matrixF(matF_n.begin(), matF_n.nrow(), matF_n.ncol(), false);
+
+    NumericMatrix vecg_n(vecG);
+    arma::vec vectorG(vecg_n.begin(), vecg_n.nrow(), false);
+
+    IntegerVector lagsModel_n(lagsModelAll);
+    arma::uvec lags = as<arma::uvec>(lagsModel_n);
+
+    char E = as<char>(Etype);
+    char T = as<char>(Ttype);
+    char S = as<char>(Stype);
+
+    unsigned int nSeasonal = as<int>(componentsNumberSeasonal);
+    unsigned int nNonSeasonal = as<int>(componentsNumber) - nSeasonal;
+
+    unsigned int horizon = as<int>(h);
+
+    return wrap(mesForecaster(matrixVt, matrixWt, matrixF, vectorG,
+                              lags, E, T, S,
+                              nNonSeasonal, nSeasonal, horizon));
 }

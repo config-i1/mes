@@ -5,3 +5,7 @@ mesFitterWrap <- function(matVt, matWt, matF, vecG, lagsModelAll, Etype, Ttype, 
     .Call('_mes_mesFitterWrap', PACKAGE = 'mes', matVt, matWt, matF, vecG, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, yInSample, ot, backcasting)
 }
 
+mesForecasterWrap <- function(matVt, matWt, matF, vecG, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, h) {
+    .Call('_mes_mesForecasterWrap', PACKAGE = 'mes', matVt, matWt, matF, vecG, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, h)
+}
+

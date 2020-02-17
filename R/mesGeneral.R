@@ -296,10 +296,6 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
         stop("The number of components of the model is smaller than the number of provided lags", call.=FALSE);
     }
 
-    #### Observations in the states matrix ####
-    # Define the number of rows that should be in the matvt
-    obsStates <- obsInSample + 2*lagsModelMax;
-
     #### Distribution selected ####
     distribution <- match.arg(distribution);
 
@@ -450,6 +446,13 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
         }
     }
     initialEstimate <- any(initialType==c("optimal","backcasting"));
+
+
+    # Observations in the states matrix
+    # Define the number of cols that should be in the matvt
+    obsStates <- obsInSample + lagsModelMax*switch(initialType,
+                                                   "backcasting"=2,
+                                                   1);
 
     #### Occurrence variable ####
     if(is.oes(occurrence)){
@@ -720,6 +723,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     assign("y",y,ParentEnvironment);
     assign("yHoldout",yHoldout,ParentEnvironment);
     assign("yInSample",yInSample,ParentEnvironment);
+    assign("h",h,ParentEnvironment);
 
     # Number of observations and parameters
     assign("obsInSample",obsInSample,ParentEnvironment);

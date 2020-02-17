@@ -1085,7 +1085,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         # Fit the model to the data
         mesFitted <- mesFitterWrap(matVt, matWt, matF, vecG,
                                    lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal,
-                                   yInSample, ot, initialType=="backcasting")
+                                   yInSample, ot, initialType=="backcasting");
 
         errors <- mesFitted$errors;
         yFitted <- mesFitted$yFitted;
@@ -1093,6 +1093,17 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             yFitted[] <- yFitted * pFitted;
         }
         matVt[] <- mesFitted$matVt;
+
+        if(h>0){
+            mesForecast <- mesForecasterWrap(matVt[,obsStates-(lagsModelMax:1)+1,drop=FALSE], tail(matWt,h), matF, vecG,
+                                             lagsModelAll, Etype, Ttype, Stype,
+                                             componentsNumber, componentsNumberSeasonal, h);
+
+            yForecast <- mesForecast$yForecast;
+        }
+        else{
+            yForecast <- NA;
+        }
 
         # If the distribution is default, change it according to the error term
         if(loss=="likelihood" && distribution=="default"){
@@ -1117,6 +1128,13 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         }
 
         scale <- scaler(distribution, errors, otLogical, obsInSample, lambda);
+
+
+        # Transform everything into ts
+        yInSample <- ts(yInSample,start=start(y), frequency=frequency(y));
+        yHoldout <- ts(yHoldout, start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
+        yFitted <- ts(yFitted,start=start(y), frequency=frequency(y));
+        yForecast <- ts(mesForecast$yForecast, start=start(yHoldout), frequency=frequency(y));
     }
 
     # Prepare the name of the model
@@ -1136,14 +1154,14 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
 
     return(structure(list(model=modelName, timeElapsed=Sys.time()-startTime,
                           y=yInSample, holdout=yHoldout, fitted=yFitted, residuals=errors,
-                          forecast=NA, states=ts(t(matVt), start=(time(y)[1] - deltat(y)*lagsModelMax),
+                          forecast=yForecast, states=ts(t(matVt), start=(time(y)[1] - deltat(y)*lagsModelMax),
                                                  frequency=frequency(y)),
                           persistence=persistence, phi=phi, transition=matF,
                           measurement=matWt, initialType=initialType, initial=initialValue,
                           nParam=parametersNumber, occurrence=oesModel, xreg=xregData,
                           xregInitial=xregInitial, xregPersistence=xregPersistence,
                           loss=loss, lossValue=CFValue, logLik=logLikMESValue, distribution=distribution,
-                          scale=scale, lambda=lambda, B=B, lags=lags),
+                          scale=scale, lambda=lambda, B=B, lags=lagsModelAll),
                      class=c("mes","smooth")));
 }
 
