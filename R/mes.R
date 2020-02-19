@@ -683,7 +683,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     }
 
     ##### Function returns scale parameter for the provided parameters #####
-    scaler <- function(distribution, errors, otLogical, obsInSample, lambda){
+    scaler <- function(distribution, yInSample, errors, otLogical, obsInSample, lambda){
         scale <- switch(distribution,
                         "dnorm"=sqrt(sum(errors[otLogical]^2)/obsInSample),
                         "dlogis"=sqrt(sum(errors^2)/obsInSample * 3 / pi^2),
@@ -692,7 +692,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                         "ds"=sum(sqrt(abs(errors[otLogical]))) / (obsInSample*2),
                         "dalaplace"=sum(errors[otLogical]*(lambda-(errors[otLogical]<=0)*1))/obsInSample,
                         "dlnorm"=sqrt(sum(log(1+errors[otLogical])^2)/obsInSample),
-                        "dinvgauss"=sum((errors[otLogical])^2/(1+errors[otLogical]))/obsInSample);
+                        "dinvgauss"=sum((errors[otLogical])^2/yInSample[otLogical])/obsInSample);
         return(scale);
     }
 
@@ -735,7 +735,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         if(!multisteps){
             if(loss=="likelihood"){
                 # Scale for different functions
-                scale <- scaler(distribution, mesFitted$errors, otLogical, obsInSample, lambda);
+                scale <- scaler(distribution, yInSample, mesFitted$errors, otLogical, obsInSample, lambda);
 
                 # Calculate the likelihood
                 CFValue <- -sum(switch(distribution,
@@ -1016,7 +1016,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         # Deal with occurrence model
         if(occurrenceModel && !occurrenceModelProvided){
             oesModel <- oes(yInSample, model=model, initial=initial, occurrence=occurrence, ic=ic, h=h,
-                            holdout=FALSE, bounds=bounds, xreg=xreg, xregDo=xregDo);
+                            holdout=FALSE, bounds="usual", xreg=xreg, xregDo=xregDo);
             pFitted[] <- fitted(oesModel);
             parametersNumber[1,3] <- nparam(oesModel);
             # This should not happen, but just in case...
@@ -1127,14 +1127,18 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             xregPersistence <- vecG[-c(1:componentsNumber),];
         }
 
-        scale <- scaler(distribution, errors, otLogical, obsInSample, lambda);
-
+        scale <- scaler(distribution, yInSample, errors, otLogical, obsInSample, lambda);
 
         # Transform everything into ts
         yInSample <- ts(yInSample,start=start(y), frequency=frequency(y));
-        yHoldout <- ts(yHoldout, start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
+        if(holdout){
+            yHoldout <- ts(yHoldout, start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
+        }
         yFitted <- ts(yFitted,start=start(y), frequency=frequency(y));
-        yForecast <- ts(mesForecast$yForecast, start=start(yHoldout), frequency=frequency(y));
+        if(h>0){
+            print(mesForecast$yForecast)
+            yForecast <- ts(mesForecast$yForecast, start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
+        }
     }
 
     # Prepare the name of the model
