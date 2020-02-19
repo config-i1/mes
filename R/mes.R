@@ -683,7 +683,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     }
 
     ##### Function returns scale parameter for the provided parameters #####
-    scaler <- function(distribution, yInSample, errors, otLogical, obsInSample, lambda){
+    scaler <- function(distribution, errors, otLogical, obsInSample, lambda){
         scale <- switch(distribution,
                         "dnorm"=sqrt(sum(errors[otLogical]^2)/obsInSample),
                         "dlogis"=sqrt(sum(errors^2)/obsInSample * 3 / pi^2),
@@ -692,7 +692,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                         "ds"=sum(sqrt(abs(errors[otLogical]))) / (obsInSample*2),
                         "dalaplace"=sum(errors[otLogical]*(lambda-(errors[otLogical]<=0)*1))/obsInSample,
                         "dlnorm"=sqrt(sum(log(1+errors[otLogical])^2)/obsInSample),
-                        "dinvgauss"=sum((errors[otLogical])^2/yInSample[otLogical])/obsInSample);
+                        "dinvgauss"=sum((errors[otLogical])^2/(1+errors[otLogical]))/obsInSample);
         return(scale);
     }
 
@@ -735,7 +735,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         if(!multisteps){
             if(loss=="likelihood"){
                 # Scale for different functions
-                scale <- scaler(distribution, yInSample, mesFitted$errors, otLogical, obsInSample, lambda);
+                scale <- scaler(distribution, mesFitted$errors, otLogical, obsInSample, lambda);
 
                 # Calculate the likelihood
                 CFValue <- -sum(switch(distribution,
@@ -1127,7 +1127,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             xregPersistence <- vecG[-c(1:componentsNumber),];
         }
 
-        scale <- scaler(distribution, yInSample, errors, otLogical, obsInSample, lambda);
+        scale <- scaler(distribution, errors, otLogical, obsInSample, lambda);
 
         # Transform everything into ts
         yInSample <- ts(yInSample,start=start(y), frequency=frequency(y));
