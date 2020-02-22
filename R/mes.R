@@ -683,16 +683,21 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     }
 
     ##### Function returns scale parameter for the provided parameters #####
-    scaler <- function(distribution, errors, otLogical, obsInSample, lambda){
+    scaler <- function(distribution, Etype, errors, yFitted, obsInSample, lambda){
         scale <- switch(distribution,
-                        "dnorm"=sqrt(sum(errors[otLogical]^2)/obsInSample),
+                        "dnorm"=sqrt(sum(errors^2)/obsInSample),
                         "dlogis"=sqrt(sum(errors^2)/obsInSample * 3 / pi^2),
                         "dlaplace"=sum(abs(errors))/obsInSample,
                         "dt"=abs(lambda),
-                        "ds"=sum(sqrt(abs(errors[otLogical]))) / (obsInSample*2),
-                        "dalaplace"=sum(errors[otLogical]*(lambda-(errors[otLogical]<=0)*1))/obsInSample,
-                        "dlnorm"=sqrt(sum(log(1+errors[otLogical])^2)/obsInSample),
-                        "dinvgauss"=sum((errors[otLogical])^2/(1+errors[otLogical]))/obsInSample);
+                        "ds"=sum(sqrt(abs(errors))) / (obsInSample*2),
+                        "dalaplace"=sum(errors*(lambda-(errors<=0)*1))/obsInSample,
+                        "dlnorm"=switch(Etype,
+                                        "A"=sqrt(sum(log(1+errors/yFitted)^2)/obsInSample),
+                                        "M"=sqrt(sum(log(1+errors)^2)/obsInSample)),
+                        "dinvgauss"=switch(Etype,
+                                           "A"=sum((errors/yFitted)^2/(1+errors/yFitted))/obsInSample,
+                                           "M"=sum((errors)^2/(1+errors))/obsInSample),
+                        );
         return(scale);
     }
 
@@ -735,7 +740,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         if(!multisteps){
             if(loss=="likelihood"){
                 # Scale for different functions
-                scale <- scaler(distribution, mesFitted$errors, otLogical, obsInSample, lambda);
+                scale <- scaler(distribution, Etype, mesFitted$errors[otLogical], mesFitted$yFitted[otLogical], obsInSample, lambda);
 
                 # Calculate the likelihood
                 CFValue <- -sum(switch(distribution,
@@ -761,7 +766,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                                    "A"=ds(q=yInSample[otLogical],mu=mesFitted$yFitted[otLogical],
                                                           scale=scale, log=TRUE),
                                                    "M"=ds(q=yInSample[otLogical],mu=mesFitted$yFitted[otLogical],
-                                                          scale=scale*mesFitted$yFitted[otLogical], log=TRUE)),
+                                                          scale=scale*sqrt(mesFitted$yFitted[otLogical]), log=TRUE)),
                                        "dalaplace"=switch(Etype,
                                                           "A"=dalaplace(q=yInSample[otLogical], mu=mesFitted$yFitted[otLogical],
                                                                         scale=scale, alpha=lambda, log=TRUE),
@@ -1015,8 +1020,8 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     if(modelDo=="estimate"){
         # Deal with occurrence model
         if(occurrenceModel && !occurrenceModelProvided){
-            oesModel <- oes(yInSample, model=model, initial=initial, occurrence=occurrence, ic=ic, h=h,
-                            holdout=FALSE, bounds="usual", xreg=xreg, xregDo=xregDo);
+            oesModel <- suppressWarnings(oes(yInSample, model=model, initial=initial, occurrence=occurrence, ic=ic, h=h,
+                                             holdout=FALSE, bounds="usual", xreg=xreg, xregDo=xregDo));
             pFitted[] <- fitted(oesModel);
             parametersNumber[1,3] <- nparam(oesModel);
             # This should not happen, but just in case...
@@ -1087,7 +1092,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                    lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal,
                                    yInSample, ot, initialType=="backcasting");
 
-        errors <- mesFitted$errors;
+        errors <- mesFitted$errors
         yFitted <- mesFitted$yFitted;
         if(occurrenceModel){
             yFitted[] <- yFitted * pFitted;
@@ -1127,7 +1132,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             xregPersistence <- vecG[-c(1:componentsNumber),];
         }
 
-        scale <- scaler(distribution, errors, otLogical, obsInSample, lambda);
+        scale <- scaler(distribution, Etype, errors[otLogical], yFitted[otLogical], obsInSample, lambda);
 
         # Transform everything into ts
         yInSample <- ts(yInSample,start=start(y), frequency=frequency(y));
@@ -1136,7 +1141,6 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         }
         yFitted <- ts(yFitted,start=start(y), frequency=frequency(y));
         if(h>0){
-            print(mesForecast$yForecast)
             yForecast <- ts(mesForecast$yForecast, start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
         }
     }
@@ -1176,20 +1180,17 @@ coef.mes <- function(object, ...){
 
 #' @export
 residuals.mes <- function(object, ...){
-    if(errorType(object)=="M"){
-        return(switch(object$distribution,
-                      "dnorm"=,
-                      "dlogis"=,
-                      "dlaplace"=,
-                      "dt"=,
-                      "ds"=,
-                      "dalaplace"=object$residuals,
-                      "dlnorm"=log(1+object$residuals),
-                      "dinvgauss"=(1+object$residuals)));
-    }
-    else{
-        return(object$residuals);
-    }
+    return(switch(object$distribution,
+                  "dnorm"=,
+                  "dlogis"=,
+                  "dlaplace"=,
+                  "dt"=,
+                  "ds"=,
+                  "dalaplace"=object$residuals,
+                  "dlnorm"=,
+                  "dinvgauss"=switch(errorType(object),
+                                     "A"=1+object$residuals/fitted(object),
+                                     "M"=1+object$residuals)));
 }
 
 #' @export
@@ -1204,14 +1205,18 @@ rstandard.mes <- function(model, ...){
     else{
         residsToGo <- c(1:obs);
     }
-    if(any(model$distribution==c("dt","dnorm","dlnorm"))){
-        return((errors - mean(errors[residsToGo])) / sqrt(sum(residuals(model)^2) / df));
+    if(any(model$distribution==c("dt","dnorm"))){
+        return((errors - mean(errors[residsToGo])) / sqrt(model$scale^2 * obs / df));
     }
     else if(model$distribution=="ds"){
         return((errors - mean(errors[residsToGo])) / (model$scale * obs / df)^2);
     }
     else if(model$distribution=="dinvgauss"){
         return(errors / mean(errors[residsToGo]));
+    }
+    else if(model$distribution=="dlnorm"){
+        errors[] <- log(errors);
+        return(exp((errors - mean(errors[residsToGo])) / sqrt(model$scale^2 * obs / df)));
     }
     else{
         return(errors / model$scale * obs / df);
@@ -1230,7 +1235,7 @@ rstudent.mes <- function(model, ...){
     else{
         residsToGo <- c(1:obs);
     }
-    if(any(model$distribution==c("dt","dnorm","dlnorm"))){
+    if(any(model$distribution==c("dt","dnorm"))){
         errors[] <- errors - mean(errors);
         for(i in residsToGo){
             rstudentised[i] <- errors[i] / sqrt(sum(errors[-i]^2) / df);
@@ -1257,6 +1262,12 @@ rstudent.mes <- function(model, ...){
         errors[] <- errors - mean(errors);
         for(i in residsToGo){
             rstudentised[i] <- errors[i] / (sqrt(sum(errors[-i]^2) / df) * sqrt(3) / pi);
+        }
+    }
+    else if(model$distribution=="dlnorm"){
+        errors[] <- log(errors) - mean(log(errors));
+        for(i in residsToGo){
+            rstudentised[i] <- exp(errors[i] / sqrt(sum(errors[-i]^2) / df));
         }
     }
     else if(model$distribution=="dinvgauss"){
@@ -1348,6 +1359,7 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
                           # In the next one, the scale is debiased, taking n-k into account
                           "dinvgauss"=qinvgauss(c((1-level)/2, (1+level)/2), mean=1,
                                                 dispersion=x$scale * nobs(x) / (nobs(x)-nparam(x))),
+                          "dlnorm"=qlnorm(c((1-level)/2, (1+level)/2), 0, 1),
                           qnorm(c((1-level)/2, (1+level)/2), 0, 1));
         outliers <- which(ellipsis$y >zValues[2] | ellipsis$y <zValues[1]);
         # cat(paste0(round(length(outliers)/length(ellipsis$y),3)*100,"% of values are outside the bounds\n"));
@@ -1369,7 +1381,12 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
         xRange[2] <- xRange[2] + sd(ellipsis$x, na.rm=TRUE);
 
         do.call(plot,ellipsis);
-        abline(h=0, col="grey", lty=2);
+        if(any(x$distribution==c("dlnorm","dinvgauss"))){
+            abline(h=1, col="grey", lty=2);
+        }
+        else{
+            abline(h=0, col="grey", lty=2);
+        }
         polygon(c(xRange,rev(xRange)),c(zValues[1],zValues[1],zValues[2],zValues[2]),
                 col="lightgrey", border=NA, density=10);
         abline(h=zValues, col="red", lty=2);
@@ -1439,7 +1456,12 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
         }
 
         do.call(plot,ellipsis);
-        abline(h=0, col="grey", lty=2);
+        if(any(x$distribution==c("dlnorm","dinvgauss"))){
+            abline(h=1, col="grey", lty=2);
+        }
+        else{
+            abline(h=0, col="grey", lty=2);
+        }
         if(lowess){
             lines(lowess(ellipsis$x, ellipsis$y), col="red");
         }
@@ -1461,13 +1483,22 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
             ellipsis$ylab <- "Actual Quantile";
         }
 
-        if(any(x$distribution==c("dnorm","dlnorm"))){
+        if(any(x$distribution=="dnorm")){
             if(!any(names(ellipsis)=="main")){
                 ellipsis$main <- "QQ plot of normal distribution";
             }
 
             do.call(qqnorm, ellipsis);
             qqline(ellipsis$y);
+        }
+        else if(any(x$distribution=="dlnorm")){
+            if(!any(names(ellipsis)=="main")){
+                ellipsis$main <- "QQ plot of log normal distribution";
+            }
+            ellipsis$x <- qlnorm(ppoints(500), meanlog=0, sdlog=x$scale);
+
+            do.call(qqplot, ellipsis);
+            qqline(ellipsis$y, distribution=function(p) qlnorm(p, meanlog=0, sdlog=x$scale));
         }
         else if(x$distribution=="dlaplace"){
             if(!any(names(ellipsis)=="main")){
@@ -1644,6 +1675,75 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
 
     if(any(which==9)){
         plot6(x, ...);
+    }
+}
+
+print.mes <- function(x, digits=4, ...){
+    cat(paste0("Time elapsed: ",round(as.numeric(x$timeElapsed,units="secs"),2)," seconds"));
+    cat(paste0("\nModel estimated: ",x$model));
+
+    if(is.oes(x$occurrence)){
+        occurrence <- switch(x$occurrence$occurrence,
+                             "f"=,
+                             "fixed"="Fixed probability",
+                             "o"=,
+                             "odds-ratio"="Odds ratio",
+                             "i"=,
+                             "inverse-odds-ratio"="Inverse odds ratio",
+                             "d"=,
+                             "direct"="Direct",
+                             "g"=,
+                             "general"="General");
+        cat(paste0("\nOccurrence model type: ",occurrence));
+    }
+
+    distrib <- switch(x$distribution,
+                      "dnorm" = "Normal",
+                      "dlogis" = "Logistic",
+                      "dlaplace" = "Laplace",
+                      "dalaplace" = paste0("Asymmetric Laplace with lambda=",round(x$lambda,digits)),
+                      "dt" = paste0("Student t with df=",round(x$lambda, digits)),
+                      "ds" = "S",
+                      "dlnorm" = "Log Normal",
+                      # "dbcnorm" = paste0("Box-Cox Normal with lambda=",round(x$other$lambda,2)),
+                      "dinvgauss" = "Inverse Gaussian"
+    );
+    if(is.oes(x$occurrence)){
+        distrib <- paste0("Mixture of Bernoulli and ", distrib);
+    }
+    cat(paste0("\nDistribution used in the estimation: ", distrib));
+
+
+    if(!is.null(x$persistence)){
+        cat(paste0("\nPersistence vector g:\n"));
+        if(is.matrix(x$persistence)){
+            print(round(x$persistence,digits));
+        }
+        else{
+            print(round(x$persistence,digits));
+        }
+    }
+
+    if(!is.null(x$phi)){
+        if(gregexpr("d",x$model)!=-1){
+            cat(paste0("\nDamping parameter: ", round(x$phi,digits),"\n"));
+        }
+    }
+
+    cat(paste0("\nLoss function type: ",x$loss));
+    if(!is.null(x$lossValue)){
+        cat(paste0("; Loss function value: ",round(x$lossValue,digits)));
+    }
+
+    cat("\nSample size: "); cat(nobs(x));
+    cat("\nNumber of estimated parameters: "); cat(nparam(x));
+    cat("\nNumber of degrees of freedom: "); cat(nobs(x)-nparam(x));
+
+    if(x$loss=="likelihood"){
+        ICs <- c(AIC(x),AICc(x),BIC(x),BICc(x));
+        names(ICs) <- c("AIC","AICc","BIC","BICc");
+        cat("\nInformation criteria:\n");
+        print(round(ICs,digits));
     }
 }
 

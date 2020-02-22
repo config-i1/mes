@@ -86,7 +86,7 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
 
             /* # Measurement equation and the error term */
             vecYfit(i-lagsModelMax) = wvalue(matrixVt(lagrows), matrixWt.row(i-lagsModelMax), E, T, S,
-                    nNonSeasonal, nSeasonal, nComponents);
+                                             nNonSeasonal, nSeasonal, nComponents);
 
             // This is a failsafe for cases of ridiculously high and ridiculously low values
             if(vecYfit(i-lagsModelMax) > 1e+100 && (i-lagsModelMax)>0){
@@ -103,8 +103,8 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
 
             /* # Transition equation */
             matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, T, S, nComponents) +
-            gvalue(matrixVt(lagrows), matrixF, matrixWt.row(i-lagsModelMax), E, T, S,
-                   nNonSeasonal, nSeasonal, nComponents) % vectorG * vecErrors(i-lagsModelMax);
+                              gvalue(matrixVt(lagrows), matrixF, matrixWt.row(i-lagsModelMax), E, T, S,
+                                     nNonSeasonal, nSeasonal, nComponents) % vectorG * vecErrors(i-lagsModelMax);
 
             /* Failsafe for cases when unreasonable value for state vector was produced */
             if(!matrixVt.col(i).is_finite()){

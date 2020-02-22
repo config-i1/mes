@@ -191,7 +191,7 @@ inline arma::vec gvalue(arma::vec const &matrixVt, arma::mat const &matrixF, arm
         case 'A':
             switch(S){
             case 'N':
-                g.rows(0,1) = rowvecW.cols(0,1) * matrixVt.rows(0,1);
+                g.rows(0,1).fill(as_scalar(rowvecW.cols(0,1) * matrixVt.rows(0,1)));
                 break;
             case 'A':
                 g.rows(0,nSeasonal) = as_scalar(rowvecW.cols(0,nSeasonal) * matrixVt.rows(0,nSeasonal));
@@ -229,7 +229,6 @@ inline arma::vec gvalue(arma::vec const &matrixVt, arma::mat const &matrixF, arm
         }
         break;
     }
-
 
     // Explanatory variables. Needed in order to update the parameters
     if(nComponents > (nSeasonal+nNonSeasonal)){

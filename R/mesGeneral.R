@@ -299,12 +299,6 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     #### Distribution selected ####
     distribution <- match.arg(distribution);
 
-    if(any(distribution==c("dlnorm","dinvgauss")) && any(Etype==c("A","X"))){
-        warning(paste0("The distribution ",distribution," does not make sense in case of the additive error model. ",
-                       "Switching to the default distribution."), call.=FALSE);
-        distribution <- "default";
-    }
-
     #### Loss function type ####
     loss <- match.arg(loss[1],c("likelihood","MSE","MAE","HAM","LASSO","RIDGE",
                                 "MSEh","TMSE","GTMSE","MSCE",
