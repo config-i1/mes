@@ -24,7 +24,7 @@ Imports:
     smooth (>= 2.5.0),
     nloptr,
     utils,
-    numDeriv,
+    pracma,
     statmod,
     zoo
 LinkingTo: Rcpp, RcppArmadillo (>= 0.8.100.0.0)

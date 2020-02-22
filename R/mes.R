@@ -230,7 +230,7 @@
 #' @examples
 #'
 #' # Model selection using a specified pool of models
-#' ourModel <- mes(rnorm(100,100,10),model=c("ANN","ANA","AAA"), lags=c(5,10))
+#' ourModel <- mes(rnorm(100,100,10), model=c("ANN","ANA","AAA"), lags=c(5,10))
 #'
 #' \dontrun{summary(ourModel)}
 #' \dontrun{forecast(ourModel)}
@@ -238,11 +238,10 @@
 #'
 #' @importFrom forecast forecast
 #' @importFrom greybox dlaplace dalaplace ds stepwise alm
-#' @importFrom smooth modelType
-#' @importFrom stats frequency dnorm dlogis dt dlnorm
+#' @importFrom stats dnorm dlogis dt dlnorm frequency
 #' @importFrom statmod dinvgauss
 #' @importFrom nloptr nloptr
-#' @importFrom numDeriv hessian
+#' @importFrom pracma hessian
 #' @export mes
 mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
@@ -577,10 +576,10 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     initialiser <- function(Etype, Ttype, Stype, componentsNumberSeasonal,
                             componentsNumber, lagsModel, lagsModelMax, matVt,
                             persistenceEstimate, phiEstimate, initialType,
-                            xregInitialsEstimate, xregPersistenceEstimate, xregNumber){
+                            xregInitialsEstimate, xregPersistenceEstimate, xregNumber, lambdaEstimate){
         # Persistence of states, persistence of xreg, phi, initials, initials for xreg
         B <- Bl <- Bu <- vector("numeric",persistenceEstimate*componentsNumber+xregPersistenceEstimate*xregNumber+phiEstimate+
-                                    (initialType=="optimal")*sum(lagsModel)+xregInitialsEstimate*xregNumber);
+                                    (initialType=="optimal")*sum(lagsModel)+xregInitialsEstimate*xregNumber+lambdaEstimate);
 
         j <- 1;
         # Fill in persistence
@@ -677,6 +676,15 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 Bl[j-1+1:xregNumber] <- -Inf;
                 Bu[j-1+1:xregNumber] <- Inf;
             }
+            j <- j+xregNumber;
+        }
+
+        # Add lambda if it is needed
+        if(lambdaEstimate){
+            B[j] <- 0.5;
+            names(B)[j] <- "lambda";
+            Bl[j] <- 1e-10;
+            Bu[j] <- Inf;
         }
 
         return(list(B=B,Bl=Bl,Bu=Bu));
@@ -685,10 +693,10 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     ##### Function returns scale parameter for the provided parameters #####
     scaler <- function(distribution, Etype, errors, yFitted, obsInSample, lambda){
         scale <- switch(distribution,
-                        "dnorm"=sqrt(sum(errors^2)/obsInSample),
+                        "dnorm"=,
+                        "dt"=sqrt(sum(errors^2)/obsInSample),
                         "dlogis"=sqrt(sum(errors^2)/obsInSample * 3 / pi^2),
                         "dlaplace"=sum(abs(errors))/obsInSample,
-                        "dt"=abs(lambda),
                         "ds"=sum(sqrt(abs(errors))) / (obsInSample*2),
                         "dalaplace"=sum(errors*(lambda-(errors<=0)*1))/obsInSample,
                         "dlnorm"=switch(Etype,
@@ -710,7 +718,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                    persistenceEstimate, phiEstimate, initialType,
                    xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
                    xregNumber,
-                   bounds, loss, distribution, h, multisteps, lambda){
+                   bounds, loss, distribution, h, multisteps, lambda, lambdaEstimate){
 
         # Fill in the matrices
         mesElements <- filler(B,
@@ -719,6 +727,12 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                               persistenceEstimate, phiEstimate, initialType,
                               xregInitialsEstimate, xregPersistenceEstimate, xregNumber);
 
+        # If we estimate lambda, take it from the B vector
+        if(lambdaEstimate){
+            lambda[] <- B[length(B)];
+        }
+
+        # Check the bounds
         if(bounds=="traditional"){
             if(any(mesElements$vecG>1) || any(mesElements$vecG<0)){
                 return(1E+300);
@@ -728,11 +742,12 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             # We check the condition only for the last row of matWt
             eigenValues <- eigen(mesElements$matF - mesElements$vecG %*% mesElements$matWt[obsInSample,],
                                  only.values=TRUE)$values;
-            if(any(eigenValues>1+1E-50)){
-                return(eigenValues*1E+100);
+            if(any(abs(eigenValues)>1+1E-50)){
+                return(abs(eigenValues)*1E+100);
             }
         }
 
+        # Produce fitted values and errors
         mesFitted <- mesFitterWrap(mesElements$matVt, mesElements$matWt, mesElements$matF, mesElements$vecG,
                                    lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal,
                                    yInSample, ot, initialType=="backcasting");
@@ -760,8 +775,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                                          "M"=dlaplace(q=yInSample[otLogical], mu=mesFitted$yFitted[otLogical],
                                                                       scale=scale*mesFitted$yFitted[otLogical], log=TRUE)),
                                        "dt"=switch(Etype,
-                                                   "A"=dt(mesFitted$errors[otLogical], df=scale, log=TRUE),
-                                                   "M"=dt(mesFitted$errors[otLogical]/mesFitted$yFitted[otLogical], df=scale, log=TRUE)),
+                                                   "A"=dt(mesFitted$errors[otLogical], df=abs(lambda), log=TRUE),
+                                                   "M"=dt(mesFitted$errors[otLogical]*mesFitted$yFitted[otLogical],
+                                                          df=abs(lambda), log=TRUE)),
                                        "ds"=switch(Etype,
                                                    "A"=ds(q=yInSample[otLogical],mu=mesFitted$yFitted[otLogical],
                                                           scale=scale, log=TRUE),
@@ -877,7 +893,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                           persistenceEstimate, phiEstimate, initialType,
                           xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
                           xregNumber,
-                          bounds, loss, distribution, h, multisteps, lambda){
+                          bounds, loss, distribution, h, multisteps, lambda, lambdaEstimate){
         if(!multisteps){
             if(any(loss==c("LASSO","RIDGE"))){
                 return(0);
@@ -896,7 +912,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                     persistenceEstimate, phiEstimate, initialType,
                                     xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
                                     xregNumber,
-                                    bounds, "likelihood", distributionNew, h, multisteps, lambda);
+                                    bounds, "likelihood", distributionNew, h, multisteps, lambda, lambdaEstimate);
 
                 # If this is an occurrence model, add the probabilities
                 if(occurrenceModel){
@@ -941,7 +957,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                           xregPersistence, xregPersistenceEstimate,
                           xregModel, xregData, xregNumber, xregNames,
                           ot, otLogical, occurrenceModel, pFitted,
-                          bounds, loss, distribution, h, multisteps, lambda){
+                          bounds, loss, distribution, h, multisteps, lambda, lambdaEstimate){
 
         mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber);
         list2env(mesArchitect, environment());
@@ -960,14 +976,11 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             BValues <- initialiser(Etype, Ttype, Stype, componentsNumberSeasonal,
                                    componentsNumber, lagsModel, lagsModelMax, mesCreated$matVt,
                                    persistenceEstimate, phiEstimate, initialType,
-                                   xregInitialsEstimate, xregPersistenceEstimate, xregNumber);
+                                   xregInitialsEstimate, xregPersistenceEstimate, xregNumber, lambdaEstimate);
             # Create the vector of initials for the optimisation
             B <- BValues$B;
             lb <- BValues$Bl;
             ub <- BValues$Bu;
-        }
-        else{
-            B <- B;
         }
 
         # If the distribution is default, change it according to the error term
@@ -992,7 +1005,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                       xregProvided=xregProvided, xregInitialsEstimate=xregInitialsEstimate,
                       xregPersistenceEstimate=xregPersistenceEstimate, xregNumber=xregNumber,
                       bounds=bounds, loss=loss, distribution=distributionNew, h=h, multisteps=multisteps,
-                      lambda=lambda);
+                      lambda=lambda, lambdaEstimate=lambdaEstimate);
 
         # Prepare the values to return
         B[] <- res$solution;
@@ -1007,14 +1020,14 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                     persistenceEstimate, phiEstimate, initialType,
                                     xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
                                     xregNumber,
-                                    bounds, loss, distributionNew, h, multisteps, lambda);
+                                    bounds, loss, distributionNew, h, multisteps, lambda, lambdaEstimate);
 
         return(list(B=B, CFValue=CFValue, nParamEstimated=nParamEstimated, logLikMESValue=logLikMESValue));
     }
 
-    ##### This function uses residuals in order to determine the needed xreg #####
-    XregSelector <- function(listToReturn){
-    }
+    ##### !!!! This function will use residuals in order to determine the needed xreg !!!! #####
+    # XregSelector <- function(listToReturn){
+    # }
 
     ##### Either estimate the model or create a pool #####
     if(modelDo=="estimate"){
@@ -1075,7 +1088,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                  xregPersistence, xregPersistenceEstimate,
                                  xregModel, xregData, xregNumber, xregNames,
                                  ot, otLogical, occurrenceModel, pFitted,
-                                 bounds, loss, distribution, h, multisteps, lambda);
+                                 bounds, loss, distribution, h, multisteps, lambda, lambdaEstimate);
         list2env(esEstimator, environment());
         parametersNumber[1,4] <- nParamEstimated;
 
@@ -1086,6 +1099,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                               persistenceEstimate, phiEstimate, initialType,
                               xregInitialsEstimate, xregPersistenceEstimate, xregNumber);
         list2env(mesElements, environment());
+        if(lambdaEstimate){
+            lambda[] <- tail(B,1);
+        }
 
         # Fit the model to the data
         mesFitted <- mesFitterWrap(matVt, matWt, matF, vecG,

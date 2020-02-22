@@ -701,14 +701,16 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     }
     # Additional parameter for dalaplace, LASSO and dt
     if(is.null(ellipsis$lambda)){
-        if(distribution=="dt"){
-            lambda <- 10;
+        if(loss=="likelihood"){
+            lambdaEstimate <- TRUE;
         }
         else{
-            lambda <- 0.5;
+            lambdaEstimate <- FALSE;
         }
+        lambda <- 0.5;
     }
     else{
+        lambdaEstimate <- FALSE;
         lambda <- ellipsis$lambda;
     }
 
@@ -794,4 +796,5 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     assign("lb",lb,ParentEnvironment);
     assign("ub",ub,ParentEnvironment);
     assign("lambda",lambda,ParentEnvironment);
+    assign("lambdaEstimate",lambdaEstimate,ParentEnvironment);
 }
