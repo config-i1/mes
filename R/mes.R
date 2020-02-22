@@ -255,11 +255,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 silent=TRUE, ...){
     # Copyright (C) 2019 - Inf  Ivan Svetunkov
     # Methods to implement:
-    # cvar() - conditional variance,
     # predict(), forecast(),
-    # plot() with options of what to plot,
-    # resid() et al.,
-    # vcov(), confint(),
     #
     # Parameters that were moved to forecast() and predict() functions:
     # h=10, holdout=FALSE, cumulative=FALSE,
@@ -1821,3 +1817,9 @@ print.mes <- function(x, digits=4, ...){
 #
 #     return(yForecast);
 # }
+
+##### Other functions to implement #####
+# vcov.mes <- function(object, ...){}
+# confint.mes <- function(object, parm, level=0.95, ...){}
+# cvar.mes <- function(object, ...){}
+# simulate.mes <- function(object, nsim=1, seed=NULL, obs=NULL, ...){}
