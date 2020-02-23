@@ -1709,22 +1709,23 @@ print.mes <- function(x, digits=4, ...){
         cat(paste0("\nOccurrence model type: ",occurrence));
     }
 
-    distrib <- switch(x$distribution,
-                      "dnorm" = "Normal",
-                      "dlogis" = "Logistic",
-                      "dlaplace" = "Laplace",
-                      "dalaplace" = paste0("Asymmetric Laplace with lambda=",round(x$lambda,digits)),
-                      "dt" = paste0("Student t with df=",round(x$lambda, digits)),
-                      "ds" = "S",
-                      "dlnorm" = "Log Normal",
-                      # "dbcnorm" = paste0("Box-Cox Normal with lambda=",round(x$other$lambda,2)),
-                      "dinvgauss" = "Inverse Gaussian"
-    );
-    if(is.oes(x$occurrence)){
-        distrib <- paste0("Mixture of Bernoulli and ", distrib);
+    if(x$loss=="likelihood"){
+        distrib <- switch(x$distribution,
+                          "dnorm" = "Normal",
+                          "dlogis" = "Logistic",
+                          "dlaplace" = "Laplace",
+                          "dalaplace" = paste0("Asymmetric Laplace with lambda=",round(x$lambda,digits)),
+                          "dt" = paste0("Student t with df=",round(x$lambda, digits)),
+                          "ds" = "S",
+                          "dlnorm" = "Log Normal",
+                          # "dbcnorm" = paste0("Box-Cox Normal with lambda=",round(x$other$lambda,2)),
+                          "dinvgauss" = "Inverse Gaussian"
+        );
+        if(is.oes(x$occurrence)){
+            distrib <- paste0("Mixture of Bernoulli and ", distrib);
+        }
+        cat(paste0("\nDistribution used in the estimation: ", distrib));
     }
-    cat(paste0("\nDistribution used in the estimation: ", distrib));
-
 
     if(!is.null(x$persistence)){
         cat(paste0("\nPersistence vector g:\n"));
@@ -1751,7 +1752,7 @@ print.mes <- function(x, digits=4, ...){
     cat("\nNumber of estimated parameters: "); cat(nparam(x));
     cat("\nNumber of degrees of freedom: "); cat(nobs(x)-nparam(x));
 
-    if(x$loss=="likelihood"){
+    if(any(x$loss==c("likelihood","MSE","MAE","HAM","MSEh","MSCE","MAEh","MACE","HAMh","CHAM"))){
         ICs <- c(AIC(x),AICc(x),BIC(x),BICc(x));
         names(ICs) <- c("AIC","AICc","BIC","BICc");
         cat("\nInformation criteria:\n");
@@ -1786,7 +1787,6 @@ print.mes <- function(x, digits=4, ...){
 #     yForecast <- mesForecast$yForecast;
 #
 #     return(yForecast);
-# }
 
 # Work in progress...
 # forecast.mes <- function(object, h=NULL, newdata=NULL,
