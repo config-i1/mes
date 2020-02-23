@@ -826,36 +826,38 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 if(phiEstimate){
                     j[] <- 2;
                 }
-                # Standardise the level
-                if(Etype=="M"){
-                    B[persistenceToSkip+j] <- log(B[persistenceToSkip+j] / mean(yInSample[1:lagsModelMax]));
-                }
-                else{
-                    B[persistenceToSkip+j] <- B[persistenceToSkip+j] / mean(yInSample[1:lagsModelMax]);
-                }
-                # Change B values for the trend, so that it shrinks properly
-                if(Ttype=="M"){
-                    j[] <- j+1;
-                    B[persistenceToSkip+j] <- log(B[persistenceToSkip+j]);
-                }
-                else if(Ttype=="A"){
-                    j[] <- j+1;
-                    B[persistenceToSkip+j] <- B[persistenceToSkip+j]/mean(yInSample);
-                }
-                # Change B values for seasonality, so that it shrinks properly
-                if(Stype=="M"){
-                    B[persistenceToSkip+j+1:(sum(lagsModel)-j)] <- log(B[persistenceToSkip+j+1:(sum(lagsModel)-j)]);
-                }
-                else if(Stype=="A"){
-                    B[persistenceToSkip+j+1:(sum(lagsModel)-j)] <- B[persistenceToSkip+j+1:(sum(lagsModel)-j)]/mean(yInSample);
-                }
+                if(initialType=="optimal"){
+                    # Standardise the level
+                    if(Etype=="M"){
+                        B[persistenceToSkip+j] <- log(B[persistenceToSkip+j] / mean(yInSample[1:lagsModelMax]));
+                    }
+                    else{
+                        B[persistenceToSkip+j] <- B[persistenceToSkip+j] / mean(yInSample[1:lagsModelMax]);
+                    }
+                    # Change B values for the trend, so that it shrinks properly
+                    if(Ttype=="M"){
+                        j[] <- j+1;
+                        B[persistenceToSkip+j] <- log(B[persistenceToSkip+j]);
+                    }
+                    else if(Ttype=="A"){
+                        j[] <- j+1;
+                        B[persistenceToSkip+j] <- B[persistenceToSkip+j]/mean(yInSample);
+                    }
+                    # Change B values for seasonality, so that it shrinks properly
+                    if(Stype=="M"){
+                        B[persistenceToSkip+j+1:(sum(lagsModel)-j)] <- log(B[persistenceToSkip+j+1:(sum(lagsModel)-j)]);
+                    }
+                    else if(Stype=="A"){
+                        B[persistenceToSkip+j+1:(sum(lagsModel)-j)] <- B[persistenceToSkip+j+1:(sum(lagsModel)-j)]/mean(yInSample);
+                    }
 
-                # Normalise parameters of xreg if they are additive. Otherwise leave - they will be small and close to zero
-                if(xregNumber>0 && Etype=="A"){
-                    denominator <- tail(colMeans(matWt),xregNumber);
-                    # If it is lower than 1, then we are probably dealing with (0, 1). No need to normalise
-                    denominator[abs(denominator)<1] <- 1;
-                    B[persistenceToSkip+sum(lagsModel)+c(1:xregNumber)] <- tail(B,xregNumber) / denominator;
+                    # Normalise parameters of xreg if they are additive. Otherwise leave - they will be small and close to zero
+                    if(xregNumber>0 && Etype=="A"){
+                        denominator <- tail(colMeans(matWt),xregNumber);
+                        # If it is lower than 1, then we are probably dealing with (0, 1). No need to normalise
+                        denominator[abs(denominator)<1] <- 1;
+                        B[persistenceToSkip+sum(lagsModel)+c(1:xregNumber)] <- tail(B,xregNumber) / denominator;
+                    }
                 }
 
                 CFValue <- switch(loss,
@@ -1172,23 +1174,35 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         modelName <- paste0(modelName,"[",paste0(lags[lags!=1], collapse=", "),"]");
     }
 
-    return(structure(list(model=modelName, timeElapsed=Sys.time()-startTime,
-                          y=yInSample, holdout=yHoldout, fitted=yFitted, residuals=errors,
-                          forecast=yForecast, states=ts(t(matVt), start=(time(y)[1] - deltat(y)*lagsModelMax),
-                                                 frequency=frequency(y)),
-                          persistence=persistence, phi=phi, transition=matF,
-                          measurement=matWt, initialType=initialType, initial=initialValue,
-                          nParam=parametersNumber, occurrence=oesModel, xreg=xregData,
-                          xregInitial=xregInitial, xregPersistence=xregPersistence,
-                          loss=loss, lossValue=CFValue, logLik=logLikMESValue, distribution=distribution,
-                          scale=scale, lambda=lambda, B=B, lags=lagsModelAll),
-                     class=c("mes","smooth")));
+    model <- structure(list(model=modelName, timeElapsed=Sys.time()-startTime,
+                            y=yInSample, holdout=yHoldout, fitted=yFitted, residuals=errors,
+                            forecast=yForecast, states=ts(t(matVt), start=(time(y)[1] - deltat(y)*lagsModelMax),
+                                                          frequency=frequency(y)),
+                            persistence=persistence, phi=phi, transition=matF,
+                            measurement=matWt, initialType=initialType, initial=initialValue,
+                            nParam=parametersNumber, occurrence=oesModel, xreg=xregData,
+                            xregInitial=xregInitial, xregPersistence=xregPersistence,
+                            loss=loss, lossValue=CFValue, logLik=logLikMESValue, distribution=distribution,
+                            scale=scale, lambda=lambda, B=B, lags=lagsModel),
+                       class=c("mes","smooth"));
+
+    if(!silent){
+        plot(model, 1);
+    }
+
+    return(model);
 }
 
 #' @export
 coef.mes <- function(object, ...){
     return(object$B);
 }
+
+#' @export
+lags.mes <- function(object, ...){
+    return(object$lags);
+}
+
 
 #' @export
 residuals.mes <- function(object, ...){
@@ -1761,13 +1775,14 @@ print.mes <- function(x, digits=4, ...){
         cat("\nInformation criteria:\n");
         print(round(ICs,digits));
     }
+    cat("\n");
 }
 
 # Work in progress...
-# predict.mes <- function(object, newdata=NULL, interval=c("none", "confidence", "prediction"),
+# predict.mes <- function(object, newxreg=NULL, interval=c("none", "confidence", "prediction"),
 #                         level=0.95, side=c("both","upper","lower"), ...){
 #
-#     h <- nrow(newdata);
+#     h <- nrow(newxreg);
 #     lagsModelAll <- object$lags;
 #     componentsNumber <- length(lagsModelAll);
 #     componentsNumberSeasonal <- sum(lagsModelAll>1);
@@ -1792,36 +1807,159 @@ print.mes <- function(x, digits=4, ...){
 #     return(yForecast);
 
 # Work in progress...
-# forecast.mes <- function(object, h=NULL, newdata=NULL,
-#                          interval=c("none", "confidence", "prediction", "nonparametric", "semiparametric"),
-#                          level=0.95, side=c("both","upper","lower"), ...){
-#
-#     h <- nrow(newdata);
-#     lagsModelAll <- object$lags;
-#     componentsNumber <- length(lagsModelAll);
-#     componentsNumberSeasonal <- sum(lagsModelAll>1);
-#     lagsModelMax <- max(lagsModelAll);
-#
-#     matVt <- t(object$states[obsStates-(lagsModelMax:1)+1,,drop=FALSE]);
-#     matWt <- tail(object$measurement,h);
-#     matF <- object$transition;
-#     vecG <- object$persistence;
-#
-#     model <- modelType(test);
-#     Etype <- errorType(object);
-#     Ttype <- substr(model,2,2);
-#     Stype <- substr(model,nchar(model),nchar(model));
-#
-#     mesForecast <- mesForecasterWrap(matVt, tail(matWt,h), matF, vecG,
-#                                      lagsModelAll, Etype, Ttype, Stype,
-#                                      componentsNumber, componentsNumberSeasonal, h);
-#
-#     yForecast <- mesForecast$yForecast;
-#
-#     return(yForecast);
-# }
+#' @importFrom stats rnorm rlogis rt rlnorm
+#' @importFrom statmod rinvgauss
+#' @importFrom greybox rlaplace rs ralaplace
+#' @export
+forecast.mes <- function(object, h=NULL, newxreg=NULL,
+                         interval=c("none", "simulated", "approximate", "semiparametric", "nonparametric"),
+                         level=0.95, side=c("both","upper","lower"), cumulative=FALSE, ...){
+
+    interval <- match.arg(interval);
+    side <- match.arg(side);
+
+    # Technical parameters
+    lagsModelAll <- lagsModel <- lags(object);
+    componentsNumber <- length(lagsModel);
+    componentsNumberSeasonal <- sum(lagsModel>1);
+    lagsModelMax <- max(lagsModel);
+    obsStates <- nrow(object$states);
+    obsInSample <- nobs(object);
+
+    # Model type
+    model <- modelType(object);
+    Etype <- errorType(object);
+    Ttype <- substr(model,2,2);
+    Stype <- substr(model,nchar(model),nchar(model));
+
+    # ts structure
+    yForecastStart <- time(actuals(object))[obsInSample]+deltat(actuals(object));
+    yFrequency <- frequency(actuals(object));
+
+    # All the important matrices
+    matVt <- t(object$states[obsStates-(lagsModelMax:1)+1,,drop=FALSE]);
+    matWt <- tail(object$measurement,h);
+    if(!is.null(newxreg)){
+        xregNumber <- ncol(object$xreg);
+        lagsModelAll <- rbind(lagsModelAll,rep(1,xregNumber));
+        matWt[,componentsNumber+c(1:xregNumber)] <- newxreg[1:h,];
+    }
+    else{
+        xregNumber <- 0;
+    }
+    matF <- object$transition;
+    vecG <- matrix(object$persistence,ncol=1);
+
+    # Produce point forecasts
+    mesForecast <- mesForecasterWrap(matVt, matWt, matF, vecG,
+                                     lagsModelAll, Etype, Ttype, Stype,
+                                     componentsNumber, componentsNumberSeasonal, h);
+
+    # If this is a mixture model, produce forecasts for the occurrence
+    if(is.oes(object$occurrence)){
+        pForecast <- forecast(object$oes,h=h)$mean;
+    }
+    else{
+        pForecast <- rep(1, h);
+    }
+
+    # Cumulative forecasts have only one observation
+    if(cumulative){
+        yForecast <- yUpper <- yLower <- ts(vector("numeric", 1), start=yForecastStart, frequency=yFrequency);
+    }
+    else{
+        yForecast <- yUpper <- yLower <- ts(vector("numeric", h), start=yForecastStart, frequency=yFrequency);
+        yForecast[] <- mesForecast$yForecast * pForecast;
+    }
+
+    # If simulated intervals are needed...
+    if(interval=="simulated"){
+        nsim <- 100000;
+        arrVt <- array(NA, c(componentsNumber+xregNumber, h+lagsModelMax, nsim));
+        arrVt[,1:lagsModelMax,] <- rep(matVt,nsim);
+        matErrors <- matrix(switch(object$distribution,
+                                   "dnorm"=rnorm(h*nsim, 0, scale),
+                                   "dlogis"=rlogis(h*nsim, 0, scale),
+                                   "dlaplace"=rlaplace(h*nsim, 0, scale),
+                                   "dt"=rt(h*nsim, 0, scale),
+                                   "ds"=rs(h*nsim, 0, scale),
+                                   "dalaplace"=ralaplace(h*nsim, 0, scale, object$lambda),
+                                   "dlnorm"=rlnorm(h*nsim, 0, scale)-1,
+                                   "dinvgauss"=rinvgauss(h*nsim, 1, scale)-1,
+                                   ),
+                            h,nsim);
+        matOt <- matrix(rbinom(h*nsim, 1, pForecast), h, nsim);
+        matG <- matrix(vecG, componentsNumber+xregNumber, nsim);
+
+        ySimulated <- mesSimulatorwrap(arrVt, matErrors, matOt, matF, matWt, matG,
+                                       Etype, Ttype, Stype, lagsModelAll);
+
+        # If this is an occurrence model, then take probability into account in the level.
+        if(is.oes(object$occurrence)){
+            levelNew <- (level-(1-pForecast))/pForecast;
+            levelNew[levelNew<0] <- 0;
+        }
+        else{
+            levelNew <- level;
+        }
+
+        if(side=="both"){
+            levelLower <- (1-levelNew)/2;
+            levelUpper <- (1+levelNew)/2;
+        }
+        else if(side=="upper"){
+            levelLow <- rep(0,length(levelNew));
+            levelUp <- levelNew;
+        }
+        else{
+            levelLow <- 1-levelNew;
+            levelUp <- rep(1,length(levelNew));
+        }
+        levelLow[levelLow<0] <- 0;
+        levelUp[levelUp<0] <- 0;
+
+        #### Note that the cumulative doesn't work with oes at the moment!
+        if(cumulative){
+            yForecast[] <- mean(colSums(ySimulated,na.rm=T)) * pForecast;
+            yLower[] <- quantile(colSums(ySimulated,na.rm=T),levelLow,type=7);
+            yUpper[] <- quantile(colSums(ySimulated,na.rm=T),levelUp,type=7);
+        }
+        else{
+            # yForecast[] <- apply(ySimulated,1,mean,na.rm=T) * pForecast;
+            yLower[] <- apply(ySimulated,1,quantile,levelLow,na.rm=T,type=7);
+            yUpper[] <- apply(ySimulated,1,quantile,levelUp,na.rm=T,type=7);
+
+            # Make sensible values out of those weird quantiles
+            if(Etype=="A"){
+                yLower[levelLow==0] <- -Inf;
+            }
+            else{
+                yLower[levelLow==0] <- 0;
+            }
+            yUpper[levelUp==1] <- Inf;
+        }
+    }
+    # This option will use h-steps ahead variance and produce intervals for it
+    # This will rely on cvar() method
+    # else if(interval=="approximate"){
+    # }
+    # This option will extract the matrix of multisteps errors from mes and build intervals based on that
+    # This will rely on rmultistep() method
+    # else if(any(interval==c("semiparametric","nonparametric"))){
+    # }
+    else{
+        yUpper[] <- yLower[] <- NA;
+    }
+
+    model <- structure(list(mean=yForecast, lower=yLower, upper=yUpper, model=object,
+                            level=level, interval=interval, side=side, cumulative=cumulative),
+                       class=c("smooth.forecast","forecast"));
+    return(model);
+}
 
 ##### Other functions to implement #####
+# rmultistep.mes <- function(object, ...){}
+# accuracy.mes <- function(object, holdout, ...){}
 # vcov.mes <- function(object, ...){}
 # confint.mes <- function(object, parm, level=0.95, ...){}
 # cvar.mes <- function(object, ...){}
