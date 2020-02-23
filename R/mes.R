@@ -1746,6 +1746,9 @@ print.mes <- function(x, digits=4, ...){
     cat(paste0("\nLoss function type: ",x$loss));
     if(!is.null(x$lossValue)){
         cat(paste0("; Loss function value: ",round(x$lossValue,digits)));
+        if(any(x$loss==c("LASSO","RIDGE"))){
+            cat(paste0("; lambda=",x$lambda));
+        }
     }
 
     cat("\nSample size: "); cat(nobs(x));
