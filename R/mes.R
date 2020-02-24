@@ -467,7 +467,15 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 matVt[j,1:lagsModelMax] <- mean(yInSample[1:lagsModelMax]);
                 j <- j+1;
                 if(Ttype!="N"){
-                    matVt[j,1:lagsModelMax] <- yDecomposition$initial[2];
+                    if(Ttype=="A" && Stype=="M"){
+                        matVt[j,1:lagsModelMax] <- prod(yDecomposition$initial)-yDecomposition$initial[1];
+                    }
+                    else if(Ttype=="M" && Stype=="A"){
+                        matVt[j,1:lagsModelMax] <- sum(yDecomposition$initial)/yDecomposition$initial[1];
+                    }
+                    else{
+                        matVt[j,1:lagsModelMax] <- yDecomposition$initial[2];
+                    }
                     j <- j+1;
                 }
                 for(i in 1:componentsNumberSeasonal){
@@ -1100,6 +1108,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         if(lambdaEstimate){
             lambda[] <- tail(B,1);
         }
+        if(phiEstimate){
+            phi[] <- B[names(B)=="phi"];
+        }
 
         # Fit the model to the data
         mesFitted <- mesFitterWrap(matVt, matWt, matF, vecG,
@@ -1113,15 +1124,12 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         }
         matVt[] <- mesFitted$matVt;
 
+        yForecast <- ts(rep(NA, h), start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
         if(h>0){
             mesForecast <- mesForecasterWrap(matVt[,obsStates-(lagsModelMax:1)+1,drop=FALSE], tail(matWt,h), matF, vecG,
                                              lagsModelAll, Etype, Ttype, Stype,
                                              componentsNumber, componentsNumberSeasonal, h);
-
-            yForecast <- mesForecast$yForecast;
-        }
-        else{
-            yForecast <- NA;
+            yForecast[] <- mesForecast$yForecast;
         }
 
         # If the distribution is default, change it according to the error term
@@ -1154,9 +1162,6 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             yHoldout <- ts(yHoldout, start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
         }
         yFitted <- ts(yFitted,start=start(y), frequency=frequency(y));
-        if(h>0){
-            yForecast <- ts(mesForecast$yForecast, start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
-        }
     }
 
     # Prepare the name of the model
@@ -1848,7 +1853,7 @@ forecast.mes <- function(object, h=NULL, newxreg=NULL,
         xregNumber <- 0;
     }
     matF <- object$transition;
-    vecG <- matrix(object$persistence,ncol=1);
+    vecG <- matrix(rbind(object$persistence,object$xregPersistence), ncol=1);
 
     # Produce point forecasts
     mesForecast <- mesForecasterWrap(matVt, matWt, matF, vecG,
