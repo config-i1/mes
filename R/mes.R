@@ -1132,11 +1132,15 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         if(occurrenceModel){
             yFitted[] <- yFitted * pFitted;
         }
+
         matVt[] <- mesFitted$matVt;
+        if(initialType=="backcasting"){
+            matVt <- matVt[,1:(obsInSample+lagsModelMax), drop=FALSE];
+        }
 
         if(h>0){
             yForecast <- ts(rep(NA, h), start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
-            mesForecast <- mesForecasterWrap(matVt[,obsStates-(lagsModelMax:1)+1,drop=FALSE], tail(matWt,h), matF, vecG,
+            mesForecast <- mesForecasterWrap(matVt[,obsInSample+(1:lagsModelMax),drop=FALSE], tail(matWt,h), matF, vecG,
                                              lagsModelAll, Etype, Ttype, Stype,
                                              componentsNumber, componentsNumberSeasonal, h);
             yForecast[] <- mesForecast$yForecast;
@@ -1822,14 +1826,19 @@ print.mes <- function(x, digits=4, ...){
 #     return(yForecast);
 
 # Work in progress...
-#' @importFrom stats rnorm rlogis rt rlnorm
-#' @importFrom statmod rinvgauss
-#' @importFrom greybox rlaplace rs ralaplace
+#' @importFrom stats rnorm rlogis rt rlnorm qnorm qlogis qt qlnorm
+#' @importFrom statmod rinvgauss qinvgauss
+#' @importFrom greybox rlaplace rs ralaplace qlaplace qs qalaplace
 #' @export
-forecast.mes <- function(object, h=NULL, newxreg=NULL,
+forecast.mes <- function(object, h=10, newxreg=NULL,
                          interval=c("none", "simulated", "approximate", "semiparametric", "nonparametric"),
                          level=0.95, side=c("both","upper","lower"), cumulative=FALSE, ...){
 
+    if(h<=0){
+        return(predict(object, newxreg=newxreg,
+                       interval=interval,
+                       level=level, side=side, ...))
+    }
     interval <- match.arg(interval);
     side <- match.arg(side);
 
@@ -1887,6 +1896,32 @@ forecast.mes <- function(object, h=NULL, newxreg=NULL,
         yForecast[] <- mesForecast$yForecast * pForecast;
     }
 
+    if(interval!="none"){
+        # If this is an occurrence model, then take probability into account in the level.
+        if(is.oes(object$occurrence)){
+            levelNew <- (level-(1-pForecast))/pForecast;
+            levelNew[levelNew<0] <- 0;
+        }
+        else{
+            levelNew <- level;
+        }
+
+        if(side=="both"){
+            levelLow <- (1-levelNew)/2;
+            levelUp <- (1+levelNew)/2;
+        }
+        else if(side=="upper"){
+            levelLow <- rep(0,length(levelNew));
+            levelUp <- levelNew;
+        }
+        else{
+            levelLow <- 1-levelNew;
+            levelUp <- rep(1,length(levelNew));
+        }
+        levelLow[levelLow<0] <- 0;
+        levelUp[levelUp<0] <- 0;
+    }
+
     # If simulated intervals are needed...
     if(interval=="simulated"){
         nsim <- 100000;
@@ -1906,32 +1941,8 @@ forecast.mes <- function(object, h=NULL, newxreg=NULL,
         matOt <- matrix(rbinom(h*nsim, 1, pForecast), h, nsim);
         matG <- matrix(vecG, componentsNumber+xregNumber, nsim);
 
-        ySimulated <- mesSimulatorwrap(arrVt, matErrors, matOt, matF, matWt, matG,
+        ySimulated <- mesSimulatorwrap(arrVt, matErrors, matOt, array(matF,c(dim(matF),nsim)), matWt, matG,
                                        Etype, Ttype, Stype, lagsModelAll);
-
-        # If this is an occurrence model, then take probability into account in the level.
-        if(is.oes(object$occurrence)){
-            levelNew <- (level-(1-pForecast))/pForecast;
-            levelNew[levelNew<0] <- 0;
-        }
-        else{
-            levelNew <- level;
-        }
-
-        if(side=="both"){
-            levelLower <- (1-levelNew)/2;
-            levelUpper <- (1+levelNew)/2;
-        }
-        else if(side=="upper"){
-            levelLow <- rep(0,length(levelNew));
-            levelUp <- levelNew;
-        }
-        else{
-            levelLow <- 1-levelNew;
-            levelUp <- rep(1,length(levelNew));
-        }
-        levelLow[levelLow<0] <- 0;
-        levelUp[levelUp<0] <- 0;
 
         #### Note that the cumulative doesn't work with oes at the moment!
         if(cumulative){
@@ -1956,8 +1967,12 @@ forecast.mes <- function(object, h=NULL, newxreg=NULL,
     }
     # This option will use h-steps ahead variance and produce intervals for it
     # This will rely on cvar() method
-    # else if(interval=="approximate"){
-    # }
+    else if(interval=="approximate"){
+        if(object$distribution=="dinvgauss"){
+            yLower[] <- qinvgauss(levelLow, yForecast, dispersion=object$scale/yForecast);
+            yUpper[] <- qinvgauss(levelUp, yForecast, dispersion=object$scale/yForecast);
+        }
+    }
     # This option will extract the matrix of multisteps errors from mes and build intervals based on that
     # This will rely on rmultistep() method
     # else if(any(interval==c("semiparametric","nonparametric"))){
