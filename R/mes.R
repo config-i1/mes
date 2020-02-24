@@ -1068,6 +1068,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                   Stype);
             }
         }
+        else if(occurrenceModel && occurrenceModelProvided){
+            parametersNumber[2,3] <- nparam(oesModel);
+        }
 
         mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber);
         list2env(mesArchitect, environment());
@@ -1096,7 +1099,14 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                  ot, otLogical, occurrenceModel, pFitted,
                                  bounds, loss, distribution, h, multisteps, lambda, lambdaEstimate);
         list2env(esEstimator, environment());
-        parametersNumber[1,4] <- nParamEstimated;
+
+        parametersNumber[1,1] <- (sum(lagsModel)*(initialType=="optimal") + phiEstimate +
+                                      componentsNumber*xregPersistenceEstimate + 1);
+        if(xregProvided){
+            parametersNumber[1,2] <- xregNumber*xregInitialsEstimate + xregNumber*xregPersistenceEstimate;
+        }
+        parametersNumber[1,4] <- sum(parametersNumber[1,1:3]);
+        parametersNumber[2,4] <- sum(parametersNumber[2,1:3]);
 
         # Fill in the matrices
         mesElements <- filler(B,
@@ -1124,12 +1134,15 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         }
         matVt[] <- mesFitted$matVt;
 
-        yForecast <- ts(rep(NA, h), start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
         if(h>0){
+            yForecast <- ts(rep(NA, h), start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
             mesForecast <- mesForecasterWrap(matVt[,obsStates-(lagsModelMax:1)+1,drop=FALSE], tail(matWt,h), matF, vecG,
                                              lagsModelAll, Etype, Ttype, Stype,
                                              componentsNumber, componentsNumberSeasonal, h);
             yForecast[] <- mesForecast$yForecast;
+        }
+        else{
+            yForecast <- NA;
         }
 
         # If the distribution is default, change it according to the error term
@@ -1137,13 +1150,6 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             distribution[] <- switch(Etype,
                                      "A"="dnorm",
                                      "M"="dinvgauss");
-        }
-        else if(loss!="likelihood"){
-            distribution[] <- switch(loss,
-                                     "MAE"="dlaplace",
-                                     "HAM"="ds",
-                                     "MSE"=,
-                                     "dnorm");
         }
 
         if(persistenceEstimate){
@@ -1728,23 +1734,21 @@ print.mes <- function(x, digits=4, ...){
         cat(paste0("\nOccurrence model type: ",occurrence));
     }
 
-    if(x$loss=="likelihood"){
-        distrib <- switch(x$distribution,
-                          "dnorm" = "Normal",
-                          "dlogis" = "Logistic",
-                          "dlaplace" = "Laplace",
-                          "dalaplace" = paste0("Asymmetric Laplace with lambda=",round(x$lambda,digits)),
-                          "dt" = paste0("Student t with df=",round(x$lambda, digits)),
-                          "ds" = "S",
-                          "dlnorm" = "Log Normal",
-                          # "dbcnorm" = paste0("Box-Cox Normal with lambda=",round(x$other$lambda,2)),
-                          "dinvgauss" = "Inverse Gaussian"
-        );
-        if(is.oes(x$occurrence)){
-            distrib <- paste0("Mixture of Bernoulli and ", distrib);
-        }
-        cat(paste0("\nDistribution used in the estimation: ", distrib));
+    distrib <- switch(x$distribution,
+                      "dnorm" = "Normal",
+                      "dlogis" = "Logistic",
+                      "dlaplace" = "Laplace",
+                      "dalaplace" = paste0("Asymmetric Laplace with lambda=",round(x$lambda,digits)),
+                      "dt" = paste0("Student t with df=",round(x$lambda, digits)),
+                      "ds" = "S",
+                      "dlnorm" = "Log Normal",
+                      # "dbcnorm" = paste0("Box-Cox Normal with lambda=",round(x$other$lambda,2)),
+                      "dinvgauss" = "Inverse Gaussian"
+    );
+    if(is.oes(x$occurrence)){
+        distrib <- paste0("Mixture of Bernoulli and ", distrib);
     }
+    cat(paste0("\nDistribution assumed in the model: ", distrib));
 
     if(!is.null(x$persistence)){
         cat(paste0("\nPersistence vector g:\n"));
@@ -1774,11 +1778,17 @@ print.mes <- function(x, digits=4, ...){
     cat("\nNumber of estimated parameters: "); cat(nparam(x));
     cat("\nNumber of degrees of freedom: "); cat(nobs(x)-nparam(x));
 
-    if(any(x$loss==c("likelihood","MSE","MAE","HAM","MSEh","MSCE","MAEh","MACE","HAMh","CHAM"))){
-        ICs <- c(AIC(x),AICc(x),BIC(x),BICc(x));
-        names(ICs) <- c("AIC","AICc","BIC","BICc");
-        cat("\nInformation criteria:\n");
-        print(round(ICs,digits));
+    if(x$loss=="likelihood" ||
+       (any(x$loss==c("MSE","MSEh","MSCE")) & any(x$distribution==c("dnorm","dlnorm"))) ||
+       (any(x$loss==c("MAE","MAEh","MACE")) & x$distribution=="dlaplace") ||
+       (any(x$loss==c("HAM","HAMh","CHAM")) & x$distribution=="ds")){
+           ICs <- c(AIC(x),AICc(x),BIC(x),BICc(x));
+           names(ICs) <- c("AIC","AICc","BIC","BICc");
+           cat("\nInformation criteria:\n");
+           print(round(ICs,digits));
+    }
+    else{
+        cat("\nInformation criteria are unavailable for the chosen loss & distribution.");
     }
     cat("\n");
 }

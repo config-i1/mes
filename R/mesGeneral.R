@@ -701,7 +701,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     }
     # Additional parameter for dalaplace, LASSO and dt
     if(is.null(ellipsis$lambda)){
-        if(loss=="likelihood"){
+        if(loss=="likelihood" && any(distribution==c("dt","dalaplace"))){
             lambdaEstimate <- TRUE;
         }
         else{
