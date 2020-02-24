@@ -1924,25 +1924,25 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
 
     # If simulated intervals are needed...
     if(interval=="simulated"){
-        nsim <- 100000;
+        nsim <- 10000;
         arrVt <- array(NA, c(componentsNumber+xregNumber, h+lagsModelMax, nsim));
         arrVt[,1:lagsModelMax,] <- rep(matVt,nsim);
         matErrors <- matrix(switch(object$distribution,
-                                   "dnorm"=rnorm(h*nsim, 0, scale),
-                                   "dlogis"=rlogis(h*nsim, 0, scale),
-                                   "dlaplace"=rlaplace(h*nsim, 0, scale),
-                                   "dt"=rt(h*nsim, 0, scale),
-                                   "ds"=rs(h*nsim, 0, scale),
-                                   "dalaplace"=ralaplace(h*nsim, 0, scale, object$lambda),
-                                   "dlnorm"=rlnorm(h*nsim, 0, scale)-1,
-                                   "dinvgauss"=rinvgauss(h*nsim, 1, scale)-1,
+                                   "dnorm"=rnorm(h*nsim, 0, object$scale),
+                                   "dlogis"=rlogis(h*nsim, 0, object$scale),
+                                   "dlaplace"=rlaplace(h*nsim, 0, object$scale),
+                                   "dt"=rt(h*nsim, 0, object$scale),
+                                   "ds"=rs(h*nsim, 0, object$scale),
+                                   "dalaplace"=ralaplace(h*nsim, 0, object$scale, object$lambda),
+                                   "dlnorm"=rlnorm(h*nsim, 0, object$scale)-1,
+                                   "dinvgauss"=rinvgauss(h*nsim, 1, dispersion=object$scale)-1,
                                    ),
                             h,nsim);
         matOt <- matrix(rbinom(h*nsim, 1, pForecast), h, nsim);
         matG <- matrix(vecG, componentsNumber+xregNumber, nsim);
 
         ySimulated <- mesSimulatorwrap(arrVt, matErrors, matOt, array(matF,c(dim(matF),nsim)), matWt, matG,
-                                       Etype, Ttype, Stype, lagsModelAll);
+                                       Etype, Ttype, Stype, lagsModelAll, componentsNumberSeasonal, componentsNumber)$matrixYt;
 
         #### Note that the cumulative doesn't work with oes at the moment!
         if(cumulative){

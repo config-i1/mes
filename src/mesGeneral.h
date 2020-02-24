@@ -73,23 +73,25 @@ inline double wvalue(arma::vec const &vecVt, arma::rowvec const &rowvecW,
 
     return yfit;
 }
-//
-// /* # Function returns value of r() -- additive or multiplicative error -- used in the error term of measurement equation.
-//  This is mainly needed by sim.ets */
-// inline double rvalue(arma::vec const &vecVt, arma::rowvec const &rowvecW, char const &E, char const &T, char const &S,
-//                      arma::rowvec const &rowvecXt, arma::vec const &vecAt){
-//
-//     switch(E){
-//     // MZZ
-//     case 'M':
-//         return wvalue(vecVt, rowvecW, E, T, S);
-//         break;
-//         // AZZ
-//     case 'A':
-//     default:
-//         return 1.0;
-//     }
-// }
+
+/* # Function returns value of r() -- additive or multiplicative error -- used in the error term of measurement equation.
+ This is mainly needed by sim.ets */
+inline double rvalue(arma::vec const &vecVt, arma::rowvec const &rowvecW,
+                     char const &E, char const &T, char const &S,
+                     unsigned int const &nNonSeasonal, unsigned int const &nSeasonal,
+                     unsigned int const &nComponents){
+
+    switch(E){
+    // MZZ
+    case 'M':
+        return wvalue(vecVt, rowvecW, E, T, S, nNonSeasonal, nSeasonal, nComponents);
+        break;
+        // AZZ
+    case 'A':
+    default:
+        return 1.0;
+    }
+}
 
 /* # Function returns value of f() -- new states without the update -- used in the transition equation */
 inline arma::vec fvalue(arma::vec const &matrixVt, arma::mat const &matrixF, char const T, char const S,

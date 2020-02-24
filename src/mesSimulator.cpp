@@ -1,113 +1,117 @@
 #include <RcppArmadillo.h>
 #include <iostream>
 #include <cmath>
-#include "ssGeneral.h"
+#include "mesGeneral.h"
 // [[Rcpp::depends(RcppArmadillo)]]
 
 using namespace Rcpp;
 
-// [[Rcpp::export]]
-RcppExport SEXP matrixPowerWrap(SEXP matA, SEXP power){
-    NumericMatrix matA_n(matA);
-    arma::mat matrixA(matA_n.begin(), matA_n.nrow(), matA_n.ncol(), false);
-
-    int pow = as<int>(power);
-
-    return wrap(matrixPower(matrixA, pow));
-}
-
 // ##### Script for simulate functions
-List mesSimulator(arma::cube &arrayVt, arma::mat const &matrixerrors, arma::mat const &matrixot,
-                 arma::cube const &arrayF, arma::rowvec const &rowvecW, arma::mat const &matrixG,
-                 unsigned int const &obs, unsigned int const &nseries,
-                 char const &E, char const &T, char const &S, arma::uvec &lags) {
+List mesSimulator(arma::cube &arrayVt, arma::mat const &matrixErrors, arma::mat const &matrixOt,
+                 arma::cube const &arrayF, arma::mat const &matrixWt, arma::mat const &matrixG,
+                 char const &E, char const &T, char const &S, arma::uvec &lags,
+                 unsigned int const &nNonSeasonal, unsigned int const &nSeasonal) {
 
-    arma::mat matY(obs, nseries);
-    arma::rowvec rowvecXt(1, arma::fill::zeros);
-    arma::vec vecAt(1, arma::fill::zeros);
+    unsigned int obs = matrixErrors.n_rows;
+    unsigned int nSeries = matrixErrors.n_cols;
 
-    int lagslength = lags.n_rows;
-    unsigned int maxlag = max(lags);
-    int obsall = obs + maxlag;
+    arma::uvec lagsModifier = lags;
+    arma::uvec lagsInternal = lags;
+    int lagsModelMax = max(lagsInternal);
+    int nComponents = lagsInternal.n_rows;
+    int obsAll = obs + lagsModelMax;
 
-    lags = maxlag - lags;
+    lagsInternal = lagsInternal * nComponents;
 
-    for(int i=1; i<lagslength; i=i+1){
-        lags(i) = lags(i) + obsall * i;
+    for(int i=0; i<nComponents; i=i+1){
+        lagsModifier(i) = nComponents - i - 1;
     }
 
-    arma::uvec lagrows(lagslength, arma::fill::zeros);
-    arma::mat matrixVt(obsall, lagslength, arma::fill::zeros);
+    arma::uvec lagrows(nComponents, arma::fill::zeros);
+
+    arma::mat matrixVt(nComponents, obsAll, arma::fill::zeros);
     arma::mat matrixF(arrayF.n_rows, arrayF.n_cols, arma::fill::zeros);
 
-    for(unsigned int i=0; i<nseries; i=i+1){
+    arma::mat matY(obs, nSeries);
+
+    for(unsigned int i=0; i<nSeries; i=i+1){
         matrixVt = arrayVt.slice(i);
         matrixF = arrayF.slice(i);
-        for (int j=maxlag; j<obsall; j=j+1) {
+        for (int j=lagsModelMax; j<obsAll; j=j+1) {
+            lagrows = j * nComponents - (lagsInternal + lagsModifier) + nComponents - 1;
+            /* # Measurement equation and the error term */
+            matY(j-lagsModelMax,i) = matrixOt(j-lagsModelMax,i) * (wvalue(matrixVt(lagrows), matrixWt.row(j-lagsModelMax), E, T, S,
+                                                                   nNonSeasonal, nSeasonal, nComponents) +
+                                                  rvalue(matrixVt(lagrows), matrixWt.row(j-lagsModelMax), E, T, S,
+                                                         nNonSeasonal, nSeasonal, nComponents) *
+                                                  matrixErrors(j-lagsModelMax,i));
 
-            lagrows = lags - maxlag + j;
-/* # Measurement equation and the error term */
-            matY(j-maxlag,i) = matrixot(j-maxlag,i) * (wvalue(matrixVt(lagrows), rowvecW, E, T, S, rowvecXt, vecAt) +
-                                 rvalue(matrixVt(lagrows), rowvecW, E, T, S, rowvecXt, vecAt) * matrixerrors(j-maxlag,i));
-/* # Transition equation */
-            matrixVt.row(j) = arma::trans(fvalue(matrixVt(lagrows), matrixF, T, S) +
-                                          gvalue(matrixVt(lagrows), matrixF, rowvecW, E, T, S) % matrixG.col(i) * matrixerrors(j-maxlag,i));
-/* Failsafe for cases when unreasonable value for state vector was produced */
-            if(!matrixVt.row(j).is_finite()){
-                matrixVt.row(j) = trans(matrixVt(lagrows));
+            /* # Transition equation */
+            matrixVt.col(j) = fvalue(matrixVt(lagrows), matrixF, T, S, nComponents) +
+                                     gvalue(matrixVt(lagrows), matrixF, matrixWt.row(j-lagsModelMax), E, T, S,
+                                            nNonSeasonal, nSeasonal, nComponents) % matrixG.col(i) * matrixErrors(j-lagsModelMax,i);
+
+            /* Failsafe for cases when unreasonable value for state vector was produced */
+            if(!matrixVt.col(j).is_finite()){
+                matrixVt.col(j) = matrixVt(lagrows);
             }
-            if((S=='M') & (matrixVt(j,matrixVt.n_cols-1) <= 0)){
-                matrixVt(j,matrixVt.n_cols-1) = arma::as_scalar(trans(matrixVt(lagrows.row(matrixVt.n_cols-1))));
+            if((S=='M') & (matrixVt(nNonSeasonal,j) <= 0)){
+                matrixVt(nNonSeasonal,j) = arma::as_scalar(matrixVt(lagrows.row(nNonSeasonal)));
             }
             if(T=='M'){
-                if((matrixVt(j,0) <= 0) | (matrixVt(j,1) <= 0)){
-                    matrixVt(j,0) = arma::as_scalar(trans(matrixVt(lagrows.row(0))));
-                    matrixVt(j,1) = arma::as_scalar(trans(matrixVt(lagrows.row(1))));
+                if((matrixVt(0,j) <= 0) | (matrixVt(1,j) <= 0)){
+                    matrixVt(0,j) = arma::as_scalar(matrixVt(lagrows.row(0)));
+                    matrixVt(1,j) = arma::as_scalar(matrixVt(lagrows.row(1)));
                 }
+            }
+            if(any(matrixVt.col(j)>1e+100)){
+                matrixVt.col(j) = matrixVt(lagrows);
             }
         }
         arrayVt.slice(i) = matrixVt;
     }
 
-    return List::create(Named("arrvt") = arrayVt, Named("matyt") = matY);
+    return List::create(Named("arrayVt") = arrayVt, Named("matrixYt") = matY);
 }
 
 /* # Wrapper for simulator */
 // [[Rcpp::export]]
-RcppExport SEXP mesSimulatorwrap(SEXP arrvt, SEXP matErrors, SEXP matot, SEXP matF, SEXP matw, SEXP matg,
-                                 SEXP Etype, SEXP Ttype, SEXP Stype, SEXP modellags) {
+RcppExport SEXP mesSimulatorwrap(SEXP arrVt, SEXP matErrors, SEXP matOt, SEXP matF, SEXP matWt, SEXP matG,
+                                 SEXP Etype, SEXP Ttype, SEXP Stype, SEXP lagsModelAll,
+                                 SEXP componentsNumberSeasonal, SEXP componentsNumber){
 
-// ### arrvt should contain array of obs x ncomponents x nseries elements.
-    NumericVector arrvt_n(arrvt);
-    IntegerVector arrvt_dim = arrvt_n.attr("dim");
-    arma::cube arrayVt(arrvt_n.begin(),arrvt_dim[0], arrvt_dim[1], arrvt_dim[2], false);
+// ### arrvt should contain array of obs x ncomponents x nSeries elements.
+    NumericVector arrVt_n(arrVt);
+    IntegerVector arrVt_dim = arrVt_n.attr("dim");
+    arma::cube arrayVt(arrVt_n.begin(),arrVt_dim[0], arrVt_dim[1], arrVt_dim[2], false);
 
     NumericMatrix matErrors_n(matErrors);
-    arma::mat matrixerrors(matErrors_n.begin(), matErrors_n.nrow(), matErrors_n.ncol(), false);
+    arma::mat matrixErrors(matErrors_n.begin(), matErrors_n.nrow(), matErrors_n.ncol(), false);
 
-    NumericMatrix matot_n(matot);
-    arma::mat matrixot(matot_n.begin(), matot_n.nrow(), matot_n.ncol(), false);
+    NumericMatrix matOt_n(matOt);
+    arma::mat matrixOt(matOt_n.begin(), matOt_n.nrow(), matOt_n.ncol(), false);
 
     NumericVector arrF_n(matF);
     IntegerVector arrF_dim = arrF_n.attr("dim");
     arma::cube arrayF(arrF_n.begin(),arrF_dim[0], arrF_dim[1], arrF_dim[2], false);
 
-    NumericMatrix matw_n(matw);
-    arma::rowvec rowvecW(matw_n.begin(), matw_n.ncol(), false);
+    NumericMatrix matWt_n(matWt);
+    arma::mat matrixWt(matWt_n.begin(), matWt_n.nrow(), matWt_n.ncol(), false);
 
-// ### matg should contain persistence vectors in each column
-    NumericMatrix matg_n(matg);
-    arma::mat matrixG(matg_n.begin(), matg_n.nrow(), matg_n.ncol(), false);
+// ### matG should contain persistence vectors in each column
+    NumericMatrix matG_n(matG);
+    arma::mat matrixG(matG_n.begin(), matG_n.nrow(), matG_n.ncol(), false);
 
-    unsigned int obs = matErrors_n.nrow();
-    unsigned int nseries = matErrors_n.ncol();
     char E = as<char>(Etype);
     char T = as<char>(Ttype);
     char S = as<char>(Stype);
 
-    IntegerVector modellags_n(modellags);
-    arma::uvec lags = as<arma::uvec>(modellags_n);
+    IntegerVector lagsModelAll_n(lagsModelAll);
+    arma::uvec lags = as<arma::uvec>(lagsModelAll_n);
 
-    return wrap(simulator(arrayVt, matrixerrors, matrixot, arrayF, rowvecW, matrixG,
-                            obs, nseries, E, T, S, lags));
+    unsigned int nSeasonal = as<int>(componentsNumberSeasonal);
+    unsigned int nNonSeasonal = as<int>(componentsNumber) - nSeasonal;
+
+    return wrap(mesSimulator(arrayVt, matrixErrors, matrixOt, arrayF, matrixWt, matrixG,
+                             E, T, S, lags, nNonSeasonal, nSeasonal));
 }

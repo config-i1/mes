@@ -110,8 +110,9 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
             if(!matrixVt.col(i).is_finite()){
                 matrixVt.col(i) = matrixVt(lagrows);
             }
-            if((S=='M') & (matrixVt(matrixVt.n_rows-1,i) <= 0)){
-                matrixVt(matrixVt.n_rows-1,i) = arma::as_scalar(matrixVt(lagrows.row(matrixVt.n_rows-1)));
+            // This is only for one seasonal
+            if((S=='M') & (matrixVt(nNonSeasonal,i) <= 0)){
+                matrixVt(nNonSeasonal,i) = arma::as_scalar(matrixVt(lagrows.row(nNonSeasonal)));
             }
             if(T=='M'){
                 if((matrixVt(0,i) <= 0) | (matrixVt(1,i) <= 0)){
@@ -144,8 +145,8 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
                 if(!matrixVt.col(i).is_finite()){
                     matrixVt.col(i) = matrixVt(lagrows);
                 }
-                if((S=='M') & (matrixVt(matrixVt.n_rows-1,i) <= 0)){
-                    matrixVt(matrixVt.n_rows-1,i) = arma::as_scalar(matrixVt(lagrows.row(matrixVt.n_rows-1)));
+                if((S=='M') & (matrixVt(nNonSeasonal,i) <= 0)){
+                    matrixVt(nNonSeasonal,i) = arma::as_scalar(matrixVt(lagrows.row(nNonSeasonal)));
                 }
                 if(T=='M'){
                     if((matrixVt(0,i) <= 0) | (matrixVt(1,i) <= 0)){
@@ -184,8 +185,8 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
                 if(!matrixVt.col(i).is_finite()){
                     matrixVt.col(i) = matrixVt(lagrows);
                 }
-                if((S=='M') & (matrixVt(matrixVt.n_rows-1,i) <= 0)){
-                    matrixVt(matrixVt.n_rows-1,i) = arma::as_scalar(matrixVt(lagrows.row(matrixVt.n_rows-1)));
+                if((S=='M') & (matrixVt(nNonSeasonal,i) <= 0)){
+                    matrixVt(nNonSeasonal,i) = arma::as_scalar(matrixVt(lagrows.row(nNonSeasonal)));
                 }
                 if(T=='M'){
                     if((matrixVt(0,i) <= 0) | (matrixVt(1,i) <= 0)){
@@ -216,8 +217,8 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
                 if(!matrixVt.col(i).is_finite()){
                     matrixVt.col(i) = matrixVt(lagrows);
                 }
-                if((S=='M') & (matrixVt(matrixVt.n_rows-1,i) <= 0)){
-                    matrixVt(matrixVt.n_rows-1,i) = arma::as_scalar(matrixVt(lagrows.row(matrixVt.n_rows-1)));
+                if((S=='M') & (matrixVt(nNonSeasonal,i) <= 0)){
+                    matrixVt(nNonSeasonal,i) = arma::as_scalar(matrixVt(lagrows.row(nNonSeasonal)));
                 }
                 if(T=='M'){
                     if((matrixVt(0,i) <= 0) | (matrixVt(1,i) <= 0)){
