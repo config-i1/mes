@@ -50,10 +50,33 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// mesSimulatorwrap
+RcppExport SEXP mesSimulatorwrap(SEXP arrVt, SEXP matErrors, SEXP matOt, SEXP matF, SEXP matWt, SEXP matG, SEXP Etype, SEXP Ttype, SEXP Stype, SEXP lagsModelAll, SEXP componentsNumberSeasonal, SEXP componentsNumber);
+RcppExport SEXP _mes_mesSimulatorwrap(SEXP arrVtSEXP, SEXP matErrorsSEXP, SEXP matOtSEXP, SEXP matFSEXP, SEXP matWtSEXP, SEXP matGSEXP, SEXP EtypeSEXP, SEXP TtypeSEXP, SEXP StypeSEXP, SEXP lagsModelAllSEXP, SEXP componentsNumberSeasonalSEXP, SEXP componentsNumberSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type arrVt(arrVtSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type matErrors(matErrorsSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type matOt(matOtSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type matF(matFSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type matWt(matWtSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type matG(matGSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type Etype(EtypeSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type Ttype(TtypeSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type Stype(StypeSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type lagsModelAll(lagsModelAllSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type componentsNumberSeasonal(componentsNumberSeasonalSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type componentsNumber(componentsNumberSEXP);
+    rcpp_result_gen = Rcpp::wrap(mesSimulatorwrap(arrVt, matErrors, matOt, matF, matWt, matG, Etype, Ttype, Stype, lagsModelAll, componentsNumberSeasonal, componentsNumber));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_mes_mesFitterWrap", (DL_FUNC) &_mes_mesFitterWrap, 13},
     {"_mes_mesForecasterWrap", (DL_FUNC) &_mes_mesForecasterWrap, 11},
+    {"_mes_mesSimulatorwrap", (DL_FUNC) &_mes_mesSimulatorwrap, 12},
     {NULL, NULL, 0}
 };
 

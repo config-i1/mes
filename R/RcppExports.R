@@ -9,3 +9,7 @@ mesForecasterWrap <- function(matVt, matWt, matF, vecG, lagsModelAll, Etype, Tty
     .Call('_mes_mesForecasterWrap', PACKAGE = 'mes', matVt, matWt, matF, vecG, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, h)
 }
 
+mesSimulatorwrap <- function(arrVt, matErrors, matOt, matF, matWt, matG, Etype, Ttype, Stype, lagsModelAll, componentsNumberSeasonal, componentsNumber) {
+    .Call('_mes_mesSimulatorwrap', PACKAGE = 'mes', arrVt, matErrors, matOt, matF, matWt, matG, Etype, Ttype, Stype, lagsModelAll, componentsNumberSeasonal, componentsNumber)
+}
+
