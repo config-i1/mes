@@ -1916,6 +1916,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
     # Cumulative forecasts have only one observation
     if(cumulative){
         yForecast <- yUpper <- yLower <- ts(vector("numeric", 1), start=yForecastStart, frequency=yFrequency);
+        yForecast[] <- sum(mesForecast$yForecast * pForecast);
     }
     else{
         yForecast <- yUpper <- yLower <- ts(vector("numeric", h), start=yForecastStart, frequency=yFrequency);
@@ -1960,20 +1961,26 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                                    "dt"=rt(h*nsim, 0, object$scale),
                                    "ds"=rs(h*nsim, 0, object$scale),
                                    "dalaplace"=ralaplace(h*nsim, 0, object$scale, object$lambda),
-#### These currently only work for Multiplicative error. Code needs to be updated for "A"
                                    "dlnorm"=rlnorm(h*nsim, 0, object$scale)-1,
                                    "dinvgauss"=rinvgauss(h*nsim, 1, dispersion=object$scale)-1,
                                    ),
                             h,nsim);
+        # This stuff is needed in order to produce adequate values for weird models
+        EtypeModified <- Etype;
+        if(Etype=="A" && any(object$distribution==c("dlnorm","dinvgauss"))){
+            EtypeModified[] <- "M";
+        }
         matOt <- matrix(rbinom(h*nsim, 1, pForecast), h, nsim);
         matG <- matrix(vecG, componentsNumber+xregNumber, nsim);
 
         ySimulated <- mesSimulatorwrap(arrVt, matErrors, matOt, array(matF,c(dim(matF),nsim)), matWt, matG,
-                                       Etype, Ttype, Stype, lagsModelAll, componentsNumberSeasonal, componentsNumber)$matrixYt;
+                                       EtypeModified, Ttype, Stype, lagsModelAll,
+                                       componentsNumberSeasonal, componentsNumber)$matrixYt;
 
+        ySimulated <<- ySimulated;
         #### Note that the cumulative doesn't work with oes at the moment!
         if(cumulative){
-            yForecast[] <- mean(colSums(ySimulated,na.rm=T)) * pForecast;
+            yForecast[] <- mean(colSums(ySimulated,na.rm=T)*pForecast);
             yLower[] <- quantile(colSums(ySimulated,na.rm=T),levelLow,type=7);
             yUpper[] <- quantile(colSums(ySimulated,na.rm=T),levelUp,type=7);
         }
@@ -1997,80 +2004,90 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
     else if(interval=="approximate"){
         s2 <- sigma(object)^2;
         vcovMulti <- covarAnal(lagsModelAll, h, matWt[1,,drop=FALSE], matF, vecG, s2);
+
+        # Do either the variance of sum, or a diagonal
+        if(cumulative){
+            vcovMulti <- sum(vcovMulti);
+        }
+        else{
+            vcovMulti <- diag(vcovMulti);
+        }
+
         if(object$distribution=="dnorm"){
             if(errorType(object)=="A"){
-                yLower[] <- qnorm(levelLow, yForecast, sqrt(diag(vcovMulti)));
-                yUpper[] <- qnorm(levelUp, yForecast, sqrt(diag(vcovMulti)));
+                yLower[] <- qnorm(levelLow, yForecast, sqrt(vcovMulti));
+                yUpper[] <- qnorm(levelUp, yForecast, sqrt(vcovMulti));
             }
             else{
-                yLower[] <- yForecast*qnorm(levelLow, 1, sqrt(diag(vcovMulti)));
-                yUpper[] <- yForecast*qnorm(levelUp, 1, sqrt(diag(vcovMulti)));
+                yLower[] <- yForecast*qnorm(levelLow, 1, sqrt(vcovMulti));
+                yUpper[] <- yForecast*qnorm(levelUp, 1, sqrt(vcovMulti));
             }
         }
         if(object$distribution=="dlogis"){
             if(errorType(object)=="A"){
-                yLower[] <- qlogis(levelLow, yForecast, sqrt(diag(vcovMulti)*3)/pi);
-                yUpper[] <- qlogis(levelUp, yForecast, sqrt(diag(vcovMulti)*3)/pi);
+                yLower[] <- qlogis(levelLow, yForecast, sqrt(vcovMulti*3)/pi);
+                yUpper[] <- qlogis(levelUp, yForecast, sqrt(vcovMulti*3)/pi);
             }
             else{
-                yLower[] <- yForecast*qlogis(levelLow, 1, sqrt(diag(vcovMulti)*3)/pi);
-                yUpper[] <- yForecast*qlogis(levelUp, 1, sqrt(diag(vcovMulti)*3)/pi);
+                yLower[] <- yForecast*qlogis(levelLow, 1, sqrt(vcovMulti*3)/pi);
+                yUpper[] <- yForecast*qlogis(levelUp, 1, sqrt(vcovMulti*3)/pi);
             }
         }
         if(object$distribution=="dlaplace"){
             if(errorType(object)=="A"){
-                yLower[] <- qlaplace(levelLow, yForecast, sqrt(diag(vcovMulti)/2));
-                yUpper[] <- qlaplace(levelUp, yForecast, sqrt(diag(vcovMulti)/2));
+                yLower[] <- qlaplace(levelLow, yForecast, sqrt(vcovMulti/2));
+                yUpper[] <- qlaplace(levelUp, yForecast, sqrt(vcovMulti/2));
             }
             else{
-                yLower[] <- yForecast*qlaplace(levelLow, 1, sqrt(diag(vcovMulti)/2));
-                yUpper[] <- yForecast*qlaplace(levelUp, 1, sqrt(diag(vcovMulti)/2));
+                yLower[] <- yForecast*qlaplace(levelLow, 1, sqrt(vcovMulti/2));
+                yUpper[] <- yForecast*qlaplace(levelUp, 1, sqrt(vcovMulti/2));
             }
         }
         if(object$distribution=="dt"){
             df <- nobs(object) - nparam(object);
             if(errorType(object)=="A"){
-                yLower[] <- yForecast + sqrt(diag(vcovMulti))*qt(levelLow, df);
-                yUpper[] <- yForecast + sqrt(diag(vcovMulti))*qt(levelUp, df);
+                yLower[] <- yForecast + sqrt(vcovMulti)*qt(levelLow, df);
+                yUpper[] <- yForecast + sqrt(vcovMulti)*qt(levelUp, df);
             }
             else{
-                yLower[] <- yForecast*(1 + sqrt(diag(vcovMulti))*qt(levelLow, df));
-                yUpper[] <- yForecast*(1 + sqrt(diag(vcovMulti))*qt(levelUp, df));
+                yLower[] <- yForecast*(1 + sqrt(vcovMulti)*qt(levelLow, df));
+                yUpper[] <- yForecast*(1 + sqrt(vcovMulti)*qt(levelUp, df));
             }
         }
         if(object$distribution=="ds"){
             if(errorType(object)=="A"){
-                yLower[] <- qs(levelLow, yForecast, (diag(vcovMulti)/120)^0.25);
-                yUpper[] <- qs(levelUp, yForecast, (diag(vcovMulti)/120)^0.25);
+                yLower[] <- qs(levelLow, yForecast, (vcovMulti/120)^0.25);
+                yUpper[] <- qs(levelUp, yForecast, (vcovMulti/120)^0.25);
             }
             else{
-                yLower[] <- yForecast*qs(levelLow, 1, (diag(vcovMulti)/120)^0.25);
-                yUpper[] <- yForecast*qs(levelUp, 1, (diag(vcovMulti)/120)^0.25);
+                yLower[] <- yForecast*qs(levelLow, 1, (vcovMulti/120)^0.25);
+                yUpper[] <- yForecast*qs(levelUp, 1, (vcovMulti/120)^0.25);
             }
         }
         if(object$distribution=="dalaplace"){
             lambda <- object$lambda;
             if(errorType(object)=="A"){
                 yLower[] <- qalaplace(levelLow, yForecast,
-                                      sqrt(diag(vcovMulti)*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
+                                      sqrt(vcovMulti*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
                 yUpper[] <- qalaplace(levelUp, yForecast,
-                                      sqrt(diag(vcovMulti)*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
+                                      sqrt(vcovMulti*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
             }
             else{
                 yLower[] <- yForecast*qalaplace(levelLow, 1,
-                                                sqrt(diag(vcovMulti)*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
+                                                sqrt(vcovMulti*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
                 yUpper[] <- yForecast*qalaplace(levelUp, 1,
-                                                sqrt(diag(vcovMulti)*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
+                                                sqrt(vcovMulti*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
             }
         }
         if(object$distribution=="dlnorm"){
-            yLower[] <- yForecast*qlnorm(levelLow, 0, sqrt(diag(vcovMulti)));
-            yUpper[] <- yForecast*qlnorm(levelUp, 0, sqrt(diag(vcovMulti)));
+            yLower[] <- yForecast*qlnorm(levelLow, 0, sqrt(vcovMulti));
+            yUpper[] <- yForecast*qlnorm(levelUp, 0, sqrt(vcovMulti));
         }
         else if(object$distribution=="dinvgauss"){
-            yLower[] <- yForecast*qinvgauss(levelLow, 1, dispersion=diag(vcovMulti));
-            yUpper[] <- yForecast*qinvgauss(levelUp, 1, dispersion=diag(vcovMulti));
+            yLower[] <- yForecast*qinvgauss(levelLow, 1, dispersion=vcovMulti);
+            yUpper[] <- yForecast*qinvgauss(levelUp, 1, dispersion=vcovMulti);
         }
+
     }
     # This option will extract the matrix of multisteps errors from mes and build intervals based on that
     # This will rely on rmultistep() method
