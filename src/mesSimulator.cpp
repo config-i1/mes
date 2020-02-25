@@ -55,7 +55,7 @@ List mesSimulator(arma::cube &arrayVt, arma::mat const &matrixErrors, arma::mat 
             if(!matrixVt.col(j).is_finite()){
                 matrixVt.col(j) = matrixVt(lagrows);
             }
-            if((S=='M') & (matrixVt(nNonSeasonal,j) <= 0)){
+            if((S=='M') && (matrixVt(nNonSeasonal,j) <= 0)){
                 matrixVt(nNonSeasonal,j) = arma::as_scalar(matrixVt(lagrows.row(nNonSeasonal)));
             }
             if(T=='M'){
