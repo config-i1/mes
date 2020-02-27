@@ -1858,6 +1858,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                          interval=c("none", "simulated", "approximate", "semiparametric", "nonparametric"),
                          level=0.95, side=c("both","upper","lower"), cumulative=FALSE, ...){
 
+    # If the horizon is zero, just construct fitted and potentially confidence interval thingy
     if(h<=0){
         return(predict(object, newxreg=newxreg,
                        interval=interval,
