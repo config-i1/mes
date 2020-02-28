@@ -1112,7 +1112,8 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         list2env(esEstimator, environment());
 
         parametersNumber[1,1] <- (sum(lagsModel)*(initialType=="optimal") + phiEstimate +
-                                      componentsNumber*xregPersistenceEstimate + 1);
+                                      componentsNumber*persistenceEstimate + xregNumber*xregInitialsEstimate +
+                                      xregNumber*xregPersistenceEstimate + 1);
         if(xregProvided){
             parametersNumber[1,2] <- xregNumber*xregInitialsEstimate + xregNumber*xregPersistenceEstimate;
         }
@@ -1931,7 +1932,113 @@ sigma.mes <- function(object, ...){
                        "dlnorm"=,
                        "dinvgauss"=sum(log(residuals(object))^2))
                 /(nobs(object)-nparam(object))));
+}
 
+#' @export
+summary.mes <- function(object, level=0.95, ...){
+    ourReturn <- list(timeElapsed=object$timeElapsed, model=object$model);
+
+    occurrence <- NULL;
+    if(is.oes(object$occurrence)){
+        occurrence <- switch(object$occurrence$occurrence,
+                             "f"=,
+                             "fixed"="Fixed probability",
+                             "o"=,
+                             "odds-ratio"="Odds ratio",
+                             "i"=,
+                             "inverse-odds-ratio"="Inverse odds ratio",
+                             "d"=,
+                             "direct"="Direct",
+                             "g"=,
+                             "general"="General");
+    }
+    ourReturn$occurrence <- occurrence;
+    ourReturn$distribution <- object$distribution;
+
+    # Collect parameters and their standard errors
+    parametersConfint <- confint(object, level=level);
+    parametersConfint[,2:3] <- coef(object) + parametersConfint[,2:3];
+    parametersTable <- cbind(coef(object),parametersConfint);
+    rownames(parametersTable) <- names(coef(object));
+    colnames(parametersTable) <- c("Estimate","Std. Error",
+                                   paste0("Lower ",(1-level)/2*100,"%"),
+                                   paste0("Upper ",(1+level)/2*100,"%"));
+    ourReturn$coefficients <- parametersTable;
+    ourReturn$loss <- object$loss;
+    ourReturn$lossValue <- object$lossValue;
+    ourReturn$nobs <- nobs(object);
+    ourReturn$nparam <- nparam(object);
+
+    if(object$loss=="likelihood" ||
+       (any(object$loss==c("MSE","MSEh","MSCE")) & any(object$distribution==c("dnorm","dlnorm"))) ||
+       (any(object$loss==c("MAE","MAEh","MACE")) & object$distribution=="dlaplace") ||
+       (any(object$loss==c("HAM","HAMh","CHAM")) & object$distribution=="ds")){
+        ICs <- c(AIC(object),AICc(object),BIC(object),BICc(object));
+        names(ICs) <- c("AIC","AICc","BIC","BICc");
+        ourReturn$ICs <- ICs;
+    }
+    return(structure(ourReturn, class="summary.mes"));
+}
+
+print.summary.mes <- function(x, ...){
+    ellipsis <- list(...);
+    if(!any(names(ellipsis)=="digits")){
+        digits <- 4;
+    }
+    else{
+        digits <- ellipsis$digits;
+    }
+
+    cat(paste0("Time elapsed: ",round(as.numeric(x$timeElapsed,units="secs"), digits)," seconds"));
+    cat(paste0("\nModel estimated: ",x$model));
+
+    if(!is.null(x$occurrence)){
+        cat(paste0("\nOccurrence model type: ",occurrence));
+    }
+
+    distrib <- switch(x$distribution,
+                      "dnorm" = "Normal",
+                      "dlogis" = "Logistic",
+                      "dlaplace" = "Laplace",
+                      "dalaplace" = paste0("Asymmetric Laplace with lambda=",round(x$lambda,digits)),
+                      "dt" = paste0("Student t with df=",round(x$lambda, digits)),
+                      "ds" = "S",
+                      "dlnorm" = "Log Normal",
+                      # "dbcnorm" = paste0("Box-Cox Normal with lambda=",round(x$other$lambda,2)),
+                      "dinvgauss" = "Inverse Gaussian"
+    );
+    if(!is.null(x$occurrence)){
+        distrib <- paste0("Mixture of Bernoulli and ", distrib);
+    }
+    cat(paste0("\nDistribution assumed in the model: ", distrib));
+
+    if(!is.null(x$coefficients)){
+        cat("\n");
+        print(round(x$coefficients,digits));
+    }
+
+    cat(paste0("\nLoss function type: ",x$loss));
+    if(!is.null(x$lossValue)){
+        cat(paste0("; Loss function value: ",round(x$lossValue,digits)));
+        if(any(x$loss==c("LASSO","RIDGE"))){
+            cat(paste0("; lambda=",x$lambda));
+        }
+    }
+
+    cat("\nSample size: "); cat(x$nobs);
+    cat("\nNumber of estimated parameters: "); cat(x$nparam);
+    cat("\nNumber of degrees of freedom: "); cat(x$nobs-x$nparam);
+
+    if(x$loss=="likelihood" ||
+       (any(x$loss==c("MSE","MSEh","MSCE")) & any(x$distribution==c("dnorm","dlnorm"))) ||
+       (any(x$loss==c("MAE","MAEh","MACE")) & x$distribution=="dlaplace") ||
+       (any(x$loss==c("HAM","HAMh","CHAM")) & x$distribution=="ds")){
+        cat("\n");
+        print(round(x$ICs,digits));
+    }
+    else{
+        cat("\nInformation criteria are unavailable for the chosen loss & distribution.\n");
+    }
 }
 
 # Work in progress...
