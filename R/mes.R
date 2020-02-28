@@ -604,11 +604,16 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                             "M"=c(0.01,0.005,rep(0.01,componentsNumberSeasonal)))[j:componentsNumber];
             Bl[j:componentsNumber] <- rep(-5, componentsNumber);
             Bu[j:componentsNumber] <- rep(5, componentsNumber);
+            names(B)[1] <- "alpha";
+            if(Ttype!="N"){
+                names(B)[2] <- "beta";
+            }
             if(componentsNumberSeasonal>1){
-                names(B)[1:componentsNumber] <- c("alpha","beta",paste0("gamma",c(1:componentsNumberSeasonal)))[1:componentsNumber];
+                names(B)[(componentsNumber-componentsNumberSeasonal+1):componentsNumber] <-
+                    paste0("gamma",c(1:componentsNumberSeasonal));
             }
             else{
-                names(B)[1:componentsNumber] <- c("alpha","beta",paste0("gamma"))[1:componentsNumber];
+                names(B)[(componentsNumber-componentsNumberSeasonal+1):componentsNumber] <- "gamma";
             }
             j <- j+componentsNumber;
         }
