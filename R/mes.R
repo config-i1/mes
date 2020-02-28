@@ -264,6 +264,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     # Start measuring the time of calculations
     startTime <- Sys.time();
 
+    ellipsis <- list(...);
     # If a previous model is provided as a model, write down the variables
     if(is.mes(model) || is.mes.sim(model)){
         # If this is the simulated data, extract the parameters
@@ -278,15 +279,14 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         #     }
         # }
         # else{
-        #     persistence <- model$persistence;
-        #     initial <- model$initial;
-        #     initialSeason <- model$initialSeason;
+        persistence <- model$persistence;
+        initial <- model$initial;
+        initialSeason <- model$initialSeason;
         #     if(any(model$iprob!=1)){
         #         occurrence <- "a";
         #     }
         # }
         lags <- model$lags;
-        date <- model$date;
         distribution <- model$distribution;
         loss <- model$loss;
         persistence <- model$persistence;
@@ -295,6 +295,10 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         occurrence <- model$occurrence;
         ic <- model$ic;
         bounds <- model$bounds;
+        lambda <- model$lambda;
+        ellipsis$B <- model$B;
+        CFValue <- model$lossValue;
+        logLikMESValue <- logLik(model);
         if(is.null(xreg)){
             xreg <- model$xreg;
         }
@@ -379,7 +383,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     parametersChecker(y, model, lags, persistence, phi, initial,
                       distribution, loss, h, holdout, occurrence, ic, bounds,
                       xreg, xregDo, xregInitial, xregPersistence,
-                      silent, ParentEnvironment=environment(), ...);
+                      silent, ParentEnvironment=environment(), ellipsis);
 
     #### The function creates the technical variables (lags etc) based on the type of the model ####
     architector <- function(Etype, Ttype, Stype, lags, xregNumber){
@@ -1107,72 +1111,149 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         }
         parametersNumber[1,4] <- sum(parametersNumber[1,1:3]);
         parametersNumber[2,4] <- sum(parametersNumber[2,1:3]);
-
-        # Fill in the matrices
-        mesElements <- filler(B,
-                              Ttype, Stype, componentsNumber, lagsModel, lagsModelMax,
-                              matVt, matWt, matF, vecG,
-                              persistenceEstimate, phiEstimate, initialType,
-                              xregInitialsEstimate, xregPersistenceEstimate, xregNumber);
-        list2env(mesElements, environment());
-        if(lambdaEstimate){
-            lambda[] <- tail(B,1);
+    }
+    else if(modelDo=="use"){
+        # Deal with occurrence model
+        if(occurrenceModel && !occurrenceModelProvided){
+            oesModel <- suppressWarnings(oes(yInSample, model=model, initial=initial, occurrence=occurrence, ic=ic, h=h,
+                                             holdout=FALSE, bounds="usual", xreg=xreg, xregDo=xregDo));
+            pFitted[] <- fitted(oesModel);
+            parametersNumber[1,3] <- nparam(oesModel);
+            # This should not happen, but just in case...
+            if(oesModel$occurrence=="n"){
+                occurrence <- "n";
+                otLogical <- rep(TRUE,obsInSample);
+                occurrenceModel <- FALSE;
+                ot <- matrix(otLogical*1,ncol=1);
+                obsNonzero <- sum(ot);
+                obsZero <- obsInSample - obsNonzero;
+                Etype[] <- switch(Etype,
+                                  "M"="A",
+                                  "Y"=,
+                                  "Z"="X",
+                                  Etype);
+                Ttype[] <- switch(Ttype,
+                                  "M"="A",
+                                  "Y"=,
+                                  "Z"="X",
+                                  Ttype);
+                Stype[] <- switch(Stype,
+                                  "M"="A",
+                                  "Y"=,
+                                  "Z"="X",
+                                  Stype);
+            }
         }
-        if(phiEstimate){
-            phi[] <- B[names(B)=="phi"];
+        else if(occurrenceModel && occurrenceModelProvided){
+            parametersNumber[2,3] <- nparam(oesModel);
         }
 
-        # Fit the model to the data
-        mesFitted <- mesFitterWrap(matVt, matWt, matF, vecG,
-                                   lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal,
-                                   yInSample, ot, initialType=="backcasting");
+        mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber);
+        list2env(mesArchitect, environment());
 
-        errors <- mesFitted$errors
-        yFitted <- mesFitted$yFitted;
-        if(occurrenceModel){
-            yFitted[] <- yFitted * pFitted;
-        }
+        # Create the matrices for the specific ETS model
+        mesCreated <- creator(Etype, Ttype, Stype,
+                              lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
+                              obsStates, obsInSample, componentsNumber, componentsNumberSeasonal,
+                              componentsNames, otLogical,
+                              yInSample, persistence, persistenceEstimate, phi,
+                              initialValue, initialEstimate,
+                              xregProvided, xregInitialsProvided, xregPersistence,
+                              xregModel, xregData, xregNumber, xregNames);
+        list2env(mesCreated, environment());
 
-        matVt[] <- mesFitted$matVt;
-        if(initialType=="backcasting"){
-            matVt <- matVt[,1:(obsInSample+lagsModelMax), drop=FALSE];
-        }
-
-        if(h>0){
-            yForecast <- ts(rep(NA, h), start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
-            mesForecast <- mesForecasterWrap(matVt[,obsInSample+(1:lagsModelMax),drop=FALSE], tail(matWt,h), matF, vecG,
-                                             lagsModelAll, Etype, Ttype, Stype,
-                                             componentsNumber, componentsNumberSeasonal, h);
-            yForecast[] <- mesForecast$yForecast;
+        # If Fisher Information is required, do that analytically
+        if(FI){
+            FIValue <- hessian(CF, B, Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
+                               ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, obsInSample=obsInSample,
+                               componentsNumber=componentsNumber, lagsModel=lagsModel, lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
+                               matVt=matVt, matWt=matWt, matF=matF, vecG=vecG,
+                               componentsNumberSeasonal=componentsNumberSeasonal,
+                               persistenceEstimate=TRUE, phiEstimate=phiEstimate, initialType="optimal",
+                               xregProvided=xregProvided, xregInitialsEstimate=xregInitialsEstimate,
+                               xregPersistenceEstimate=xregPersistenceEstimate, xregNumber=xregNumber,
+                               bounds=bounds, loss=loss, distribution=distribution, h=h, multisteps=multisteps,
+                               lambda=lambda, lambdaEstimate=lambdaEstimate);
         }
         else{
-            yForecast <- NA;
+            FIValue <- NULL;
         }
-
-        # If the distribution is default, change it according to the error term
-        if(loss=="likelihood" && distribution=="default"){
-            distribution[] <- switch(Etype,
-                                     "A"="dnorm",
-                                     "M"="dinvgauss");
-        }
-
-        if(persistenceEstimate){
-            persistence <- vecG[1:componentsNumber,];
-        }
-
-        if(xregPersistenceEstimate){
-            xregPersistence <- vecG[-c(1:componentsNumber),];
-        }
-
-        scale <- scaler(distribution, Etype, errors[otLogical], yFitted[otLogical], obsInSample, lambda);
-
-        # Transform everything into ts
-        yInSample <- ts(yInSample,start=start(y), frequency=frequency(y));
-        if(holdout){
-            yHoldout <- ts(yHoldout, start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
-        }
-        yFitted <- ts(yFitted,start=start(y), frequency=frequency(y));
     }
+
+    ##### Prepare all the matrices and vectors for return #####
+    # Fill in the matrices
+    mesElements <- filler(B,
+                          Ttype, Stype, componentsNumber, lagsModel, lagsModelMax,
+                          matVt, matWt, matF, vecG,
+                          persistenceEstimate, phiEstimate, initialType,
+                          xregInitialsEstimate, xregPersistenceEstimate, xregNumber);
+    list2env(mesElements, environment());
+    if(lambdaEstimate){
+        lambda[] <- tail(B,1);
+    }
+    if(phiEstimate){
+        phi[] <- B[names(B)=="phi"];
+    }
+
+    # Fit the model to the data
+    mesFitted <- mesFitterWrap(matVt, matWt, matF, vecG,
+                               lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal,
+                               yInSample, ot, initialType=="backcasting");
+
+    errors <- mesFitted$errors
+    yFitted <- mesFitted$yFitted;
+    if(occurrenceModel){
+        yFitted[] <- yFitted * pFitted;
+    }
+
+    matVt[] <- mesFitted$matVt;
+    if(initialType=="backcasting"){
+        matVt <- matVt[,1:(obsInSample+lagsModelMax), drop=FALSE];
+    }
+
+    if(h>0){
+        yForecast <- ts(rep(NA, h), start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
+        mesForecast <- mesForecasterWrap(matVt[,obsInSample+(1:lagsModelMax),drop=FALSE], tail(matWt,h), matF, vecG,
+                                         lagsModelAll, Etype, Ttype, Stype,
+                                         componentsNumber, componentsNumberSeasonal, h);
+        yForecast[] <- mesForecast$yForecast;
+    }
+    else{
+        yForecast <- NA;
+    }
+
+    # If the distribution is default, change it according to the error term
+    if(loss=="likelihood" && distribution=="default"){
+        distribution[] <- switch(Etype,
+                                 "A"="dnorm",
+                                 "M"="dinvgauss");
+    }
+
+    if(initialType=="optimal"){
+        initialValue <- vector("numeric", sum(lagsModelAll));
+        j <- 0;
+        for(i in 1:length(lagsModelAll)){
+            initialValue[j+1:lagsModelAll[i]] <- matVt[i,1:lagsModelAll[i]];
+            j <- j + lagsModelAll[i];
+        }
+    }
+
+    if(persistenceEstimate){
+        persistence <- vecG[1:componentsNumber,];
+    }
+
+    if(xregPersistenceEstimate){
+        xregPersistence <- vecG[-c(1:componentsNumber),];
+    }
+
+    scale <- scaler(distribution, Etype, errors[otLogical], yFitted[otLogical], obsInSample, lambda);
+
+    # Transform everything into ts
+    yInSample <- ts(yInSample,start=start(y), frequency=frequency(y));
+    if(holdout){
+        yHoldout <- ts(yHoldout, start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
+    }
+    yFitted <- ts(yFitted,start=start(y), frequency=frequency(y));
 
     # Prepare the name of the model
     if(xregExist){
@@ -1198,7 +1279,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                             nParam=parametersNumber, occurrence=oesModel, xreg=xreg,
                             xregInitial=xregInitial, xregPersistence=xregPersistence,
                             loss=loss, lossValue=CFValue, logLik=logLikMESValue, distribution=distribution,
-                            scale=scale, lambda=lambda, B=B, lags=lagsModel),
+                            scale=scale, lambda=lambda, B=B, lags=lagsModel, FI=FIValue),
                        class=c("mes","smooth"));
 
     if(!silent){
@@ -2129,10 +2210,14 @@ multicov.mes <- function(object, type=c("analytical","empirical","simulated"), .
     return(covarMat);
 }
 
+#' @export
+vcov.mes <- function(object, ...){
+    modelReturn <- mes(actuals(object), model=object, FI=TRUE);
+}
+
 ##### Other functions to implement #####
 # rmultistep.mes <- function(object, ...){}
 # accuracy.mes <- function(object, holdout, ...){}
 # vcov.mes <- function(object, ...){}
 # confint.mes <- function(object, parm, level=0.95, ...){}
-# cvar.mes <- function(object, ...){}
 # simulate.mes <- function(object, nsim=1, seed=NULL, obs=NULL, ...){}

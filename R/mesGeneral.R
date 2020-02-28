@@ -3,7 +3,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
                                              "dlnorm","dinvgauss"),
                               loss, h, holdout,occurrence,
                               ic=c("AICc","AIC","BIC","BICc"), bounds=c("traditional","admissible","none"),
-                              xreg, xregDo, xregInitial, xregPersistence, silent, ParentEnvironment, ...){
+                              xreg, xregDo, xregInitial, xregPersistence, silent, ParentEnvironment, ellipsis){
 
     # The function checks the provided parameters of mes and/or oes
     ##### data #####
@@ -20,7 +20,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     if(!is.numeric(y)){
         stop("The provided data is not numeric! Can't construct any model!", call.=FALSE);
     }
-    if(!is.null(ncol(y))){
+    if(!is.null(ncol(y)) && ncol(y)>1){
         # If we deal with data.table, the syntax is different.
         # We don't want to import from data.table, so just use inherits()
         if(inherits(y,"data.table")){
@@ -352,7 +352,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
                     persistenceEstimate <- TRUE;
                 }
                 else{
-                    persistence <- as.vector(persistence);
+                    persistence <- persistence;
                     persistenceEstimate <- FALSE;
                     parametersNumber[2,1] <- parametersNumber[2,1] + length(persistence);
                     bounds <- "n";
@@ -403,7 +403,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
         initialValue <- NULL;
     }
     else if(is.null(initial)){
-        if(silentText){
+        if(!silent){
             message("Initial value is not selected. Switching to optimal.");
         }
         initialType <- "optimal";
@@ -647,8 +647,6 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     }
 
     #### Process ellipsis ####
-    ellipsis <- list(...);
-
     # Parameters for the optimiser
     if(is.null(ellipsis$maxeval)){
         maxeval <- 500;
@@ -712,6 +710,19 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     else{
         lambdaEstimate <- FALSE;
         lambda <- ellipsis$lambda;
+    }
+    # Fisher Information
+    if(is.null(ellipsis$FI)){
+        FI <- FALSE;
+    }
+    else{
+        FI <- ellipsis$FI;
+    }
+
+    # See if the estimation of the model is not needed
+    if(!any(persistenceEstimate,phiEstimate,initialEstimate,
+            xregInitialsEstimate,xregPersistenceEstimate,lambdaEstimate)){
+        modelDo <- "use";
     }
 
     #### Return the values to the previous environment ####
@@ -797,4 +808,5 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     assign("ub",ub,ParentEnvironment);
     assign("lambda",lambda,ParentEnvironment);
     assign("lambdaEstimate",lambdaEstimate,ParentEnvironment);
+    assign("FI",FI,ParentEnvironment);
 }
