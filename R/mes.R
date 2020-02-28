@@ -1305,6 +1305,22 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     return(model);
 }
 
+confint.mes <- function(object, parm, level=0.95, ...){
+    mesVcov <- vcov(object);
+    mesSD <- sqrt(abs(diag(mesVcov)));
+    # mesCoef <- coef(object);
+    mesCoefBounds <- matrix(0,length(mesSD),2);
+    mesCoefBounds[,1] <- qnorm((1-level)/2, 0, mesSD);
+    mesCoefBounds[,2] <- qnorm((1+level)/2, 0, mesSD);
+    mesReturn <- cbind(mesSD,mesCoefBounds);
+    colnames(mesReturn) <- c("S.E.",
+                             paste0((1-level)/2*100,"%"), paste0((1+level)/2*100,"%"));
+    # colnames(mesReturn) <- c("Estimate", "Std. Error",
+    #                          paste0("Lower ",(1-level)/2*100,"%"), paste0("Upper ",(1+level)/2*100,"%"));
+
+    return(mesReturn);
+}
+
 #' @export
 coef.mes <- function(object, ...){
     return(object$B);
