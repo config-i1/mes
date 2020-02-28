@@ -3,7 +3,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
                                              "dlnorm","dinvgauss"),
                               loss, h, holdout,occurrence,
                               ic=c("AICc","AIC","BIC","BICc"), bounds=c("traditional","admissible","none"),
-                              xreg, xregDo, xregInitial, xregPersistence, silent, ParentEnvironment, ellipsis){
+                              xreg, xregDo, xregInitial, xregPersistence, silent, modelDo, ParentEnvironment, ellipsis){
 
     # The function checks the provided parameters of mes and/or oes
     ##### data #####
@@ -13,8 +13,10 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     else if(inherits(y,"Mdata")){
         h <- y$h;
         holdout <- TRUE;
-        lags <- frequency(y$x);
-        y <- ts(c(y$x,y$xx),start=start(y$x),frequency=lags);
+        if(modelDo!="use"){
+            lags <- frequency(y$x);
+        }
+        y <- ts(c(y$x,y$xx),start=start(y$x),frequency=frequency(y$x));
     }
 
     if(!is.numeric(y)){
@@ -47,7 +49,12 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     # dataStart <- start(y);
     # yForecastStart <- time(y)[obsInSample]+deltat(y);
     yInSample <- matrix(y[1:obsInSample],ncol=1);
-    yHoldout <- y[-c(1:obsInSample)];
+    if(holdout){
+        yHoldout <- y[-c(1:obsInSample)];
+    }
+    else{
+        yHoldout <- NULL;
+    }
 
     # Number of parameters to estimate / provided
     parametersNumber <- matrix(0,2,4,
@@ -439,7 +446,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
             }
         }
     }
-    initialEstimate <- any(initialType==c("optimal","backcasting"));
+    initialEstimate <- initialType=="optimal";
 
 
     # Observations in the states matrix
@@ -730,6 +737,8 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     assign("y",y,ParentEnvironment);
     assign("yHoldout",yHoldout,ParentEnvironment);
     assign("yInSample",yInSample,ParentEnvironment);
+    # The rename of the variable is needed for the hessian to work
+    assign("horizon",h,ParentEnvironment);
     assign("h",h,ParentEnvironment);
 
     # Number of observations and parameters

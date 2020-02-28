@@ -254,8 +254,6 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 xreg=NULL, xregDo=c("use","select"), xregInitial=NULL, xregPersistence=0,
                 silent=TRUE, ...){
     # Copyright (C) 2019 - Inf  Ivan Svetunkov
-    # Methods to implement:
-    # predict(), forecast(),
     #
     # Parameters that were moved to forecast() and predict() functions:
     # h=10, holdout=FALSE, cumulative=FALSE,
@@ -291,7 +289,12 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         loss <- model$loss;
         persistence <- model$persistence;
         phi <- model$phi;
-        initial <- model$initial;
+        if(model$initialType!="backcasting"){
+            initial <- model$initial;
+        }
+        else{
+            initial <- "b";
+        }
         occurrence <- model$occurrence;
         ic <- model$ic;
         bounds <- model$bounds;
@@ -317,6 +320,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         xregPersistence <- model$xregPersistence;
 
         model <- modelType(model);
+        modelDo <- "use";
         # if(any(unlist(gregexpr("C",model))!=-1)){
         #     initial <- "o";
         # }
@@ -370,11 +374,14 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         model <- modelType(model);
         distribution <- "dnorm";
         loss <- "likelihood";
+        modelDo <- "use"
     }
     else if(is.character(model)){
+        modelDo <- "";
         # Everything is okay
     }
     else{
+        modelDo <- "";
         warning("A model of an unknown class was provided. Switching to 'ZZZ'.",call.=FALSE);
         model <- "ZZZ";
     }
@@ -383,7 +390,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     parametersChecker(y, model, lags, persistence, phi, initial,
                       distribution, loss, h, holdout, occurrence, ic, bounds,
                       xreg, xregDo, xregInitial, xregPersistence,
-                      silent, ParentEnvironment=environment(), ellipsis);
+                      silent, modelDo, ParentEnvironment=environment(), ellipsis);
 
     #### The function creates the technical variables (lags etc) based on the type of the model ####
     architector <- function(Etype, Ttype, Stype, lags, xregNumber){
@@ -428,7 +435,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                         obsStates, obsInSample, componentsNumber, componentsNumberSeasonal,
                         componentsNames, otLogical,
                         yInSample, persistence, persistenceEstimate, phi,
-                        initialValue, initialEstimate,
+                        initialValue, initialType,
                         xregProvided, xregInitialsProvided, xregPersistence,
                         xregModel, xregData, xregNumber, xregNames){
         # Matrix of states. Time in columns, components in rows
@@ -462,7 +469,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         }
 
         # Calculate the initials for the matVt and insert them
-        if(initialEstimate){
+        if(initialType!="provided"){
             # For the seasonal models
             if(Stype!="N"){
                 yDecomposition <- msdecompose(yInSample, lags[lags!=1], type=switch(Stype, "A"="additive", "M"="multiplicative"));
@@ -726,7 +733,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                    persistenceEstimate, phiEstimate, initialType,
                    xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
                    xregNumber,
-                   bounds, loss, distribution, h, multisteps, lambda, lambdaEstimate){
+                   bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate){
 
         # Fill in the matrices
         mesElements <- filler(B,
@@ -903,7 +910,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                           persistenceEstimate, phiEstimate, initialType,
                           xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
                           xregNumber,
-                          bounds, loss, distribution, h, multisteps, lambda, lambdaEstimate){
+                          bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate){
         if(!multisteps){
             if(any(loss==c("LASSO","RIDGE"))){
                 return(0);
@@ -922,7 +929,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                     persistenceEstimate, phiEstimate, initialType,
                                     xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
                                     xregNumber,
-                                    bounds, "likelihood", distributionNew, h, multisteps, lambda, lambdaEstimate);
+                                    bounds, "likelihood", distributionNew, horizon, multisteps, lambda, lambdaEstimate);
 
                 # If this is an occurrence model, add the probabilities
                 if(occurrenceModel){
@@ -962,12 +969,12 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                           obsStates, obsInSample, componentsNumber, componentsNames,
                           componentsNumberSeasonal,
                           yInSample, persistence, persistenceEstimate, phi, phiEstimate,
-                          initialType, initialValue, initialEstimate,
+                          initialType, initialValue,
                           xregProvided, xregInitialsProvided, xregInitialsEstimate,
                           xregPersistence, xregPersistenceEstimate,
                           xregModel, xregData, xregNumber, xregNames,
                           ot, otLogical, occurrenceModel, pFitted,
-                          bounds, loss, distribution, h, multisteps, lambda, lambdaEstimate){
+                          bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate){
 
         mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber);
         list2env(mesArchitect, environment());
@@ -978,7 +985,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                               obsStates, obsInSample, componentsNumber, componentsNumberSeasonal,
                               componentsNames, otLogical,
                               yInSample, persistence, persistenceEstimate, phi,
-                              initialValue, initialEstimate,
+                              initialValue, initialType,
                               xregProvided, xregInitialsProvided, xregPersistence,
                               xregModel, xregData, xregNumber, xregNames);
 
@@ -1014,7 +1021,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                       persistenceEstimate=persistenceEstimate, phiEstimate=phiEstimate, initialType=initialType,
                       xregProvided=xregProvided, xregInitialsEstimate=xregInitialsEstimate,
                       xregPersistenceEstimate=xregPersistenceEstimate, xregNumber=xregNumber,
-                      bounds=bounds, loss=loss, distribution=distributionNew, h=h, multisteps=multisteps,
+                      bounds=bounds, loss=loss, distribution=distributionNew, horizon=horizon, multisteps=multisteps,
                       lambda=lambda, lambdaEstimate=lambdaEstimate);
 
         # Prepare the values to return
@@ -1030,7 +1037,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                     persistenceEstimate, phiEstimate, initialType,
                                     xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
                                     xregNumber,
-                                    bounds, loss, distributionNew, h, multisteps, lambda, lambdaEstimate);
+                                    bounds, loss, distributionNew, horizon, multisteps, lambda, lambdaEstimate);
 
         return(list(B=B, CFValue=CFValue, nParamEstimated=nParamEstimated, logLikMESValue=logLikMESValue));
     }
@@ -1043,7 +1050,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     if(modelDo=="estimate"){
         # Deal with occurrence model
         if(occurrenceModel && !occurrenceModelProvided){
-            oesModel <- suppressWarnings(oes(yInSample, model=model, initial=initial, occurrence=occurrence, ic=ic, h=h,
+            oesModel <- suppressWarnings(oes(yInSample, model=model, initial=initial, occurrence=occurrence, ic=ic, horizon=horizon,
                                              holdout=FALSE, bounds="usual", xreg=xreg, xregDo=xregDo));
             pFitted[] <- fitted(oesModel);
             parametersNumber[1,3] <- nparam(oesModel);
@@ -1085,7 +1092,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                               obsStates, obsInSample, componentsNumber, componentsNumberSeasonal,
                               componentsNames, otLogical,
                               yInSample, persistence, persistenceEstimate, phi,
-                              initialValue, initialEstimate,
+                              initialValue, initialType,
                               xregProvided, xregInitialsProvided, xregPersistence,
                               xregModel, xregData, xregNumber, xregNames);
         list2env(mesCreated, environment());
@@ -1096,12 +1103,12 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                  obsStates, obsInSample, componentsNumber, componentsNames,
                                  componentsNumberSeasonal,
                                  yInSample, persistence, persistenceEstimate, phi, phiEstimate,
-                                 initialType, initialValue, initialEstimate,
+                                 initialType, initialValue,
                                  xregProvided, xregInitialsProvided, xregInitialsEstimate,
                                  xregPersistence, xregPersistenceEstimate,
                                  xregModel, xregData, xregNumber, xregNames,
                                  ot, otLogical, occurrenceModel, pFitted,
-                                 bounds, loss, distribution, h, multisteps, lambda, lambdaEstimate);
+                                 bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
         list2env(esEstimator, environment());
 
         parametersNumber[1,1] <- (sum(lagsModel)*(initialType=="optimal") + phiEstimate +
@@ -1115,7 +1122,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     else if(modelDo=="use"){
         # Deal with occurrence model
         if(occurrenceModel && !occurrenceModelProvided){
-            oesModel <- suppressWarnings(oes(yInSample, model=model, initial=initial, occurrence=occurrence, ic=ic, h=h,
+            oesModel <- suppressWarnings(oes(yInSample, model=model, initial=initial, occurrence=occurrence, ic=ic, h=horizon,
                                              holdout=FALSE, bounds="usual", xreg=xreg, xregDo=xregDo));
             pFitted[] <- fitted(oesModel);
             parametersNumber[1,3] <- nparam(oesModel);
@@ -1157,26 +1164,35 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                               obsStates, obsInSample, componentsNumber, componentsNumberSeasonal,
                               componentsNames, otLogical,
                               yInSample, persistence, persistenceEstimate, phi,
-                              initialValue, initialEstimate,
+                              initialValue, initialType,
                               xregProvided, xregInitialsProvided, xregPersistence,
                               xregModel, xregData, xregNumber, xregNames);
         list2env(mesCreated, environment());
 
         # If Fisher Information is required, do that analytically
         if(FI){
-            FIValue <- hessian(CF, B, Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
-                               ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, obsInSample=obsInSample,
-                               componentsNumber=componentsNumber, lagsModel=lagsModel, lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
-                               matVt=matVt, matWt=matWt, matF=matF, vecG=vecG,
-                               componentsNumberSeasonal=componentsNumberSeasonal,
-                               persistenceEstimate=TRUE, phiEstimate=phiEstimate, initialType="optimal",
-                               xregProvided=xregProvided, xregInitialsEstimate=xregInitialsEstimate,
-                               xregPersistenceEstimate=xregPersistenceEstimate, xregNumber=xregNumber,
-                               bounds=bounds, loss=loss, distribution=distribution, h=h, multisteps=multisteps,
-                               lambda=lambda, lambdaEstimate=lambdaEstimate);
+            if(initialType=="provided"){
+                initialTypeFI <- "optimal";
+            }
+            else{
+                initialTypeFI <- initialType;
+            }
+
+            FI <- hessian(CF, B, Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
+                          ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, obsInSample=obsInSample,
+                          componentsNumber=componentsNumber, lagsModel=lagsModel, lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
+                          matVt=matVt, matWt=matWt, matF=matF, vecG=vecG,
+                          componentsNumberSeasonal=componentsNumberSeasonal,
+                          persistenceEstimate=TRUE, phiEstimate=phiEstimate, initialType=initialTypeFI,
+                          xregProvided=xregProvided, xregInitialsEstimate=xregInitialsEstimate,
+                          xregPersistenceEstimate=xregPersistenceEstimate, xregNumber=xregNumber,
+                          bounds=bounds, loss=loss, distribution=distribution, horizon=horizon, multisteps=multisteps,
+                          lambda=lambda, lambdaEstimate=lambdaEstimate);
+            colnames(FI) <- names(B);
+            rownames(FI) <- names(B);
         }
         else{
-            FIValue <- NULL;
+            FI <- NULL;
         }
     }
 
@@ -1211,15 +1227,15 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         matVt <- matVt[,1:(obsInSample+lagsModelMax), drop=FALSE];
     }
 
-    if(h>0){
-        yForecast <- ts(rep(NA, h), start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
-        mesForecast <- mesForecasterWrap(matVt[,obsInSample+(1:lagsModelMax),drop=FALSE], tail(matWt,h), matF, vecG,
+    if(horizon>0){
+        yForecast <- ts(rep(NA, horizon), start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
+        mesForecast <- mesForecasterWrap(matVt[,obsInSample+(1:lagsModelMax),drop=FALSE], tail(matWt,horizon), matF, vecG,
                                          lagsModelAll, Etype, Ttype, Stype,
-                                         componentsNumber, componentsNumberSeasonal, h);
+                                         componentsNumber, componentsNumberSeasonal, horizon);
         yForecast[] <- mesForecast$yForecast;
     }
     else{
-        yForecast <- NA;
+        yForecast <- ts(NA, start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
     }
 
     # If the distribution is default, change it according to the error term
@@ -1279,7 +1295,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                             nParam=parametersNumber, occurrence=oesModel, xreg=xreg,
                             xregInitial=xregInitial, xregPersistence=xregPersistence,
                             loss=loss, lossValue=CFValue, logLik=logLikMESValue, distribution=distribution,
-                            scale=scale, lambda=lambda, B=B, lags=lagsModel, FI=FIValue),
+                            scale=scale, lambda=lambda, B=B, lags=lagsModel, FI=FI),
                        class=c("mes","smooth"));
 
     if(!silent){
@@ -2213,6 +2229,7 @@ multicov.mes <- function(object, type=c("analytical","empirical","simulated"), .
 #' @export
 vcov.mes <- function(object, ...){
     modelReturn <- mes(actuals(object), model=object, FI=TRUE);
+    return(solve(modelReturn$FI));
 }
 
 ##### Other functions to implement #####

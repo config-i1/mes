@@ -217,7 +217,7 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
                 if(!matrixVt.col(i).is_finite()){
                     matrixVt.col(i) = matrixVt(lagrows);
                 }
-                if((S=='M') & (matrixVt(nNonSeasonal,i) <= 0)){
+                if((S=='M') && (matrixVt(nNonSeasonal,i) <= 0)){
                     matrixVt(nNonSeasonal,i) = arma::as_scalar(matrixVt(lagrows.row(nNonSeasonal)));
                 }
                 if(T=='M'){
