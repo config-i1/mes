@@ -1177,11 +1177,44 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
 
         # If Fisher Information is required, do that analytically
         if(FI){
-            if(initialType=="provided"){
+            # Define parameters just for FI calculation
+            if(initialType=="provided" && any(names(B)=="level")){
                 initialTypeFI <- "optimal";
             }
             else{
                 initialTypeFI <- initialType;
+            }
+            #### This will not work in cases, when initials for xreg were provided from the beginning!
+            if(xregProvided && initialTypeFI=="optimal"){
+                xregInitialsEstimateFI <- TRUE;
+            }
+            else{
+                xregInitialsEstimateFI <- FALSE;
+            }
+            # If smoothing parmaeters were estimated, then alpha should be in the list
+            if(any(names(B)=="alpha")){
+                persistenceEstimateFI <- TRUE;
+            }
+            else{
+                persistenceEstimateFI <- FALSE;
+            }
+            if(any(names(B)=="phi")){
+                phiEstimateFI <- TRUE;
+            }
+            else{
+                phiEstimateFI <- FALSE;
+            }
+            if(any(names(B)=="lambda")){
+                lambdaEstimateFI <- TRUE;
+            }
+            else{
+                lambdaEstimateFI <- FALSE;
+            }
+            if(any(substr(names(B),1,5)=="delta")){
+                xregPersistenceEstimateFI <- TRUE;
+            }
+            else{
+                xregPersistenceEstimateFI <- FALSE;
             }
 
             FI <- hessian(CF, B, Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
@@ -1189,11 +1222,11 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                           componentsNumber=componentsNumber, lagsModel=lagsModel, lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
                           matVt=matVt, matWt=matWt, matF=matF, vecG=vecG,
                           componentsNumberSeasonal=componentsNumberSeasonal,
-                          persistenceEstimate=TRUE, phiEstimate=phiEstimate, initialType=initialTypeFI,
-                          xregProvided=xregProvided, xregInitialsEstimate=xregInitialsEstimate,
-                          xregPersistenceEstimate=xregPersistenceEstimate, xregNumber=xregNumber,
+                          persistenceEstimate=persistenceEstimateFI, phiEstimate=phiEstimateFI, initialType=initialTypeFI,
+                          xregProvided=xregProvided, xregInitialsEstimate=xregInitialsEstimateFI,
+                          xregPersistenceEstimate=xregPersistenceEstimateFI, xregNumber=xregNumber,
                           bounds=bounds, loss=loss, distribution=distribution, horizon=horizon, multisteps=multisteps,
-                          lambda=lambda, lambdaEstimate=lambdaEstimate);
+                          lambda=lambda, lambdaEstimate=lambdaEstimateFI);
             colnames(FI) <- names(B);
             rownames(FI) <- names(B);
         }
