@@ -2053,7 +2053,7 @@ print.summary.mes <- function(x, ...){
     cat(paste0("\nDistribution assumed in the model: ", distrib));
 
     if(!is.null(x$coefficients)){
-        cat("\n");
+        cat("\nCoefficients:\n");
         print(round(x$coefficients,digits));
     }
 
