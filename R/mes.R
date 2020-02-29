@@ -1127,6 +1127,12 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         parametersNumber[1,4] <- sum(parametersNumber[1,1:3]);
         parametersNumber[2,4] <- sum(parametersNumber[2,1:3]);
     }
+    else if(modelDo=="select"){
+        stop("Sorry, model selection is not implemented yet");
+    }
+    else if(modelDo=="combine"){
+        stop("Sorry, model combination is not implemented yet");
+    }
     else if(modelDo=="use"){
         # Deal with occurrence model
         if(occurrenceModel && !occurrenceModelProvided){
