@@ -608,12 +608,14 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             if(Ttype!="N"){
                 names(B)[2] <- "beta";
             }
-            if(componentsNumberSeasonal>1){
-                names(B)[(componentsNumber-componentsNumberSeasonal+1):componentsNumber] <-
-                    paste0("gamma",c(1:componentsNumberSeasonal));
-            }
-            else{
-                names(B)[(componentsNumber-componentsNumberSeasonal+1):componentsNumber] <- "gamma";
+            if(Stype!="N"){
+                if(componentsNumberSeasonal>1){
+                    names(B)[(componentsNumber-componentsNumberSeasonal+1):componentsNumber] <-
+                        paste0("gamma",c(1:componentsNumberSeasonal));
+                }
+                else{
+                    names(B)[(componentsNumber-componentsNumberSeasonal+1):componentsNumber] <- "gamma";
+                }
             }
             j <- j+componentsNumber;
         }
