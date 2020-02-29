@@ -2033,7 +2033,7 @@ print.summary.mes <- function(x, ...){
     cat(paste0("\nModel estimated: ",x$model));
 
     if(!is.null(x$occurrence)){
-        cat(paste0("\nOccurrence model type: ",occurrence));
+        cat(paste0("\nOccurrence model type: ",x$occurrence));
     }
 
     distrib <- switch(x$distribution,
