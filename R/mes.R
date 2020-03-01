@@ -245,6 +245,7 @@
 #' @importFrom statmod dinvgauss
 #' @importFrom nloptr nloptr
 #' @importFrom pracma hessian
+#' @useDynLib mes
 #' @export mes
 mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
