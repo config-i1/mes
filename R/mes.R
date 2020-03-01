@@ -115,6 +115,9 @@
 #' Finally, just for fun the absolute and half analogues of multistep estimators
 #' are available: \code{MAEh}, \code{TMAE}, \code{GTMAE}, \code{MACE}, \code{TMAE},
 #' \code{HAMh}, \code{THAM}, \code{GTHAM}, \code{CHAM}.
+#' @param h The forecast horizon. Mainly needed for the multistep loss functions.
+#' @param holdout Logical. If \code{TRUE}, then the holdout of the size \code{h}
+#' is taken from the data (can be used for the model testing purposes.
 #' @param persistence Persistence vector \eqn{g}, containing smoothing
 #' parameters. If \code{NULL}, then estimated.
 #' @param phi Value of damping parameter. If \code{NULL} then it is estimated.
