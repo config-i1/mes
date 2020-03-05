@@ -500,6 +500,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             # Non-seasonal models
             else{
                 matVt[1,1] <- mean(yInSample[1:max(lagsModelMax,obsInSample*0.2)]);
+                if(Etype=="M" && matVt[1,1]==0){
+                    matVt[1,1] <- mean(yInSample);
+                }
                 if(Ttype!="N"){
                     matVt[2,1] <- switch(Ttype,
                                          "A" = mean(diff(yInSample),na.rm=TRUE),
@@ -1317,6 +1320,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                          lagsModelAll, Etype, Ttype, Stype,
                                          componentsNumber, componentsNumberSeasonal, horizon);
         yForecast[] <- mesForecast$yForecast;
+        if(occurrenceModel){
+            yForecast[] <- yForecast * forecast(oesModel, h=h)$mean;
+        }
     }
     else{
         yForecast <- ts(NA, start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
