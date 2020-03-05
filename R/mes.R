@@ -1173,6 +1173,16 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             parametersNumber[2,3] <- nparam(oesModel);
         }
 
+        # If the distribution is default, change it according to the error term
+        if(loss=="likelihood" && distribution=="default"){
+            distributionNew <- switch(Etype,
+                                      "A"="dnorm",
+                                      "M"="dinvgauss");
+        }
+        else{
+            distributionNew <- distribution;
+        }
+
         mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber);
         list2env(mesArchitect, environment());
 
@@ -1187,6 +1197,28 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                               xregModel, xregData, xregNumber, xregNames);
         list2env(mesCreated, environment());
 
+        CFValue <- CF(B=0, Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
+                      ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, obsInSample=obsInSample,
+                      componentsNumber=componentsNumber, lagsModel=lagsModel, lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
+                      matVt=mesCreated$matVt, matWt=mesCreated$matWt, matF=mesCreated$matF, vecG=mesCreated$vecG,
+                      componentsNumberSeasonal=componentsNumberSeasonal,
+                      persistenceEstimate=persistenceEstimate, phiEstimate=phiEstimate, initialType=initialType,
+                      xregProvided=xregProvided, xregInitialsEstimate=xregInitialsEstimate,
+                      xregPersistenceEstimate=xregPersistenceEstimate, xregNumber=xregNumber,
+                      bounds=bounds, loss=loss, distribution=distributionNew, horizon=horizon, multisteps=multisteps,
+                      lambda=lambda, lambdaEstimate=lambdaEstimate);
+
+        parametersNumber[1,1] <- parametersNumber[1,4] <- 1;
+        logLikMESValue <- logLikMES(B,
+                                    Etype, Ttype, Stype, yInSample,
+                                    ot, otLogical, occurrenceModel, pFitted, obsInSample,
+                                    componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
+                                    mesCreated$matVt, mesCreated$matWt, mesCreated$matF, mesCreated$vecG, componentsNumberSeasonal,
+                                    persistenceEstimate, phiEstimate, initialType,
+                                    xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
+                                    xregNumber,
+                                    bounds, loss, distributionNew, horizon, multisteps, lambda, lambdaEstimate);
+
         # If Fisher Information is required, do that analytically
         if(FI){
             # Define parameters just for FI calculation
@@ -1196,6 +1228,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             else{
                 initialTypeFI <- initialType;
             }
+
             #### This will not work in cases, when initials for xreg were provided from the beginning!
             if(xregProvided && initialTypeFI=="optimal"){
                 xregInitialsEstimateFI <- TRUE;
@@ -1307,10 +1340,12 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
 
     if(persistenceEstimate){
         persistence <- vecG[1:componentsNumber,];
+        names(persistence) <- rownames(vecG)[1:componentsNumber];
     }
 
     if(xregPersistenceEstimate){
         xregPersistence <- vecG[-c(1:componentsNumber),];
+        names(xregPersistence) <- rownames(vecG)[-c(1:componentsNumber)];
     }
 
     scale <- scaler(distribution, Etype, errors[otLogical], yFitted[otLogical], obsInSample, lambda);

@@ -359,7 +359,8 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
                     persistenceEstimate <- TRUE;
                 }
                 else{
-                    persistence <- persistence;
+                    persistence <- as.vector(persistence);
+                    names(persistence) <- componentsNames;
                     persistenceEstimate <- FALSE;
                     parametersNumber[2,1] <- parametersNumber[2,1] + length(persistence);
                     bounds <- "n";
