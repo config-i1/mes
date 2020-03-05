@@ -1893,6 +1893,7 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
     }
 }
 
+#' @export
 print.mes <- function(x, digits=4, ...){
     cat(paste0("Time elapsed: ",round(as.numeric(x$timeElapsed,units="secs"),2)," seconds"));
     cat(paste0("\nModel estimated: ",x$model));
@@ -1971,6 +1972,7 @@ print.mes <- function(x, digits=4, ...){
     cat("\n");
 }
 
+#' @export
 sigma.mes <- function(object, ...){
     return(sqrt(switch(object$distribution,
                        "dnorm"=,
@@ -2126,7 +2128,9 @@ print.summary.mes <- function(x, ...){
 #' @export
 forecast.mes <- function(object, h=10, newxreg=NULL,
                          interval=c("none", "simulated", "approximate", "semiparametric", "nonparametric"),
-                         level=0.95, side=c("both","upper","lower"), cumulative=FALSE, ...){
+                         level=0.95, side=c("both","upper","lower"), cumulative=FALSE, nsim=10000, ...){
+
+    ellipsis <- list(...);
 
     # If the horizon is zero, just construct fitted and potentially confidence interval thingy
     if(h<=0){
@@ -2178,7 +2182,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
 
     # If this is a mixture model, produce forecasts for the occurrence
     if(is.oes(object$occurrence)){
-        pForecast <- forecast(object$oes,h=h)$mean;
+        pForecast <- forecast(object$occurrence,h=h)$mean;
     }
     else{
         pForecast <- rep(1, h);
@@ -2204,17 +2208,18 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
             levelNew <- level;
         }
 
+        levelLow <- levelUp <- vector("numeric",h);
         if(side=="both"){
-            levelLow <- (1-levelNew)/2;
-            levelUp <- (1+levelNew)/2;
+            levelLow[] <- (1-levelNew)/2;
+            levelUp[] <- (1+levelNew)/2;
         }
         else if(side=="upper"){
-            levelLow <- rep(0,length(levelNew));
-            levelUp <- levelNew;
+            levelLow[] <- rep(0,length(levelNew));
+            levelUp[] <- levelNew;
         }
         else{
-            levelLow <- 1-levelNew;
-            levelUp <- rep(1,length(levelNew));
+            levelLow[] <- 1-levelNew;
+            levelUp[] <- rep(1,length(levelNew));
         }
         levelLow[levelLow<0] <- 0;
         levelUp[levelUp<0] <- 0;
@@ -2222,7 +2227,6 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
 
     # If simulated intervals are needed...
     if(interval=="simulated"){
-        nsim <- 10000;
         arrVt <- array(NA, c(componentsNumber+xregNumber, h+lagsModelMax, nsim));
         arrVt[,1:lagsModelMax,] <- rep(matVt,nsim);
         matErrors <- matrix(switch(object$distribution,
@@ -2248,7 +2252,6 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                                        EtypeModified, Ttype, Stype, lagsModelAll,
                                        componentsNumberSeasonal, componentsNumber)$matrixYt;
 
-        ySimulated <<- ySimulated;
         #### Note that the cumulative doesn't work with oes at the moment!
         if(cumulative){
             yForecast[] <- mean(colSums(ySimulated,na.rm=T)*pForecast);
@@ -2257,8 +2260,10 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
         }
         else{
             # yForecast[] <- apply(ySimulated,1,mean,na.rm=T) * pForecast;
-            yLower[] <- apply(ySimulated,1,quantile,levelLow,na.rm=T,type=7);
-            yUpper[] <- apply(ySimulated,1,quantile,levelUp,na.rm=T,type=7);
+            for(i in 1:h){
+                yLower[i] <- quantile(ySimulated[i,],levelLow[i],na.rm=T,type=7);
+                yUpper[i] <- quantile(ySimulated[i,],levelUp[i],na.rm=T,type=7);
+            }
 
             # Make sensible values out of those weird quantiles
             if(Etype=="A"){
