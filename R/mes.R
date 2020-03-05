@@ -500,14 +500,14 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             # Non-seasonal models
             else{
                 matVt[1,1] <- mean(yInSample[1:max(lagsModelMax,obsInSample*0.2)]);
-                if(Etype=="M" && matVt[1,1]==0){
-                    matVt[1,1] <- mean(yInSample);
-                }
                 if(Ttype!="N"){
                     matVt[2,1] <- switch(Ttype,
                                          "A" = mean(diff(yInSample),na.rm=TRUE),
                                          "M" = exp(mean(diff(log(yInSample[otLogical])),na.rm=TRUE)));
                 }
+            }
+            if(Etype=="M" && any(matVt[1,1:lagsModelMax]==0)){
+                matVt[1,1:lagsModelMax] <- mean(yInSample);
             }
         }
         # Else, insert the provided ones
@@ -2010,7 +2010,6 @@ print.mes <- function(x, digits=4, ...){
     else{
         cat("\nInformation criteria are unavailable for the chosen loss & distribution.");
     }
-    cat("\n");
 }
 
 #' @export
