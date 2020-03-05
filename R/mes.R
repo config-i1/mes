@@ -947,6 +947,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
 
                 # If this is an occurrence model, add the probabilities
                 if(occurrenceModel){
+                    if(is.infinite(logLikReturn)){
+                        logLikReturn[] <- 0;
+                    }
                     if(any(c(1-pFitted[!otLogical]==0,pFitted[otLogical]==0))){
                         # return(-Inf);
                         ptNew <- pFitted[(pFitted!=0) & (pFitted!=1)];
@@ -1038,6 +1041,11 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                       bounds=bounds, loss=loss, distribution=distributionNew, horizon=horizon, multisteps=multisteps,
                       lambda=lambda, lambdaEstimate=lambdaEstimate);
 
+        ##### !!! Check the obtained parameters and the loss value and remove redundant parameters !!! #####
+        # Cases to consider:
+        # 1. Some smoothing parameters are zero or one;
+        # 2. The cost function value is -Inf (due to no variability in the sample);
+
         # Prepare the values to return
         B[] <- res$solution;
         CFValue <- res$objective;
@@ -1064,7 +1072,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     if(modelDo=="estimate"){
         # Deal with occurrence model
         if(occurrenceModel && !occurrenceModelProvided){
-            oesModel <- suppressWarnings(oes(yInSample, model=model, initial=initial, occurrence=occurrence, ic=ic, horizon=horizon,
+            oesModel <- suppressWarnings(oes(yInSample, model=model, occurrence=occurrence, ic=ic, horizon=horizon,
                                              holdout=FALSE, bounds="usual", xreg=xreg, xregDo=xregDo));
             pFitted[] <- fitted(oesModel);
             parametersNumber[1,3] <- nparam(oesModel);
@@ -1143,7 +1151,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     else if(modelDo=="use"){
         # Deal with occurrence model
         if(occurrenceModel && !occurrenceModelProvided){
-            oesModel <- suppressWarnings(oes(yInSample, model=model, initial=initial, occurrence=occurrence, ic=ic, h=horizon,
+            oesModel <- suppressWarnings(oes(yInSample, model=model, occurrence=occurrence, ic=ic, h=horizon,
                                              holdout=FALSE, bounds="usual", xreg=xreg, xregDo=xregDo));
             pFitted[] <- fitted(oesModel);
             parametersNumber[1,3] <- nparam(oesModel);
@@ -2222,9 +2230,11 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
 
     # If this is a mixture model, produce forecasts for the occurrence
     if(is.oes(object$occurrence)){
+        occurrenceModel <- TRUE;
         pForecast <- forecast(object$occurrence,h=h)$mean;
     }
     else{
+        occurrenceModel <- FALSE;
         pForecast <- rep(1, h);
     }
 
@@ -2240,7 +2250,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
 
     if(interval!="none"){
         # If this is an occurrence model, then take probability into account in the level.
-        if(is.oes(object$occurrence)){
+        if(occurrenceModel){
             levelNew <- (level-(1-pForecast))/pForecast;
             levelNew[levelNew<0] <- 0;
         }
@@ -2304,15 +2314,6 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                 yLower[i] <- quantile(ySimulated[i,],levelLow[i],na.rm=T,type=7);
                 yUpper[i] <- quantile(ySimulated[i,],levelUp[i],na.rm=T,type=7);
             }
-
-            # Make sensible values out of those weird quantiles
-            if(Etype=="A"){
-                yLower[levelLow==0] <- -Inf;
-            }
-            else{
-                yLower[levelLow==0] <- 0;
-            }
-            yUpper[levelUp==1] <- Inf;
         }
     }
     # This option will use h-steps ahead variance and produce intervals for it
@@ -2403,7 +2404,6 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
             yLower[] <- yForecast*qinvgauss(levelLow, 1, dispersion=vcovMulti);
             yUpper[] <- yForecast*qinvgauss(levelUp, 1, dispersion=vcovMulti);
         }
-
     }
     # This option will extract the matrix of multisteps errors from mes and build intervals based on that
     # This will rely on rmultistep() method
@@ -2411,6 +2411,29 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
     # }
     else{
         yUpper[] <- yLower[] <- NA;
+    }
+
+    # Fix of prediction intervals depending on what has happened
+    if(interval!="none"){
+        # Make sensible values out of those weird quantiles
+        if(Etype=="A"){
+            yLower[levelLow==0] <- -Inf;
+        }
+        else{
+            yLower[levelLow==0] <- 0;
+        }
+        yUpper[levelUp==1] <- Inf;
+
+        # Check what we have from the occurrence model
+        if(occurrenceModel){
+            # If there are NAs, then there's no variability and no intervals.
+            if(any(is.na(yUpper))){
+                yUpper[is.na(yUpper)] <- (yForecast/pForecast)[is.na(yUpper)];
+            }
+            if(any(is.na(yLower))){
+                yLower[is.na(yLower)] <- 0;
+            }
+        }
     }
 
     model <- structure(list(mean=yForecast, lower=yLower, upper=yUpper, model=object,
