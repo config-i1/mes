@@ -2137,6 +2137,8 @@ print.summary.mes <- function(x, ...){
 #     return(yForecast);
 
 # Work in progress...
+#' @param nsim Number of iterations to do in case of \code{interval="simulated"}.
+#' @rdname forecast.smooth
 #' @importFrom stats rnorm rlogis rt rlnorm qnorm qlogis qt qlnorm
 #' @importFrom statmod rinvgauss qinvgauss
 #' @importFrom greybox rlaplace rs ralaplace qlaplace qs qalaplace
@@ -2153,7 +2155,12 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                        interval=interval,
                        level=level, side=side, ...))
     }
-    interval <- match.arg(interval);
+    interval <- match.arg(interval,c("none", "simulated", "approximate", "semiparametric", "nonparametric","parametric"));
+    if(interval=="parametric"){
+        warning("The parameter 'interval' does not accept 'parametric' anymore. We use 'approximate' value instead.",
+                call.=FALSE)
+        interval <- "approximate";
+    }
     side <- match.arg(side);
 
     # Technical parameters
