@@ -1068,46 +1068,43 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     # XregSelector <- function(listToReturn){
     # }
 
+    #### Deal with occurrence model ####
+    if(occurrenceModel && !occurrenceModelProvided){
+        oesModel <- suppressWarnings(oes(yInSample, model=model, occurrence=occurrence, ic=ic, h=horizon,
+                                         holdout=FALSE, bounds="usual", xreg=xreg, xregDo=xregDo));
+        pFitted[] <- fitted(oesModel);
+        parametersNumber[1,3] <- nparam(oesModel);
+        # This should not happen, but just in case...
+        if(oesModel$occurrence=="n"){
+            occurrence <- "n";
+            otLogical <- rep(TRUE,obsInSample);
+            occurrenceModel <- FALSE;
+            ot <- matrix(otLogical*1,ncol=1);
+            obsNonzero <- sum(ot);
+            obsZero <- obsInSample - obsNonzero;
+            Etype[] <- switch(Etype,
+                              "M"="A",
+                              "Y"=,
+                              "Z"="X",
+                              Etype);
+            Ttype[] <- switch(Ttype,
+                              "M"="A",
+                              "Y"=,
+                              "Z"="X",
+                              Ttype);
+            Stype[] <- switch(Stype,
+                              "M"="A",
+                              "Y"=,
+                              "Z"="X",
+                              Stype);
+        }
+    }
+    else if(occurrenceModel && occurrenceModelProvided){
+        parametersNumber[2,3] <- nparam(oesModel);
+    }
+
     ##### Either estimate the model or create a pool #####
     if(modelDo=="estimate"){
-        # Deal with occurrence model
-        if(occurrenceModel && !occurrenceModelProvided){
-            oesModel <- suppressWarnings(oes(yInSample, model=model, occurrence=occurrence, ic=ic, horizon=horizon,
-                                             holdout=FALSE, bounds="usual", xreg=xreg, xregDo=xregDo));
-            pFitted[] <- fitted(oesModel);
-            parametersNumber[1,3] <- nparam(oesModel);
-
-            ####!!! If the occurrence is auto, then compare this with the model with no occurrence !!!####
-
-            # This should not happen, but just in case...
-            if(oesModel$occurrence=="n"){
-                occurrence <- "n";
-                otLogical <- rep(TRUE,obsInSample);
-                occurrenceModel <- FALSE;
-                ot <- matrix(otLogical*1,ncol=1);
-                obsNonzero <- sum(ot);
-                obsZero <- obsInSample - obsNonzero;
-                Etype[] <- switch(Etype,
-                                  "M"="A",
-                                  "Y"=,
-                                  "Z"="X",
-                                  Etype);
-                Ttype[] <- switch(Ttype,
-                                  "M"="A",
-                                  "Y"=,
-                                  "Z"="X",
-                                  Ttype);
-                Stype[] <- switch(Stype,
-                                  "M"="A",
-                                  "Y"=,
-                                  "Z"="X",
-                                  Stype);
-            }
-        }
-        else if(occurrenceModel && occurrenceModelProvided){
-            parametersNumber[2,3] <- nparam(oesModel);
-        }
-
         mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber);
         list2env(mesArchitect, environment());
 
@@ -1136,6 +1133,8 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                  bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
         list2env(esEstimator, environment());
 
+        ####!!! If the occurrence is auto, then compare this with the model with no occurrence !!!####
+
         parametersNumber[1,1] <- (sum(lagsModel)*(initialType=="optimal") + phiEstimate +
                                       componentsNumber*persistenceEstimate + xregNumber*xregInitialsEstimate +
                                       xregNumber*xregPersistenceEstimate + 1);
@@ -1152,41 +1151,6 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         stop("Sorry, model combination is not implemented yet");
     }
     else if(modelDo=="use"){
-        # Deal with occurrence model
-        if(occurrenceModel && !occurrenceModelProvided){
-            oesModel <- suppressWarnings(oes(yInSample, model=model, occurrence=occurrence, ic=ic, h=horizon,
-                                             holdout=FALSE, bounds="usual", xreg=xreg, xregDo=xregDo));
-            pFitted[] <- fitted(oesModel);
-            parametersNumber[1,3] <- nparam(oesModel);
-            # This should not happen, but just in case...
-            if(oesModel$occurrence=="n"){
-                occurrence <- "n";
-                otLogical <- rep(TRUE,obsInSample);
-                occurrenceModel <- FALSE;
-                ot <- matrix(otLogical*1,ncol=1);
-                obsNonzero <- sum(ot);
-                obsZero <- obsInSample - obsNonzero;
-                Etype[] <- switch(Etype,
-                                  "M"="A",
-                                  "Y"=,
-                                  "Z"="X",
-                                  Etype);
-                Ttype[] <- switch(Ttype,
-                                  "M"="A",
-                                  "Y"=,
-                                  "Z"="X",
-                                  Ttype);
-                Stype[] <- switch(Stype,
-                                  "M"="A",
-                                  "Y"=,
-                                  "Z"="X",
-                                  Stype);
-            }
-        }
-        else if(occurrenceModel && occurrenceModelProvided){
-            parametersNumber[2,3] <- nparam(oesModel);
-        }
-
         # If the distribution is default, change it according to the error term
         if(loss=="likelihood" && distribution=="default"){
             distributionNew <- switch(Etype,
