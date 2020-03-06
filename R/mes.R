@@ -1076,6 +1076,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                              holdout=FALSE, bounds="usual", xreg=xreg, xregDo=xregDo));
             pFitted[] <- fitted(oesModel);
             parametersNumber[1,3] <- nparam(oesModel);
+
+            ####!!! If the occurrence is auto, then compare this with the model with no occurrence !!!####
+
             # This should not happen, but just in case...
             if(oesModel$occurrence=="n"){
                 occurrence <- "n";
