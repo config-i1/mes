@@ -2155,7 +2155,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                        interval=interval,
                        level=level, side=side, ...))
     }
-    interval <- match.arg(interval,c("none", "simulated", "approximate", "semiparametric", "nonparametric","parametric"));
+    interval <- match.arg(interval[1],c("none", "simulated", "approximate", "semiparametric", "nonparametric","parametric"));
     if(interval=="parametric"){
         warning("The parameter 'interval' does not accept 'parametric' anymore. We use 'approximate' value instead.",
                 call.=FALSE)
