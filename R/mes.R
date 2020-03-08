@@ -1996,8 +1996,8 @@ sigma.mes <- function(object, ...){
                        "dt"=,
                        "ds"=,
                        "dalaplace"=sum(residuals(object)^2),
-                       "dlnorm"=,
-                       "dinvgauss"=sum(log(residuals(object))^2))
+                       "dlnorm"=sum(log(residuals(object))^2),
+                       "dinvgauss"=sum((residuals(object)-1)^2))
                 /(nobs(object)-nparam(object))));
 }
 
@@ -2253,15 +2253,18 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
     if(interval=="simulated"){
         arrVt <- array(NA, c(componentsNumber+xregNumber, h+lagsModelMax, nsim));
         arrVt[,1:lagsModelMax,] <- rep(matVt,nsim);
+        sigmaValue <- sigma(object);
         matErrors <- matrix(switch(object$distribution,
-                                   "dnorm"=rnorm(h*nsim, 0, object$scale),
-                                   "dlogis"=rlogis(h*nsim, 0, object$scale),
-                                   "dlaplace"=rlaplace(h*nsim, 0, object$scale),
-                                   "dt"=rt(h*nsim, 0, object$scale),
-                                   "ds"=rs(h*nsim, 0, object$scale),
-                                   "dalaplace"=ralaplace(h*nsim, 0, object$scale, object$lambda),
-                                   "dlnorm"=rlnorm(h*nsim, 0, object$scale)-1,
-                                   "dinvgauss"=rinvgauss(h*nsim, 1, dispersion=object$scale)-1,
+                                   "dnorm"=rnorm(h*nsim, 0, sigmaValue),
+                                   "dlogis"=rlogis(h*nsim, 0, sigmaValue*sqrt(3)/pi),
+                                   "dlaplace"=rlaplace(h*nsim, 0, sigmaValue/2),
+                                   "dt"=rt(h*nsim, nobs(object)-nparam(object)),
+                                   "ds"=rs(h*nsim, 0, (sigmaValue^2/120)^0.25),
+                                   "dalaplace"=ralaplace(h*nsim, 0,
+                                                         sqrt(sigmaValue^2*object$lambda^2*(1-object$lambda)^2/(object$lambda^2+(1-object$lambda)^2)),
+                                                         object$lambda),
+                                   "dlnorm"=rlnorm(h*nsim, 0, sigmaValue)-1,
+                                   "dinvgauss"=rinvgauss(h*nsim, 1, dispersion=sigmaValue^2)-1,
                                    ),
                             h,nsim);
         # This stuff is needed in order to produce adequate values for weird models
