@@ -6,6 +6,15 @@
 
 using namespace Rcpp;
 
+// [[Rcpp::export]]
+RcppExport SEXP matrixPowerWrap(SEXP matA, SEXP power){
+    NumericMatrix matA_n(matA);
+    arma::mat matrixA(matA_n.begin(), matA_n.nrow(), matA_n.ncol(), false);
+
+    int pow = as<int>(power);
+
+    return wrap(matrixPower(matrixA, pow));
+}
 
 /* # Function returns multiplicative or additive error for scalar */
 double errorf(double const &yact, double &yfit, char const &E){

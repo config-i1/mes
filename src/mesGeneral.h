@@ -5,6 +5,18 @@
 
 using namespace Rcpp;
 
+/* # Function is needed to estimate the correct error for ETS when multisteps model selection with r(matvt) is sorted out. */
+inline arma::mat matrixPower(arma::mat const &A, int const &power){
+    arma::mat B(A.n_rows, A.n_rows, arma::fill::eye);
+
+    if(power!=0){
+        for(int i=0; i<power; ++i){
+            B = B * A;
+        }
+    }
+    return B;
+}
+
 /* # Function returns value of w() -- y-fitted -- used in the measurement equation */
 inline double wvalue(arma::vec const &vecVt, arma::rowvec const &rowvecW,
                      char const &E, char const &T, char const &S,

@@ -6,6 +6,18 @@
 
 using namespace Rcpp;
 
+// matrixPowerWrap
+RcppExport SEXP matrixPowerWrap(SEXP matA, SEXP power);
+RcppExport SEXP _mes_matrixPowerWrap(SEXP matASEXP, SEXP powerSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type matA(matASEXP);
+    Rcpp::traits::input_parameter< SEXP >::type power(powerSEXP);
+    rcpp_result_gen = Rcpp::wrap(matrixPowerWrap(matA, power));
+    return rcpp_result_gen;
+END_RCPP
+}
 // mesFitterWrap
 RcppExport SEXP mesFitterWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP vecG, SEXP lagsModelAll, SEXP Etype, SEXP Ttype, SEXP Stype, SEXP componentsNumber, SEXP componentsNumberSeasonal, SEXP yInSample, SEXP ot, SEXP backcasting);
 RcppExport SEXP _mes_mesFitterWrap(SEXP matVtSEXP, SEXP matWtSEXP, SEXP matFSEXP, SEXP vecGSEXP, SEXP lagsModelAllSEXP, SEXP EtypeSEXP, SEXP TtypeSEXP, SEXP StypeSEXP, SEXP componentsNumberSEXP, SEXP componentsNumberSeasonalSEXP, SEXP yInSampleSEXP, SEXP otSEXP, SEXP backcastingSEXP) {
@@ -74,6 +86,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_mes_matrixPowerWrap", (DL_FUNC) &_mes_matrixPowerWrap, 2},
     {"_mes_mesFitterWrap", (DL_FUNC) &_mes_mesFitterWrap, 13},
     {"_mes_mesForecasterWrap", (DL_FUNC) &_mes_mesForecasterWrap, 11},
     {"_mes_mesSimulatorwrap", (DL_FUNC) &_mes_mesSimulatorwrap, 12},
