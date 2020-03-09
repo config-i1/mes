@@ -2426,6 +2426,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
     return(model);
 }
 
+#' @export
 print.mes.forecast <- function(object){
 
     if(object$interval!="none"){
