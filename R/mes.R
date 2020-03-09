@@ -2378,8 +2378,15 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
             yUpper[] <- yForecast*qlnorm(levelUp, 0, sqrt(vcovMulti));
         }
         else if(object$distribution=="dinvgauss"){
-            yLower[] <- yForecast*qinvgauss(levelLow, 1, dispersion=vcovMulti);
-            yUpper[] <- yForecast*qinvgauss(levelUp, 1, dispersion=vcovMulti);
+            if(errorType(object)=="A"){
+                yLower[] <- yForecast*qinvgauss(levelLow, 1, dispersion=vcovMulti);
+                yUpper[] <- yForecast*qinvgauss(levelUp, 1, dispersion=vcovMulti);
+            }
+            else{
+                vcovMulti <- mesVarAnal(h, matWt[1,,drop=FALSE], vecG, s2);
+                yLower[] <- yForecast*qinvgauss(levelLow, 1, dispersion=vcovMulti);
+                yUpper[] <- yForecast*qinvgauss(levelUp, 1, dispersion=vcovMulti);
+            }
         }
     }
     # This option will extract the matrix of multisteps errors from mes and build intervals based on that
@@ -2415,8 +2422,30 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
 
     model <- structure(list(mean=yForecast, lower=yLower, upper=yUpper, model=object,
                             level=level, interval=interval, side=side, cumulative=cumulative),
-                       class=c("smooth.forecast","forecast"));
+                       class=c("mes.forecast","smooth.forecast","forecast"));
     return(model);
+}
+
+print.mes.forecast <- function(object){
+
+    if(object$interval!="none"){
+        returnedValue <- switch(object$side,
+                                "both"=cbind(object$mean,object$lower,object$upper),
+                                "lower"=cbind(object$mean,object$lower),
+                                "upper"=cbind(object$mean,object$upper));
+        colnames(returnedValue) <- switch(object$side,
+                                          "both"=c("Point forecast",
+                                                   paste0("Lower bound (",mean((1-object$level)/2)*100,"%)"),
+                                                   paste0("Upper bound (",mean((1+object$level)/2)*100,"%)")),
+                                          "lower"=c("Point forecast",
+                                                   paste0("Lower bound (",mean((1-object$level))*100,"%)")),
+                                          "upper"=c("Point forecast",
+                                                   paste0("Upper bound (",mean(object$level)*100,"%)")));
+    }
+    else{
+        returnedValue <- object$mean;
+    }
+    print(returnedValue);
 }
 
 #' @export
