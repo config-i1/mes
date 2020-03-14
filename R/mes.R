@@ -1508,7 +1508,6 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                               xregModel, xregData, xregNumber, xregNames);
         list2env(mesCreated, environment());
 
-
         ####!!! If the occurrence is auto, then compare this with the model with no occurrence !!!####
 
         parametersNumber[1,1] <- (sum(lagsModel)*(initialType=="optimal") + phiEstimate +
@@ -2469,6 +2468,77 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
 }
 
 #' @export
+pointLik.mes <- function(object, ...){
+    distribution <- object$distribution;
+    yInSample <- actuals(object);
+    obsInSample <- nobs(object);
+    if(is.oes(object$occurrence)){
+        otLogical <- yInSample!=0;
+        yFitted <- fitted(object) / fitted(object$occurrence);
+    }
+    else{
+        otLogical <- rep(TRUE, obsInSample);
+        yFitted <- fitted(object);
+    }
+    scale <- object$scale;
+
+    likValues <- vector("numeric",obsInSample);
+    likValues[otLogical] <- switch(distribution,
+                                   "dnorm"=switch(Etype,
+                                                  "A"=dnorm(x=yInSample[otLogical], mean=yFitted[otLogical],
+                                                            sd=scale, log=TRUE),
+                                                  "M"=dnorm(x=yInSample[otLogical], mean=yFitted[otLogical],
+                                                            sd=scale*yFitted[otLogical], log=TRUE)),
+                                   "dlogis"=switch(Etype,
+                                                   "A"=dlogis(x=yInSample[otLogical], location=yFitted[otLogical],
+                                                              scale=scale, log=TRUE),
+                                                   "M"=dlogis(x=yInSample[otLogical], location=yFitted[otLogical],
+                                                              scale=scale*yFitted[otLogical], log=TRUE)),
+                                   "dlaplace"=switch(Etype,
+                                                     "A"=dlaplace(q=yInSample[otLogical], mu=yFitted[otLogical],
+                                                                  scale=scale, log=TRUE),
+                                                     "M"=dlaplace(q=yInSample[otLogical], mu=yFitted[otLogical],
+                                                                  scale=scale*yFitted[otLogical], log=TRUE)),
+                                   "dt"=switch(Etype,
+                                               "A"=dt(mesFitted$errors[otLogical], df=abs(lambda), log=TRUE),
+                                               "M"=dt(mesFitted$errors[otLogical]*yFitted[otLogical],
+                                                      df=abs(lambda), log=TRUE)),
+                                   "ds"=switch(Etype,
+                                               "A"=ds(q=yInSample[otLogical],mu=yFitted[otLogical],
+                                                      scale=scale, log=TRUE),
+                                               "M"=ds(q=yInSample[otLogical],mu=yFitted[otLogical],
+                                                      scale=scale*sqrt(yFitted[otLogical]), log=TRUE)),
+                                   "dalaplace"=switch(Etype,
+                                                      "A"=dalaplace(q=yInSample[otLogical], mu=yFitted[otLogical],
+                                                                    scale=scale, alpha=lambda, log=TRUE),
+                                                      "M"=dalaplace(q=yInSample[otLogical], mu=yFitted[otLogical],
+                                                                    scale=scale*yFitted[otLogical], alpha=lambda, log=TRUE)),
+                                   "dlnorm"=dlnorm(x=yInSample[otLogical], meanlog=log(yFitted[otLogical]),
+                                                   sdlog=scale, log=TRUE),
+                                   "dinvgauss"=dinvgauss(x=yInSample[otLogical], mean=yFitted[otLogical],
+                                                         dispersion=scale/yFitted[otLogical], log=TRUE))
+
+    # If this is a mixture model, take the respective probabilities into account (differential entropy)
+    if(is.oes(object$occurrence)){
+        likValues[!otLogical] <- -switch(distribution,
+                                         "dnorm" =,
+                                         "dlnorm" = (log(sqrt(2*pi)*scale)+0.5),
+                                         "dlogis" = 2,
+                                         "dlaplace" =,
+                                         "dalaplace" = (1 + log(2*scale)),
+                                         "dt" = ((scale+1)/2 * (digamma((scale+1)/2)-digamma(scale/2)) +
+                                                     log(sqrt(scale) * beta(scale/2,0.5))),
+                                         "ds" = (2 + 2*log(2*scale)),
+                                         "dinvgauss" = (0.5*(log(pi/2)+1+log(scale))));
+
+        likValues[] <- likValues + pointLik(object$occurrence);
+    }
+    likValues <- ts(likValues, start=start(yFitted), frequency=frequency(yFitted));
+
+    return(likValues);
+}
+
+#' @export
 print.mes <- function(x, digits=4, ...){
     cat(paste0("Time elapsed: ",round(as.numeric(x$timeElapsed,units="secs"),2)," seconds"));
     cat(paste0("\nModel estimated: ",x$model));
@@ -2556,6 +2626,28 @@ print.mesCombined <- function(x, digits=4, ...){
     cat("\nSample size: "); cat(nobs(x));
     cat("\nNumber of estimated parameters: "); cat(nparam(x));
     cat("\nNumber of degrees of freedom: "); cat(nobs(x)-nparam(x));
+}
+
+#' @export
+print.mes.forecast <- function(x, ...){
+    if(object$interval!="none"){
+        returnedValue <- switch(object$side,
+                                "both"=cbind(object$mean,object$lower,object$upper),
+                                "lower"=cbind(object$mean,object$lower),
+                                "upper"=cbind(object$mean,object$upper));
+        colnames(returnedValue) <- switch(object$side,
+                                          "both"=c("Point forecast",
+                                                   paste0("Lower bound (",mean((1-object$level)/2)*100,"%)"),
+                                                   paste0("Upper bound (",mean((1+object$level)/2)*100,"%)")),
+                                          "lower"=c("Point forecast",
+                                                   paste0("Lower bound (",mean((1-object$level))*100,"%)")),
+                                          "upper"=c("Point forecast",
+                                                   paste0("Upper bound (",mean(object$level)*100,"%)")));
+    }
+    else{
+        returnedValue <- object$mean;
+    }
+    print(returnedValue);
 }
 
 #' @importFrom stats sigma
@@ -2775,7 +2867,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                                      componentsNumber, componentsNumberSeasonal, h);
 
     # If this is a mixture model, produce forecasts for the occurrence
-    if(is.oes(object$occurrence)){
+    if(!is.null(object$occurrence)){
         occurrenceModel <- TRUE;
         pForecast <- forecast(object$occurrence,h=h)$mean;
     }
@@ -3033,28 +3125,6 @@ forecast.mesCombined <- function(object, h=10, newxreg=NULL,
     return(structure(list(mean=yForecast, lower=yLower, upper=yUpper, model=object,
                           level=level, interval=interval, side=side, cumulative=cumulative),
                      class=c("mes.forecast","smooth.forecast","forecast")));
-}
-
-#' @export
-print.mes.forecast <- function(x, ...){
-    if(object$interval!="none"){
-        returnedValue <- switch(object$side,
-                                "both"=cbind(object$mean,object$lower,object$upper),
-                                "lower"=cbind(object$mean,object$lower),
-                                "upper"=cbind(object$mean,object$upper));
-        colnames(returnedValue) <- switch(object$side,
-                                          "both"=c("Point forecast",
-                                                   paste0("Lower bound (",mean((1-object$level)/2)*100,"%)"),
-                                                   paste0("Upper bound (",mean((1+object$level)/2)*100,"%)")),
-                                          "lower"=c("Point forecast",
-                                                   paste0("Lower bound (",mean((1-object$level))*100,"%)")),
-                                          "upper"=c("Point forecast",
-                                                   paste0("Upper bound (",mean(object$level)*100,"%)")));
-    }
-    else{
-        returnedValue <- object$mean;
-    }
-    print(returnedValue);
 }
 
 #' @export
