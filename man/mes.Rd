@@ -11,7 +11,7 @@ mes(y, model = "ZZZ", lags = c(frequency(y)), distribution = c("default",
   persistence = NULL, phi = NULL, initial = c("optimal", "backcasting"),
   occurrence = c("none", "auto", "fixed", "general", "odds-ratio",
   "inverse-odds-ratio", "direct"), ic = c("AICc", "AIC", "BIC", "BICc"),
-  bounds = c("traditional", "admissible", "none"), xreg = NULL,
+  bounds = c("usual", "admissible", "none"), xreg = NULL,
   xregDo = c("use", "select"), xregInitial = NULL, xregPersistence = 0,
   silent = TRUE, ...)
 }
