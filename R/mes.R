@@ -257,7 +257,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 h=0, holdout=FALSE,
                 persistence=NULL, phi=NULL, initial=c("optimal","backcasting"),
                 occurrence=c("none","auto","fixed","general","odds-ratio","inverse-odds-ratio","direct"),
-                ic=c("AICc","AIC","BIC","BICc"), bounds=c("traditional","admissible","none"),
+                ic=c("AICc","AIC","BIC","BICc"), bounds=c("usual","admissible","none"),
                 xreg=NULL, xregDo=c("use","select"), xregInitial=NULL, xregPersistence=0,
                 silent=TRUE, ...){
     # Copyright (C) 2019 - Inf  Ivan Svetunkov
@@ -768,7 +768,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         }
 
         # Check the bounds
-        if(bounds=="traditional"){
+        if(bounds=="usual"){
             if(any(mesElements$vecG>1) || any(mesElements$vecG<0)){
                 return(1E+300);
             }
@@ -3161,6 +3161,4 @@ vcov.mes <- function(object, ...){
 ##### Other functions to implement #####
 # rmultistep.mes <- function(object, ...){}
 # accuracy.mes <- function(object, holdout, ...){}
-# vcov.mes <- function(object, ...){}
-# confint.mes <- function(object, parm, level=0.95, ...){}
 # simulate.mes <- function(object, nsim=1, seed=NULL, obs=NULL, ...){}

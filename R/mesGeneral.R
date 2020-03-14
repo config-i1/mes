@@ -543,7 +543,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
                          "BICc"=BICc);
 
     #### Bounds for the smoothing parameters ####
-    bounds <- match.arg(bounds,c("traditional","admissible","none"));
+    bounds <- match.arg(bounds,c("usual","admissible","none"));
 
     #### Explanatory variables: xreg, xregDo, xregInitial, xregPersistence ####
     xregDo <- match.arg(xregDo,c("use","select"));
