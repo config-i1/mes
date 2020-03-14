@@ -2896,7 +2896,12 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
             levelNew <- level;
         }
 
-        levelLow <- levelUp <- vector("numeric",h);
+        if(cumulative){
+            levelLow <- levelUp <- vector("numeric",1);
+        }
+        else{
+            levelLow <- levelUp <- vector("numeric",h);
+        }
         if(side=="both"){
             levelLow[] <- (1-levelNew)/2;
             levelUp[] <- (1+levelNew)/2;
@@ -3064,13 +3069,26 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
     # Fix of prediction intervals depending on what has happened
     if(interval!="none"){
         # Make sensible values out of those weird quantiles
-        if(Etype=="A"){
-            yLower[levelLow==0] <- -Inf;
+        if(!cumulative){
+            if(Etype=="A"){
+                yLower[levelLow==0] <- -Inf;
+            }
+            else{
+                yLower[levelLow==0] <- 0;
+            }
+            yUpper[levelUp==1] <- Inf;
         }
         else{
-            yLower[levelLow==0] <- 0;
+            if(Etype=="A" && (levelLow==0)){
+                yLower[] <- -Inf;
+            }
+            else if(Etype=="M" && (levelLow==0)){
+                yLower[] <- 0;
+            }
+            if(levelUp==1){
+                yUpper[] <- Inf;
+            }
         }
-        yUpper[levelUp==1] <- Inf;
 
         # Check what we have from the occurrence model
         if(occurrenceModel){
