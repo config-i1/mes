@@ -400,7 +400,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                       silent, modelDo, ParentEnvironment=environment(), ellipsis);
 
     #### The function creates the technical variables (lags etc) based on the type of the model ####
-    architector <- function(Etype, Ttype, Stype, lags, xregNumber){
+    architector <- function(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType){
         if(Ttype!="N"){
             # Make lags (1, 1) if they are not
             lagsModel <- matrix(c(1,1),ncol=1);
@@ -430,9 +430,14 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         lagsModelAll <- matrix(c(lagsModel,rep(1,xregNumber)),ncol=1);
         lagsModelMax <- max(lagsModelAll);
 
+        # Define the number of cols that should be in the matvt
+        obsStates <- obsInSample + lagsModelMax*switch(initialType,
+                                                       "backcasting"=2,
+                                                       1);
+
         return(list(lagsModel=lagsModel,lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax, lagsLength=lagsLength,
                     componentsNumber=componentsNumber, componentsNumberSeasonal=componentsNumberSeasonal,
-                    componentsNames=componentsNames));
+                    componentsNames=componentsNames, obsStates=obsStates));
     }
 
     #### The function creates the necessary matrices based on the model and provided parameters ####
@@ -999,7 +1004,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                           bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate){
 
         # Create the basic variables
-        mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber);
+        mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType);
         list2env(mesArchitect, environment());
 
         # Create the matrices for the specific ETS model
@@ -1219,12 +1224,13 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 if(j>1){
                     # If the first is better than the second, then choose first
                     if(results[[besti]]$IC <= results[[i]]$IC){
-                        # If Ttype is the same, then we checked seasonality
+                        # If Ttype is the same, then we check seasonality
                         if(substring(modelCurrent,2,2)==substring(poolSmall[bestj],2,2)){
                             poolSeasonals <- results[[besti]]$Stype;
                             checkSeasonal <- FALSE;
-                            j[] <- which(poolSmall!=poolSmall[bestj] &
-                                             substring(poolSmall,nchar(poolSmall),nchar(poolSmall))==poolSeasonals);
+                            j[] <- j+1;
+                            # j[] <- which(poolSmall!=poolSmall[bestj] &
+                                             # substring(poolSmall,nchar(poolSmall),nchar(poolSmall))==poolSeasonals);
                         }
                         # Otherwise we checked trend
                         else{
@@ -1263,6 +1269,10 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 }
                 else{
                     j <- 2;
+                }
+
+                if(j>=length(poolSmall)){
+                    check[] <- FALSE;
                 }
             }
 
@@ -1494,7 +1504,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
 
         #### This part is needed in order for the filler to do its job later on
         # Create the basic variables based on the estimated model
-        mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber);
+        mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType);
         list2env(mesArchitect, environment());
 
         # Create the matrices for the specific ETS model
@@ -1538,7 +1548,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
 
         #### This part is needed in order for the filler to do its job later on
         # Create the basic variables based on the estimated model
-        mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber);
+        mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType);
         list2env(mesArchitect, environment());
 
         # Create the matrices for the specific ETS model
@@ -1637,7 +1647,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
 
             #### This part is needed in order for the filler to do its job later on
             # Create the basic variables based on the estimated model
-            mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber);
+            mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType);
             list2env(mesArchitect, environment());
 
             mesSelected$results[[i]]$lagsModel <- mesArchitect$lagsModel;
@@ -1688,7 +1698,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         }
 
         # Create the basic variables
-        mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber);
+        mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType);
         list2env(mesArchitect, environment());
 
         # Create the matrices for the specific ETS model
