@@ -2630,22 +2630,22 @@ print.mesCombined <- function(x, digits=4, ...){
 
 #' @export
 print.mes.forecast <- function(x, ...){
-    if(object$interval!="none"){
-        returnedValue <- switch(object$side,
-                                "both"=cbind(object$mean,object$lower,object$upper),
-                                "lower"=cbind(object$mean,object$lower),
-                                "upper"=cbind(object$mean,object$upper));
-        colnames(returnedValue) <- switch(object$side,
+    if(x$interval!="none"){
+        returnedValue <- switch(x$side,
+                                "both"=cbind(x$mean,x$lower,x$upper),
+                                "lower"=cbind(x$mean,x$lower),
+                                "upper"=cbind(x$mean,x$upper));
+        colnames(returnedValue) <- switch(x$side,
                                           "both"=c("Point forecast",
-                                                   paste0("Lower bound (",mean((1-object$level)/2)*100,"%)"),
-                                                   paste0("Upper bound (",mean((1+object$level)/2)*100,"%)")),
+                                                   paste0("Lower bound (",mean((1-x$level)/2)*100,"%)"),
+                                                   paste0("Upper bound (",mean((1+x$level)/2)*100,"%)")),
                                           "lower"=c("Point forecast",
-                                                   paste0("Lower bound (",mean((1-object$level))*100,"%)")),
+                                                   paste0("Lower bound (",mean((1-x$level))*100,"%)")),
                                           "upper"=c("Point forecast",
-                                                   paste0("Upper bound (",mean(object$level)*100,"%)")));
+                                                   paste0("Upper bound (",mean(x$level)*100,"%)")));
     }
     else{
-        returnedValue <- object$mean;
+        returnedValue <- x$mean;
     }
     print(returnedValue);
 }
