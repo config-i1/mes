@@ -235,9 +235,9 @@
 #' # Model selection using a specified pool of models
 #' ourModel <- mes(rnorm(100,100,10), model=c("ANN","ANA","AAA"), lags=c(5,10))
 #'
-#' \dontrun{summary(ourModel)}
-#' \dontrun{forecast(ourModel)}
-#' \dontrun{plot(forecast(ourModel))}
+#' summary(ourModel)
+#' forecast(ourModel)
+#' plot(forecast(ourModel))
 #'
 #' @importFrom forecast forecast
 #' @importFrom greybox dlaplace dalaplace ds stepwise alm
@@ -606,9 +606,12 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         j <- 1;
         # Fill in persistence
         if(persistenceEstimate){
-            B[j:componentsNumber] <- switch(Etype,
-                                            "A"=c(0.2,0.1,rep(0.1,componentsNumberSeasonal)),
-                                            "M"=c(0.01,0.005,rep(0.01,componentsNumberSeasonal)))[j:componentsNumber];
+            if(any(c(Etype,Ttype,Stype)=="M")){
+                B[j:componentsNumber] <- c(0.01,0.005,rep(0.01,componentsNumberSeasonal))[j:componentsNumber];
+            }
+            else{
+                B[j:componentsNumber] <- c(0.1,0.05,rep(0.1,componentsNumberSeasonal))[j:componentsNumber];
+            }
             Bl[j:componentsNumber] <- rep(-5, componentsNumber);
             Bu[j:componentsNumber] <- rep(5, componentsNumber);
             names(B)[1] <- "alpha";
@@ -784,7 +787,8 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         if(!multisteps){
             if(loss=="likelihood"){
                 # Scale for different functions
-                scale <- scaler(distribution, Etype, mesFitted$errors[otLogical], mesFitted$yFitted[otLogical], obsInSample, lambda);
+                scale <- scaler(distribution, Etype, mesFitted$errors[otLogical],
+                                mesFitted$yFitted[otLogical], obsInSample, lambda);
 
                 # Calculate the likelihood
                 CFValue <- -sum(switch(distribution,
@@ -981,10 +985,8 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     }
 
     #### The function estimates the ETS model and returns B, logLik, nParam and CF(B) ####
-    estimator <- function(Etype, Ttype, Stype,
-                          lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
-                          obsStates, obsInSample, componentsNumber, componentsNames,
-                          componentsNumberSeasonal,
+    estimator <- function(Etype, Ttype, Stype, lags,
+                          obsStates, obsInSample,
                           yInSample, persistence, persistenceEstimate, phi, phiEstimate,
                           initialType, initialValue,
                           xregProvided, xregInitialsProvided, xregInitialsEstimate,
@@ -993,6 +995,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                           ot, otLogical, occurrenceModel, pFitted,
                           bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate){
 
+        # Create the basic variables
         mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber);
         list2env(mesArchitect, environment());
 
@@ -1013,8 +1016,8 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                    xregInitialsEstimate, xregPersistenceEstimate, xregNumber, lambdaEstimate);
             # Create the vector of initials for the optimisation
             B <- BValues$B;
-            lb <- BValues$Bl;
-            ub <- BValues$Bu;
+            # lb <- BValues$Bl;
+            # ub <- BValues$Bu;
         }
 
         # If the distribution is default, change it according to the error term
@@ -1028,18 +1031,19 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         }
 
         # Parameters are chosen to speed up the optimisation process and have decent accuracy
-        res <- nloptr(B, CF, lb=lb, ub=ub,
-                      opts=list(algorithm=algorithm, xtol_rel=xtol_rel, maxeval=maxeval, maxtime=maxtime, print_level=print_level),
-                      Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
-                      ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, obsInSample=obsInSample,
-                      componentsNumber=componentsNumber, lagsModel=lagsModel, lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
-                      matVt=mesCreated$matVt, matWt=mesCreated$matWt, matF=mesCreated$matF, vecG=mesCreated$vecG,
-                      componentsNumberSeasonal=componentsNumberSeasonal,
-                      persistenceEstimate=persistenceEstimate, phiEstimate=phiEstimate, initialType=initialType,
-                      xregProvided=xregProvided, xregInitialsEstimate=xregInitialsEstimate,
-                      xregPersistenceEstimate=xregPersistenceEstimate, xregNumber=xregNumber,
-                      bounds=bounds, loss=loss, distribution=distributionNew, horizon=horizon, multisteps=multisteps,
-                      lambda=lambda, lambdaEstimate=lambdaEstimate);
+        res <- suppressWarnings(nloptr(B, CF, lb=lb, ub=ub,
+                                       opts=list(algorithm=algorithm, xtol_rel=xtol_rel, maxeval=maxeval,
+                                                 maxtime=maxtime, print_level=print_level),
+                                       Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
+                                       ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, obsInSample=obsInSample,
+                                       componentsNumber=componentsNumber, lagsModel=lagsModel, lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
+                                       matVt=mesCreated$matVt, matWt=mesCreated$matWt, matF=mesCreated$matF, vecG=mesCreated$vecG,
+                                       componentsNumberSeasonal=componentsNumberSeasonal,
+                                       persistenceEstimate=persistenceEstimate, phiEstimate=phiEstimate, initialType=initialType,
+                                       xregProvided=xregProvided, xregInitialsEstimate=xregInitialsEstimate,
+                                       xregPersistenceEstimate=xregPersistenceEstimate, xregNumber=xregNumber,
+                                       bounds=bounds, loss=loss, distribution=distributionNew, horizon=horizon, multisteps=multisteps,
+                                       lambda=lambda, lambdaEstimate=lambdaEstimate));
 
         ##### !!! Check the obtained parameters and the loss value and remove redundant parameters !!! #####
         # Cases to consider:
@@ -1051,17 +1055,287 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         CFValue <- res$objective;
         # In case of likelihood, we typically have one more parameter to estimate - scale
         nParamEstimated <- length(B) + (loss=="likelihood");
-        logLikMESValue <- logLikMES(B,
-                                    Etype, Ttype, Stype, yInSample,
-                                    ot, otLogical, occurrenceModel, pFitted, obsInSample,
-                                    componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
-                                    mesCreated$matVt, mesCreated$matWt, mesCreated$matF, mesCreated$vecG, componentsNumberSeasonal,
-                                    persistenceEstimate, phiEstimate, initialType,
-                                    xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
-                                    xregNumber,
-                                    bounds, loss, distributionNew, horizon, multisteps, lambda, lambdaEstimate);
+        # Return a proper logLik class
+        logLikMESValue <- structure(logLikMES(B,
+                                              Etype, Ttype, Stype, yInSample,
+                                              ot, otLogical, occurrenceModel, pFitted, obsInSample,
+                                              componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
+                                              mesCreated$matVt, mesCreated$matWt, mesCreated$matF, mesCreated$vecG, componentsNumberSeasonal,
+                                              persistenceEstimate, phiEstimate, initialType,
+                                              xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
+                                              xregNumber,
+                                              bounds, loss, distributionNew, horizon, multisteps, lambda, lambdaEstimate)
+                                    ,nobs=obsInSample,df=nParamEstimated,class="logLik");
 
         return(list(B=B, CFValue=CFValue, nParamEstimated=nParamEstimated, logLikMESValue=logLikMESValue));
+    }
+
+
+    #### The function creates a pool of models and selects the best of them ####
+    selector <- function(model, modelsPool, allowMultiplicative,
+                         Etype, Ttype, Stype, damped, lags,
+                         obsStates, obsInSample,
+                         yInSample, persistence, persistenceEstimate, phi, phiEstimate,
+                         initialType, initialValue,
+                         xregProvided, xregInitialsProvided, xregInitialsEstimate,
+                         xregPersistence, xregPersistenceEstimate,
+                         xregModel, xregData, xregNumber, xregNames,
+                         ot, otLogical, occurrenceModel, pFitted, ICFunction,
+                         bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate){
+
+        # Check if the pool was provided. In case of "no", form the big and the small ones
+        if(is.null(modelsPool)){
+            # The variable saying that the pool was not provided.
+            modelsPoolAuto <- TRUE;
+            if(!silent){
+                cat("Forming the pool of models based on... ");
+            }
+
+            # Define the whole pool of errors
+            if(!allowMultiplicative){
+                poolErrors <- c("A");
+                poolTrends <- c("N","A","Ad");
+                poolSeasonals <- c("N","A");
+            }
+            else{
+                poolErrors <- c("A","M");
+                poolTrends <- c("N","A","Ad","M","Md");
+                poolSeasonals <- c("N","A","M");
+            }
+
+            # Some preparation variables
+            # If Etype is not Z, then check on additive errors
+            if(Etype!="Z"){
+                poolErrors <- poolErrorsSmall <- Etype;
+            }
+            else{
+                poolErrorsSmall <- "A";
+            }
+
+            # If Ttype is not Z, then create a pool with specified type
+            if(Ttype!="Z"){
+                if(Ttype=="X"){
+                    poolTrendsSmall <- c("N","A");
+                    poolTrends <- c("N","A","Ad");
+                    checkTrend <- TRUE;
+                }
+                else if(Ttype=="Y"){
+                    poolTrendsSmall <- c("N","M");
+                    poolTrends <- c("N","M","Md");
+                    checkTrend <- TRUE;
+                }
+                else{
+                    if(damped){
+                        poolTrends <- poolTrendsSmall <- paste0(Ttype,"d");
+                    }
+                    else{
+                        poolTrends <- poolTrendsSmall <- Ttype;
+                    }
+                    checkTrend <- FALSE;
+                }
+            }
+            else{
+                poolTrendsSmall <- c("N","A");
+                checkTrend <- TRUE;
+            }
+
+            # If Stype is not Z, then crete specific pools
+            if(Stype!="Z"){
+                if(Stype=="X"){
+                    poolSeasonals <- poolSeasonalsSmall <- c("N","A");
+                    checkSeasonal <- TRUE;
+                }
+                else if(Stype=="Y"){
+                    poolSeasonalsSmall <- c("N","M");
+                    poolSeasonals <- c("N","M");
+                    checkSeasonal <- TRUE;
+                }
+                else{
+                    poolSeasonalsSmall <- Stype;
+                    poolSeasonals <- Stype;
+                    checkSeasonal <- FALSE;
+                }
+            }
+            else{
+                poolSeasonalsSmall <- c("N","A","M");
+                checkSeasonal <- TRUE;
+            }
+
+            # If ZZZ, then the vector is: "ANN" "ANA" "ANM" "AAN" "AAA" "AAM"
+            # Otherwise id depends on the provided restrictions
+            poolSmall <- paste0(rep(poolErrorsSmall,length(poolTrendsSmall)*length(poolSeasonalsSmall)),
+                                 rep(poolTrendsSmall,each=length(poolSeasonalsSmall)),
+                                 rep(poolSeasonalsSmall,length(poolTrendsSmall)));
+            modelsTested <- NULL;
+            modelCurrent <- NA;
+
+            # Counter + checks for the components
+            j <- 1;
+            i <- 0;
+            check <- TRUE;
+            besti <- bestj <- 1;
+            results <- vector("list",length(poolSmall));
+
+            #### Branch and bound is here ####
+            while(check){
+                i <- i + 1;
+                modelCurrent[] <- poolSmall[j];
+                if(!silent){
+                    cat(paste0(modelCurrent,", "));
+                }
+                Etype[] <- substring(modelCurrent,1,1);
+                Ttype[] <- substring(modelCurrent,2,2);
+                if(nchar(modelCurrent)==4){
+                    phi[] <- 0.95;
+                    phiEstimate[] <- TRUE;
+                    Stype[] <- substring(modelCurrent,4,4);
+                }
+                else{
+                    phi <- 1;
+                    phiEstimate[] <- FALSE;
+                    Stype[] <- substring(modelCurrent,3,3);
+                }
+
+                results[[i]] <- estimator(Etype, Ttype, Stype, lags,
+                                          obsStates, obsInSample,
+                                          yInSample, persistence, persistenceEstimate, phi, phiEstimate,
+                                          initialType, initialValue,
+                                          xregProvided, xregInitialsProvided, xregInitialsEstimate,
+                                          xregPersistence, xregPersistenceEstimate,
+                                          xregModel, xregData, xregNumber, xregNames,
+                                          ot, otLogical, occurrenceModel, pFitted,
+                                          bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
+                results[[i]]$IC <- ICFunction(results[[i]]$logLikMESValue);
+                results[[i]]$Etype <- Etype;
+                results[[i]]$Ttype <- Ttype;
+                results[[i]]$Stype <- Stype;
+                results[[i]]$phiEstimate <- phiEstimate;
+                results[[i]]$model <- modelCurrent;
+
+                modelsTested <- c(modelsTested,modelCurrent);
+
+                if(j>1){
+                    # If the first is better than the second, then choose first
+                    if(results[[besti]]$IC <= results[[i]]$IC){
+                        # If Ttype is the same, then we checked seasonality
+                        if(substring(modelCurrent,2,2)==substring(poolSmall[bestj],2,2)){
+                            poolSeasonals <- results[[besti]]$Stype;
+                            checkSeasonal <- FALSE;
+                            j[] <- which(poolSmall!=poolSmall[bestj] &
+                                             substring(poolSmall,nchar(poolSmall),nchar(poolSmall))==poolSeasonals);
+                        }
+                        # Otherwise we checked trend
+                        else{
+                            poolTrends <- results[[bestj]]$Ttype;
+                            checkTrend[] <- FALSE;
+                        }
+                    }
+                    else{
+                        if(substring(modelCurrent,2,2) == substring(poolSmall[besti],2,2)){
+                            poolSeasonals <- poolSeasonals[poolSeasonals!=results[[besti]]$Stype];
+                            if(length(poolSeasonals)>1){
+                                # Select another seasonal model, that is not from the previous iteration and not the current one
+                                bestj[] <- j;
+                                besti[] <- i;
+                                j[] <- 3;
+                            }
+                            else{
+                                bestj[] <- j;
+                                besti[] <- i;
+                                j[] <- which(substring(poolSmall,nchar(poolSmall),nchar(poolSmall))==poolSeasonals &
+                                                 substring(poolSmall,2,2)!=substring(modelCurrent,2,2));
+                                checkSeasonal[] <- FALSE;
+                            }
+                        }
+                        else{
+                            poolTrends <- poolTrends[poolTrends!=results[[bestj]]$Ttype];
+                            besti[] <- i;
+                            bestj[] <- j;
+                            checkTrend[] <- FALSE;
+                        }
+                    }
+
+                    if(all(!c(checkTrend,checkSeasonal))){
+                        check[] <- FALSE;
+                    }
+                }
+                else{
+                    j <- 2;
+                }
+            }
+
+            # Prepare a bigger pool based on the small one
+            modelsPool <- unique(c(modelsTested,
+                                   paste0(rep(poolErrors,each=length(poolTrends)*length(poolSeasonals)),
+                                          poolTrends,
+                                          rep(poolSeasonals,each=length(poolTrends)))));
+            j <- length(modelsTested);
+        }
+        else{
+            modelsPoolAuto <- FALSE;
+            j <- 0;
+            results <- vector("list",length(modelsPool));
+        }
+        modelsNumber <- length(modelsPool);
+
+        #### Run the full pool of models ####
+        if(!silent){
+            cat("Estimation progress:    ");
+        }
+        # Start loop of models
+        while(j < modelsNumber){
+            j <- j + 1;
+            if(!silent){
+                if(j==1){
+                    cat("\b");
+                }
+                cat(paste0(rep("\b",nchar(round((j-1)/modelsNumber,2)*100)+1),collapse=""));
+                cat(paste0(round(j/modelsNumber,2)*100,"%"));
+            }
+
+            modelCurrent <- modelsPool[j];
+            Etype <- substring(modelCurrent,1,1);
+            Ttype <- substring(modelCurrent,2,2);
+            if(nchar(modelCurrent)==4){
+                phi <- 0.95;
+                Stype <- substring(modelCurrent,4,4);
+            }
+            else{
+                phi <- 1;
+                Stype <- substring(modelCurrent,3,3);
+            }
+
+            results[[j]] <- estimator(Etype, Ttype, Stype, lags,
+                                      obsStates, obsInSample,
+                                      yInSample, persistence, persistenceEstimate, phi, phiEstimate,
+                                      initialType, initialValue,
+                                      xregProvided, xregInitialsProvided, xregInitialsEstimate,
+                                      xregPersistence, xregPersistenceEstimate,
+                                      xregModel, xregData, xregNumber, xregNames,
+                                      ot, otLogical, occurrenceModel, pFitted,
+                                      bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
+            results[[j]]$IC <- ICFunction(results[[j]]$logLikMESValue);
+            results[[j]]$Etype <- Etype;
+            results[[j]]$Ttype <- Ttype;
+            results[[j]]$Stype <- Stype;
+            results[[j]]$phiEstimate <- phiEstimate;
+            results[[j]]$model <- modelCurrent;
+        }
+
+        if(!silent){
+            cat("... Done! \n");
+        }
+
+        # Extract ICs and find the best
+        icSelection <- vector("numeric",modelsNumber);
+        for(i in 1:modelsNumber){
+            icSelection[i] <- results[[i]]$IC;
+        }
+        names(icSelection) <- modelsPool;
+
+        icSelection[is.nan(icSelection)] <- 1E100;
+
+        return(list(results=results,icSelection=icSelection));
     }
 
     ##### !!!! This function will use residuals in order to determine the needed xreg !!!! #####
@@ -1103,8 +1377,22 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         parametersNumber[2,3] <- nparam(oesModel);
     }
 
-    ##### Either estimate the model or create a pool #####
+    ##### Estimate the specified model #####
     if(modelDo=="estimate"){
+        # Estimate the parameters of the demand sizes model
+        mesEstimated <- estimator(Etype, Ttype, Stype, lags,
+                                 obsStates, obsInSample,
+                                 yInSample, persistence, persistenceEstimate, phi, phiEstimate,
+                                 initialType, initialValue,
+                                 xregProvided, xregInitialsProvided, xregInitialsEstimate,
+                                 xregPersistence, xregPersistenceEstimate,
+                                 xregModel, xregData, xregNumber, xregNames,
+                                 ot, otLogical, occurrenceModel, pFitted,
+                                 bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
+        list2env(mesEstimated, environment());
+
+        #### This part is needed in order for the filler to do its job later on
+        # Create the basic variables based on the estimated model
         mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber);
         list2env(mesArchitect, environment());
 
@@ -1119,19 +1407,6 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                               xregModel, xregData, xregNumber, xregNames);
         list2env(mesCreated, environment());
 
-        # Estimate the parameters of the demand sizes model
-        esEstimator <- estimator(Etype, Ttype, Stype,
-                                 lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
-                                 obsStates, obsInSample, componentsNumber, componentsNames,
-                                 componentsNumberSeasonal,
-                                 yInSample, persistence, persistenceEstimate, phi, phiEstimate,
-                                 initialType, initialValue,
-                                 xregProvided, xregInitialsProvided, xregInitialsEstimate,
-                                 xregPersistence, xregPersistenceEstimate,
-                                 xregModel, xregData, xregNumber, xregNames,
-                                 ot, otLogical, occurrenceModel, pFitted,
-                                 bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
-        list2env(esEstimator, environment());
 
         ####!!! If the occurrence is auto, then compare this with the model with no occurrence !!!####
 
@@ -1144,8 +1419,47 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         parametersNumber[1,4] <- sum(parametersNumber[1,1:3]);
         parametersNumber[2,4] <- sum(parametersNumber[2,1:3]);
     }
+    #### Selection of the best model ####
     else if(modelDo=="select"){
-        stop("Sorry, model selection is not implemented yet");
+        mesSelected <-  selector(model, modelsPool, allowMultiplicative,
+                                 Etype, Ttype, Stype, damped, lags,
+                                 obsStates, obsInSample,
+                                 yInSample, persistence, persistenceEstimate, phi, phiEstimate,
+                                 initialType, initialValue,
+                                 xregProvided, xregInitialsProvided, xregInitialsEstimate,
+                                 xregPersistence, xregPersistenceEstimate,
+                                 xregModel, xregData, xregNumber, xregNames,
+                                 ot, otLogical, occurrenceModel, pFitted, ICFunction,
+                                 bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
+
+        icSelection <- mesSelected$icSelection;
+        # Take the parameters of the best model
+        list2env(mesSelected$results[[which.min(icSelection)[1]]], environment());
+
+        #### This part is needed in order for the filler to do its job later on
+        # Create the basic variables based on the estimated model
+        mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber);
+        list2env(mesArchitect, environment());
+
+        # Create the matrices for the specific ETS model
+        mesCreated <- creator(Etype, Ttype, Stype,
+                              lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
+                              obsStates, obsInSample, componentsNumber, componentsNumberSeasonal,
+                              componentsNames, otLogical,
+                              yInSample, persistence, persistenceEstimate, phi,
+                              initialValue, initialType,
+                              xregProvided, xregInitialsProvided, xregPersistence,
+                              xregModel, xregData, xregNumber, xregNames);
+        list2env(mesCreated, environment());
+
+        parametersNumber[1,1] <- (sum(lagsModel)*(initialType=="optimal") + phiEstimate +
+                                      componentsNumber*persistenceEstimate + xregNumber*xregInitialsEstimate +
+                                      xregNumber*xregPersistenceEstimate + 1);
+        if(xregProvided){
+            parametersNumber[1,2] <- xregNumber*xregInitialsEstimate + xregNumber*xregPersistenceEstimate;
+        }
+        parametersNumber[1,4] <- sum(parametersNumber[1,1:3]);
+        parametersNumber[2,4] <- sum(parametersNumber[2,1:3]);
     }
     else if(modelDo=="combine"){
         stop("Sorry, model combination is not implemented yet");
@@ -1161,6 +1475,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             distributionNew <- distribution;
         }
 
+        # Create the basic variables
         mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber);
         list2env(mesArchitect, environment());
 
@@ -1187,15 +1502,16 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                       lambda=lambda, lambdaEstimate=lambdaEstimate);
 
         parametersNumber[1,1] <- parametersNumber[1,4] <- 1;
-        logLikMESValue <- logLikMES(B,
-                                    Etype, Ttype, Stype, yInSample,
-                                    ot, otLogical, occurrenceModel, pFitted, obsInSample,
-                                    componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
-                                    mesCreated$matVt, mesCreated$matWt, mesCreated$matF, mesCreated$vecG, componentsNumberSeasonal,
-                                    persistenceEstimate, phiEstimate, initialType,
-                                    xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
-                                    xregNumber,
-                                    bounds, loss, distributionNew, horizon, multisteps, lambda, lambdaEstimate);
+        logLikMESValue <- structure(logLikMES(B,
+                                              Etype, Ttype, Stype, yInSample,
+                                              ot, otLogical, occurrenceModel, pFitted, obsInSample,
+                                              componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
+                                              mesCreated$matVt, mesCreated$matWt, mesCreated$matF, mesCreated$vecG, componentsNumberSeasonal,
+                                              persistenceEstimate, phiEstimate, initialType,
+                                              xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
+                                              xregNumber,
+                                              bounds, loss, distributionNew, horizon, multisteps, lambda, lambdaEstimate)
+                                    ,nobs=obsInSample,df=parametersNumber[1,4],class="logLik")
 
         # If Fisher Information is required, do that analytically
         if(FI){
@@ -1266,9 +1582,13 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                           persistenceEstimate, phiEstimate, initialType,
                           xregInitialsEstimate, xregPersistenceEstimate, xregNumber);
     list2env(mesElements, environment());
+
+    # Write down lambda
     if(lambdaEstimate){
         lambda[] <- tail(B,1);
     }
+
+    # Write down phi
     if(phiEstimate){
         phi[] <- B[names(B)=="phi"];
     }
@@ -1372,6 +1692,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     return(model);
 }
 
+#### Methods for mes ####
 confint.mes <- function(object, parm, level=0.95, ...){
     mesVcov <- vcov(object);
     mesSD <- sqrt(abs(diag(mesVcov)));
@@ -1424,6 +1745,7 @@ residuals.mes <- function(object, ...){
                                      "M"=1+object$residuals)));
 }
 
+#' @importFrom stats rstandard
 #' @export
 rstandard.mes <- function(model, ...){
     obs <- nobs(model);
@@ -1454,6 +1776,7 @@ rstandard.mes <- function(model, ...){
     }
 }
 
+#' @importFrom stats rstudent
 #' @export
 rstudent.mes <- function(model, ...){
     obs <- nobs(model);
@@ -1957,7 +2280,7 @@ print.mes <- function(x, digits=4, ...){
 
     if(!is.null(x$phi)){
         if(gregexpr("d",x$model)!=-1){
-            cat(paste0("\nDamping parameter: ", round(x$phi,digits),"\n"));
+            cat(paste0("Damping parameter: ", round(x$phi,digits),"\n"));
         }
     }
 
@@ -1987,6 +2310,7 @@ print.mes <- function(x, digits=4, ...){
     }
 }
 
+#' @importFrom stats sigma
 #' @export
 sigma.mes <- function(object, ...){
     return(sqrt(switch(object$distribution,
@@ -2427,8 +2751,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
 }
 
 #' @export
-print.mes.forecast <- function(object){
-
+print.mes.forecast <- function(x, ...){
     if(object$interval!="none"){
         returnedValue <- switch(object$side,
                                 "both"=cbind(object$mean,object$lower,object$upper),

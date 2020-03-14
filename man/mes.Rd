@@ -260,9 +260,9 @@ vignette: \code{vignette("mes","mes")}.
 # Model selection using a specified pool of models
 ourModel <- mes(rnorm(100,100,10), model=c("ANN","ANA","AAA"), lags=c(5,10))
 
-\dontrun{summary(ourModel)}
-\dontrun{forecast(ourModel)}
-\dontrun{plot(forecast(ourModel))}
+summary(ourModel)
+forecast(ourModel)
+plot(forecast(ourModel))
 
 }
 \references{

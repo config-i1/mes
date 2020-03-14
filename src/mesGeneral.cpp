@@ -115,13 +115,17 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
                               gvalue(matrixVt(lagrows), matrixF, matrixWt.row(i-lagsModelMax), E, T, S,
                                      nNonSeasonal, nSeasonal, nComponents) % vectorG * vecErrors(i-lagsModelMax);
 
+            // Failsafe for mixed models having negative values
+            if(((E=='M') || (T=='M') || (S=='M')) && any(matrixVt.col(i)<=0)){
+                matrixVt.col(i) = matrixVt(lagrows);
+            }
+            // Failsafe for cases, when nan values appear
+            if(matrixVt.col(i).has_nan()){
+                matrixVt.col(i) = matrixVt(lagrows);
+            }
             /* Failsafe for cases when unreasonable value for state vector was produced */
             if(!matrixVt.col(i).is_finite()){
                 matrixVt.col(i) = matrixVt(lagrows);
-            }
-            // This is only for one seasonal
-            if((S=='M') && (matrixVt(nNonSeasonal,i) <= 0)){
-                matrixVt(nNonSeasonal,i) = arma::as_scalar(matrixVt(lagrows.row(nNonSeasonal)));
             }
             if(T=='M'){
                 if((matrixVt(0,i) <= 0) | (matrixVt(1,i) <= 0)){
@@ -190,12 +194,17 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
                                   gvalue(matrixVt(lagrows), matrixF, matrixWt.row(i-lagsModelMax), E, T, S,
                                          nNonSeasonal, nSeasonal, nComponents) % vectorG * vecErrors(i-lagsModelMax);
 
+                // Failsafe for mixed models having negative values
+                if(((E=='M') || (T=='M') || (S=='M')) && any(matrixVt.col(i)<=0)){
+                    matrixVt.col(i) = matrixVt(lagrows);
+                }
+                // Failsafe for cases, when nan values appear
+                if(matrixVt.col(i).has_nan()){
+                    matrixVt.col(i) = matrixVt(lagrows);
+                }
                 /* Failsafe for cases when unreasonable value for state vector was produced */
                 if(!matrixVt.col(i).is_finite()){
                     matrixVt.col(i) = matrixVt(lagrows);
-                }
-                if((S=='M') && (matrixVt(nNonSeasonal,i) <= 0)){
-                    matrixVt(nNonSeasonal,i) = arma::as_scalar(matrixVt(lagrows.row(nNonSeasonal)));
                 }
                 if(T=='M'){
                     if((matrixVt(0,i) <= 0) | (matrixVt(1,i) <= 0)){

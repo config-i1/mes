@@ -522,6 +522,9 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
         occurrenceModel <- TRUE;
     }
 
+    # Check if multiplicative models can be fitted
+    allowMultiplicative <- !((any(yInSample<=0) && !occurrenceModel) || (occurrenceModel && any(yInSample<0)));
+
     ot <- matrix(otLogical*1,ncol=1);
     obsNonzero <- sum(ot);
     obsZero <- obsInSample - obsNonzero;
@@ -533,6 +536,11 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
 
     #### Information Criteria ####
     ic <- match.arg(ic,c("AICc","AIC","BIC","BICc"));
+    ICFunction <- switch(ic,
+                         "AIC"=AIC,
+                         "AICc"=AICc,
+                         "BIC"=BIC,
+                         "BICc"=BICc);
 
     #### Bounds for the smoothing parameters ####
     bounds <- match.arg(bounds,c("traditional","admissible","none"));
@@ -758,6 +766,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     assign("damped",damped,ParentEnvironment);
     assign("modelDo",modelDo,ParentEnvironment);
     assign("modelIsSeasonal",modelIsSeasonal,ParentEnvironment);
+    assign("allowMultiplicative",allowMultiplicative,ParentEnvironment);
     assign("componentsNames",componentsNames,ParentEnvironment);
     assign("componentsNumber",componentsNumber,ParentEnvironment);
     assign("componentsNumberSeasonal",componentsNumberSeasonal,ParentEnvironment);
@@ -791,6 +800,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     assign("loss",loss,ParentEnvironment);
     assign("multisteps",multisteps,ParentEnvironment);
     assign("ic",ic,ParentEnvironment);
+    assign("ICFunction",ICFunction,ParentEnvironment);
     assign("bounds",bounds,ParentEnvironment);
 
     # Explanatory variables
