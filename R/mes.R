@@ -239,6 +239,9 @@
 #' forecast(ourModel)
 #' plot(forecast(ourModel))
 #'
+#' # Model combination using a specified pool
+#' ourModel <- mes(rnorm(100,100,10), model=c("ANN","AAN","MNN","CCC"), lags=c(5,10))
+#'
 #' @importFrom forecast forecast
 #' @importFrom greybox dlaplace dalaplace ds stepwise alm
 #' @importFrom stats dnorm dlogis dt dlnorm frequency
@@ -1086,7 +1089,6 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         # Check if the pool was provided. In case of "no", form the big and the small ones
         if(is.null(modelsPool)){
             # The variable saying that the pool was not provided.
-            modelsPoolAuto <- TRUE;
             if(!silent){
                 cat("Forming the pool of models based on... ");
             }
@@ -1272,7 +1274,6 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             j <- length(modelsTested);
         }
         else{
-            modelsPoolAuto <- FALSE;
             j <- 0;
             results <- vector("list",length(modelsPool));
         }
@@ -1341,6 +1342,106 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     ##### !!!! This function will use residuals in order to determine the needed xreg !!!! #####
     # XregSelector <- function(listToReturn){
     # }
+
+    ##### Function prepares all the matrices and vectors for return #####
+    preparator <- function(B, Etype, Ttype, Stype,
+                           lagsModel, lagsModelMax, lagsModelAll,
+                           componentsNumber, componentsNumberSeasonal,
+                           xregNumber, distribution, loss,
+                           persistenceEstimate, phiEstimate, lambdaEstimate, initialType,
+                           xregInitialsEstimate, xregPersistenceEstimate,
+                           matVt, matWt, matF, vecG,
+                           occurrenceModel, ot, oesModel,
+                           parametersNumber, CFValue){
+
+        # Fill in the matrices
+        mesElements <- filler(B,
+                              Ttype, Stype, componentsNumber, lagsModel, lagsModelMax,
+                              matVt, matWt, matF, vecG,
+                              persistenceEstimate, phiEstimate, initialType,
+                              xregInitialsEstimate, xregPersistenceEstimate, xregNumber);
+        list2env(mesElements, environment());
+
+        # Write down lambda
+        if(lambdaEstimate){
+            lambda[] <- tail(B,1);
+        }
+
+        # Write down phi
+        if(phiEstimate){
+            phi[] <- B[names(B)=="phi"];
+        }
+
+        # Fit the model to the data
+        mesFitted <- mesFitterWrap(matVt, matWt, matF, vecG,
+                                   lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal,
+                                   yInSample, ot, initialType=="backcasting");
+
+        errors <- mesFitted$errors;
+        yFitted <- mesFitted$yFitted;
+        if(occurrenceModel){
+            yFitted[] <- yFitted * pFitted;
+        }
+
+        matVt[] <- mesFitted$matVt;
+        if(initialType=="backcasting"){
+            matVt <- matVt[,1:(obsInSample+lagsModelMax), drop=FALSE];
+        }
+
+        if(horizon>0){
+            yForecast <- ts(rep(NA, horizon), start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
+            mesForecast <- mesForecasterWrap(matVt[,obsInSample+(1:lagsModelMax),drop=FALSE], tail(matWt,horizon), matF, vecG,
+                                             lagsModelAll, Etype, Ttype, Stype,
+                                             componentsNumber, componentsNumberSeasonal, horizon);
+            yForecast[] <- mesForecast$yForecast;
+            if(occurrenceModel){
+                yForecast[] <- yForecast * forecast(oesModel, h=h)$mean;
+            }
+        }
+        else{
+            yForecast <- ts(NA, start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
+        }
+
+        # If the distribution is default, change it according to the error term
+        if(loss=="likelihood" && distribution=="default"){
+            distribution[] <- switch(Etype,
+                                     "A"="dnorm",
+                                     "M"="dinvgauss");
+        }
+
+        if(initialType=="optimal"){
+            initialValue <- vector("numeric", sum(lagsModelAll));
+            j <- 0;
+            for(i in 1:length(lagsModelAll)){
+                initialValue[j+1:lagsModelAll[i]] <- matVt[i,1:lagsModelAll[i]];
+                j <- j + lagsModelAll[i];
+            }
+        }
+
+        if(persistenceEstimate){
+            persistence <- vecG[1:componentsNumber,];
+            names(persistence) <- rownames(vecG)[1:componentsNumber];
+        }
+
+        if(xregPersistenceEstimate){
+            xregPersistence <- vecG[-c(1:componentsNumber),];
+            names(xregPersistence) <- rownames(vecG)[-c(1:componentsNumber)];
+        }
+
+        scale <- scaler(distribution, Etype, errors[otLogical], yFitted[otLogical], obsInSample, lambda);
+        yFitted <- ts(yFitted,start=start(y), frequency=frequency(y));
+
+        return(list(model=NA, timeElapsed=NA,
+                    y=NA, holdout=NA, fitted=yFitted, residuals=errors,
+                    forecast=yForecast, states=ts(t(matVt), start=(time(y)[1] - deltat(y)*lagsModelMax),
+                                                  frequency=frequency(y)),
+                    persistence=persistence, phi=phi, transition=matF,
+                    measurement=matWt, initialType=initialType, initial=initialValue,
+                    nParam=parametersNumber, occurrence=oesModel, xreg=xreg,
+                    xregInitial=xregInitial, xregPersistence=xregPersistence,
+                    loss=loss, lossValue=CFValue, logLik=logLikMESValue, distribution=distribution,
+                    scale=scale, lambda=lambda, B=B, lags=lagsModel, FI=FI));
+    }
 
     #### Deal with occurrence model ####
     if(occurrenceModel && !occurrenceModelProvided){
@@ -1461,9 +1562,121 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         parametersNumber[1,4] <- sum(parametersNumber[1,1:3]);
         parametersNumber[2,4] <- sum(parametersNumber[2,1:3]);
     }
+    #### Combination of models ####
     else if(modelDo=="combine"){
-        stop("Sorry, model combination is not implemented yet");
+        modelOriginal <- model;
+        # If the pool is not provided, then create one
+        if(is.null(modelsPool)){
+            # Define the whole pool of errors
+            if(!allowMultiplicative){
+                poolErrors <- c("A");
+                poolTrends <- c("N","A","Ad");
+                poolSeasonals <- c("N","A");
+            }
+            else{
+                poolErrors <- c("A","M");
+                poolTrends <- c("N","A","Ad","M","Md");
+                poolSeasonals <- c("N","A","M");
+            }
+
+            # Some preparation variables
+            # If Etype is not Z, then check on additive errors
+            if(Etype!="Z"){
+                poolErrors <- switch(Etype,
+                                     "N"="N",
+                                     "A"=,
+                                     "X"="A",
+                                     "M"=,
+                                     "Y"="M");
+            }
+
+            # If Ttype is not Z, then create a pool with specified type
+            if(Ttype!="Z"){
+                poolTrends <- switch(Ttype,
+                                     "N"="N",
+                                     "A"=ifelse(damped,"Ad","A"),
+                                     "M"=ifelse(damped,"Md","M"),
+                                     "X"=c("N","A","Ad"),
+                                     "Y"=c("N","M","Md"));
+            }
+
+            # If Stype is not Z, then crete specific pools
+            if(Stype!="Z"){
+                poolSeasonals <- switch(Stype,
+                                     "N"="N",
+                                     "A"="A",
+                                     "X"=c("N","A"),
+                                     "M"="M",
+                                     "Y"=c("N","M"));
+            }
+
+            modelsPool <- paste0(rep(poolErrors,length(poolTrends)*length(poolSeasonals)),
+                                 rep(poolTrends,each=length(poolSeasonals)),
+                                 rep(poolSeasonals,length(poolTrends)));
+        }
+
+        mesSelected <-  selector(model, modelsPool, allowMultiplicative,
+                                 Etype, Ttype, Stype, damped, lags,
+                                 obsStates, obsInSample,
+                                 yInSample, persistence, persistenceEstimate, phi, phiEstimate,
+                                 initialType, initialValue,
+                                 xregProvided, xregInitialsProvided, xregInitialsEstimate,
+                                 xregPersistence, xregPersistenceEstimate,
+                                 xregModel, xregData, xregNumber, xregNames,
+                                 ot, otLogical, occurrenceModel, pFitted, ICFunction,
+                                 bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
+
+        icSelection <- mesSelected$icSelection;
+
+        icBest <- min(icSelection);
+        mesSelected$icWeights  <- (exp(-0.5*(icSelection-icBest)) /
+                                       sum(exp(-0.5*(icSelection-icBest))));
+
+        for(i in 1:length(mesSelected$results)){
+            # Take the parameters of the best model
+            list2env(mesSelected$results[[i]], environment());
+
+            #### This part is needed in order for the filler to do its job later on
+            # Create the basic variables based on the estimated model
+            mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber);
+            list2env(mesArchitect, environment());
+
+            mesSelected$results[[i]]$lagsModel <- mesArchitect$lagsModel;
+            mesSelected$results[[i]]$lagsModelAll <- mesArchitect$lagsModelAll;
+            mesSelected$results[[i]]$lagsModelMax <- mesArchitect$lagsModelMax;
+            mesSelected$results[[i]]$lagsLength <- mesArchitect$lagsLength;
+            mesSelected$results[[i]]$componentsNumber <- mesArchitect$componentsNumber;
+            mesSelected$results[[i]]$componentsNumberSeasonal <- mesArchitect$componentsNumberSeasonal;
+            mesSelected$results[[i]]$componentsNames <- mesArchitect$componentsNames;
+
+            # Create the matrices for the specific ETS model
+            mesCreated <- creator(Etype, Ttype, Stype,
+                                  lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
+                                  obsStates, obsInSample, componentsNumber, componentsNumberSeasonal,
+                                  componentsNames, otLogical,
+                                  yInSample, persistence, persistenceEstimate, phi,
+                                  initialValue, initialType,
+                                  xregProvided, xregInitialsProvided, xregPersistence,
+                                  xregModel, xregData, xregNumber, xregNames);
+
+            mesSelected$results[[i]]$matVt <- mesCreated$matVt;
+            mesSelected$results[[i]]$matWt <- mesCreated$matWt;
+            mesSelected$results[[i]]$matF <- mesCreated$matF;
+            mesSelected$results[[i]]$vecG <- mesCreated$vecG;
+
+            parametersNumber[1,1] <- (sum(lagsModel)*(initialType=="optimal") + phiEstimate +
+                                          componentsNumber*persistenceEstimate + xregNumber*xregInitialsEstimate +
+                                          xregNumber*xregPersistenceEstimate + 1);
+            if(xregProvided){
+                parametersNumber[1,2] <- xregNumber*xregInitialsEstimate + xregNumber*xregPersistenceEstimate;
+            }
+            parametersNumber[1,4] <- sum(parametersNumber[1,1:3]);
+            parametersNumber[2,4] <- sum(parametersNumber[2,1:3]);
+
+            mesSelected$results[[i]]$parametersNumber <- parametersNumber;
+        }
     }
+    #### Use the provided model ####
     else if(modelDo=="use"){
         # If the distribution is default, change it according to the error term
         if(loss=="likelihood" && distribution=="default"){
@@ -1574,122 +1787,145 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         }
     }
 
-    ##### Prepare all the matrices and vectors for return #####
-    # Fill in the matrices
-    mesElements <- filler(B,
-                          Ttype, Stype, componentsNumber, lagsModel, lagsModelMax,
-                          matVt, matWt, matF, vecG,
-                          persistenceEstimate, phiEstimate, initialType,
-                          xregInitialsEstimate, xregPersistenceEstimate, xregNumber);
-    list2env(mesElements, environment());
-
-    # Write down lambda
-    if(lambdaEstimate){
-        lambda[] <- tail(B,1);
-    }
-
-    # Write down phi
-    if(phiEstimate){
-        phi[] <- B[names(B)=="phi"];
-    }
-
-    # Fit the model to the data
-    mesFitted <- mesFitterWrap(matVt, matWt, matF, vecG,
-                               lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal,
-                               yInSample, ot, initialType=="backcasting");
-
-    errors <- mesFitted$errors
-    yFitted <- mesFitted$yFitted;
-    if(occurrenceModel){
-        yFitted[] <- yFitted * pFitted;
-    }
-
-    matVt[] <- mesFitted$matVt;
-    if(initialType=="backcasting"){
-        matVt <- matVt[,1:(obsInSample+lagsModelMax), drop=FALSE];
-    }
-
-    if(horizon>0){
-        yForecast <- ts(rep(NA, horizon), start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
-        mesForecast <- mesForecasterWrap(matVt[,obsInSample+(1:lagsModelMax),drop=FALSE], tail(matWt,horizon), matF, vecG,
-                                         lagsModelAll, Etype, Ttype, Stype,
-                                         componentsNumber, componentsNumberSeasonal, horizon);
-        yForecast[] <- mesForecast$yForecast;
-        if(occurrenceModel){
-            yForecast[] <- yForecast * forecast(oesModel, h=h)$mean;
-        }
-    }
-    else{
-        yForecast <- ts(NA, start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
-    }
-
-    # If the distribution is default, change it according to the error term
-    if(loss=="likelihood" && distribution=="default"){
-        distribution[] <- switch(Etype,
-                                 "A"="dnorm",
-                                 "M"="dinvgauss");
-    }
-
-    if(initialType=="optimal"){
-        initialValue <- vector("numeric", sum(lagsModelAll));
-        j <- 0;
-        for(i in 1:length(lagsModelAll)){
-            initialValue[j+1:lagsModelAll[i]] <- matVt[i,1:lagsModelAll[i]];
-            j <- j + lagsModelAll[i];
-        }
-    }
-
-    if(persistenceEstimate){
-        persistence <- vecG[1:componentsNumber,];
-        names(persistence) <- rownames(vecG)[1:componentsNumber];
-    }
-
-    if(xregPersistenceEstimate){
-        xregPersistence <- vecG[-c(1:componentsNumber),];
-        names(xregPersistence) <- rownames(vecG)[-c(1:componentsNumber)];
-    }
-
-    scale <- scaler(distribution, Etype, errors[otLogical], yFitted[otLogical], obsInSample, lambda);
-
     # Transform everything into ts
     yInSample <- ts(yInSample,start=start(y), frequency=frequency(y));
     if(holdout){
         yHoldout <- ts(yHoldout, start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
     }
-    yFitted <- ts(yFitted,start=start(y), frequency=frequency(y));
 
-    # Prepare the name of the model
-    if(xregExist){
-        modelName <- "ETSX";
+    #### Prepare the return if we didn't combine anything ####
+    if(modelDo!="combine"){
+        modelReturned <- preparator(B, Etype, Ttype, Stype,
+                                    lagsModel, lagsModelMax, lagsModelAll,
+                                    componentsNumber, componentsNumberSeasonal,
+                                    xregNumber, distribution, loss,
+                                    persistenceEstimate, phiEstimate, lambdaEstimate, initialType,
+                                    xregInitialsEstimate, xregPersistenceEstimate,
+                                    matVt, matWt, matF, vecG,
+                                    occurrenceModel, ot, oesModel,
+                                    parametersNumber, CFValue);
+
+        # Prepare the name of the model
+        if(xregExist){
+            modelName <- "ETSX";
+        }
+        else{
+            modelName <- "ETS";
+        }
+        modelName <- paste0(modelName,"(",model,")");
+        if(all(occurrence!=c("n","none"))){
+            modelName <- paste0("i",modelName);
+        }
+        if(componentsNumberSeasonal>1){
+            modelName <- paste0(modelName,"[",paste0(lags[lags!=1], collapse=", "),"]");
+        }
+
+        modelReturned$model <- modelName;
+        modelReturned$timeElapsed <- Sys.time()-startTime;
+        modelReturned$y <- yInSample;
+        modelReturned$holdout <- yHoldout;
+
+        class(modelReturned) <- c("mes","smooth");
     }
     else{
-        modelName <- "ETS";
-    }
-    modelName <- paste0(modelName,"(",model,")");
-    if(all(occurrence!=c("n","none"))){
-        modelName <- paste0("i",modelName);
-    }
-    if(componentsNumberSeasonal>1){
-        modelName <- paste0(modelName,"[",paste0(lags[lags!=1], collapse=", "),"]");
+        modelReturned <- list(models=vector("list",length(mesSelected$results)));
+        yFittedCombined <- rep(0,obsInSample);
+        if(h>0){
+            yForecastCombined <- rep(0,h);
+        }
+        else{
+            yForecastCombined <- NA;
+        }
+        parametersNumberOverall <- parametersNumber;
+
+        for(i in 1:length(mesSelected$results)){
+            list2env(mesSelected$results[[i]], environment());
+            modelReturned$models[[i]] <- preparator(B, Etype, Ttype, Stype,
+                                                   lagsModel, lagsModelMax, lagsModelAll,
+                                                   componentsNumber, componentsNumberSeasonal,
+                                                   xregNumber, distribution, loss,
+                                                   persistenceEstimate, phiEstimate, lambdaEstimate, initialType,
+                                                   xregInitialsEstimate, xregPersistenceEstimate,
+                                                   matVt, matWt, matF, vecG,
+                                                   occurrenceModel, ot, oesModel,
+                                                   parametersNumber, CFValue);
+            yFittedCombined[] <- yFittedCombined + modelReturned$models[[i]]$fitted * mesSelected$icWeights[i];
+            if(h>0){
+                yForecastCombined[] <- yForecastCombined + modelReturned$models[[i]]$forecast * mesSelected$icWeights[i];
+            }
+
+            # Prepare the name of the model
+            if(xregExist){
+                modelName <- "ETSX";
+            }
+            else{
+                modelName <- "ETS";
+            }
+            modelName <- paste0(modelName,"(",model,")");
+            if(all(occurrence!=c("n","none"))){
+                modelName <- paste0("i",modelName);
+            }
+            if(componentsNumberSeasonal>1){
+                modelName <- paste0(modelName,"[",paste0(lags[lags!=1], collapse=", "),"]");
+            }
+            modelReturned$models[[i]]$model <- modelName;
+            modelReturned$models[[i]]$timeElapsed <- Sys.time()-startTime;
+            parametersNumberOverall[1,1] <- parametersNumber[1,1] * mesSelected$icWeights[i];
+            modelReturned$models[[i]]$y <- yInSample;
+
+            class(modelReturned$models[[i]]) <- c("mes","smooth");
+        }
+
+        # Record the original name of the model.
+        model[] <- modelOriginal;
+        # Prepare the name of the model
+        if(xregExist){
+            modelName <- "ETSX";
+        }
+        else{
+            modelName <- "ETS";
+        }
+        modelName <- paste0(modelName,"(",model,")");
+        if(all(occurrence!=c("n","none"))){
+            modelName <- paste0("i",modelName);
+        }
+        if(componentsNumberSeasonal>1){
+            modelName <- paste0(modelName,"[",paste0(lags[lags!=1], collapse=", "),"]");
+        }
+        modelReturned$model <- modelName;
+        modelReturned$timeElapsed <- Sys.time()-startTime;
+        modelReturned$holdout <- yHoldout;
+        modelReturned$y <- yInSample;
+        modelReturned$fitted <- ts(yFittedCombined,start=start(y), frequency=frequency(y));
+        if(h>0){
+            modelReturned$forecast <- ts(yForecastCombined,start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
+        }
+        else{
+            modelReturned$forecast <- yForecastCombined;
+        }
+        parametersNumberOverall[1,4] <- sum(parametersNumberOverall[1,1:4]);
+        modelReturned$nParam <- parametersNumberOverall;
+        modelReturned$ICw <- mesSelected$icWeights;
+        class(modelReturned) <- c("mesCombined","mes","smooth");
     }
 
-    model <- structure(list(model=modelName, timeElapsed=Sys.time()-startTime,
-                            y=yInSample, holdout=yHoldout, fitted=yFitted, residuals=errors,
-                            forecast=yForecast, states=ts(t(matVt), start=(time(y)[1] - deltat(y)*lagsModelMax),
-                                                          frequency=frequency(y)),
-                            persistence=persistence, phi=phi, transition=matF,
-                            measurement=matWt, initialType=initialType, initial=initialValue,
-                            nParam=parametersNumber, occurrence=oesModel, xreg=xreg,
-                            xregInitial=xregInitial, xregPersistence=xregPersistence,
-                            loss=loss, lossValue=CFValue, logLik=logLikMESValue, distribution=distribution,
-                            scale=scale, lambda=lambda, B=B, lags=lagsModel, FI=FI),
-                       class=c("mes","smooth"));
+    # model <- structure(list(model=modelName, timeElapsed=Sys.time()-startTime,
+    #                         y=yInSample, holdout=yHoldout, fitted=yFitted, residuals=errors,
+    #                         forecast=yForecast, states=ts(t(matVt), start=(time(y)[1] - deltat(y)*lagsModelMax),
+    #                                                       frequency=frequency(y)),
+    #                         persistence=persistence, phi=phi, transition=matF,
+    #                         measurement=matWt, initialType=initialType, initial=initialValue,
+    #                         nParam=parametersNumber, occurrence=oesModel, xreg=xreg,
+    #                         xregInitial=xregInitial, xregPersistence=xregPersistence,
+    #                         loss=loss, lossValue=CFValue, logLik=logLikMESValue, distribution=distribution,
+    #                         scale=scale, lambda=lambda, B=B, lags=lagsModel, FI=FI),
+    #                    class=c("mes","smooth"));
 
     if(!silent){
-        plot(model, 1);
+        plot(modelReturned, 1);
     }
 
-    return(model);
+    return(modelReturned);
 }
 
 #### Methods for mes ####
@@ -2310,6 +2546,18 @@ print.mes <- function(x, digits=4, ...){
     }
 }
 
+#' @export
+print.mesCombined <- function(x, digits=4, ...){
+    cat(paste0("Time elapsed: ",round(as.numeric(x$timeElapsed,units="secs"),2)," seconds"));
+    cat(paste0("\nModel estimated: ",x$model));
+
+    cat(paste0("\nNumber of models combined: ", length(x$models)));
+
+    cat("\nSample size: "); cat(nobs(x));
+    cat("\nNumber of estimated parameters: "); cat(nparam(x));
+    cat("\nNumber of degrees of freedom: "); cat(nobs(x)-nparam(x));
+}
+
 #' @importFrom stats sigma
 #' @export
 sigma.mes <- function(object, ...){
@@ -2744,10 +2992,47 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
         }
     }
 
-    model <- structure(list(mean=yForecast, lower=yLower, upper=yUpper, model=object,
-                            level=level, interval=interval, side=side, cumulative=cumulative),
-                       class=c("mes.forecast","smooth.forecast","forecast"));
-    return(model);
+    return(structure(list(mean=yForecast, lower=yLower, upper=yUpper, model=object,
+                          level=level, interval=interval, side=side, cumulative=cumulative),
+                     class=c("mes.forecast","smooth.forecast","forecast")));
+}
+
+forecast.mesCombined <- function(object, h=10, newxreg=NULL,
+                                 interval=c("none", "simulated", "approximate", "semiparametric", "nonparametric"),
+                                 level=0.95, side=c("both","upper","lower"), cumulative=FALSE, nsim=10000, ...){
+    interval <- match.arg(interval);
+    side <- match.arg(side);
+
+    # ts structure
+    yForecastStart <- time(actuals(object))[nobs(object)]+deltat(actuals(object));
+    yFrequency <- frequency(actuals(object));
+
+    # Cumulative forecasts have only one observation
+    if(cumulative){
+        yForecast <- yUpper <- yLower <- ts(vector("numeric", 1), start=yForecastStart, frequency=yFrequency);
+    }
+    else{
+        yForecast <- yUpper <- yLower <- ts(vector("numeric", h), start=yForecastStart, frequency=yFrequency);
+    }
+
+    # The list contains 8 elements
+    mesForecasts <- vector("list",8);
+    names(mesForecasts)[c(1:3)] <- c("mean","lower","upper");
+    for(i in 1:length(object$models)){
+        mesForecasts[] <- forecast.mes(object$models[[i]], h=h, newxreg=newxreg,
+                                     interval=interval,
+                                     level=level, side=side, cumulative=cumulative, nsim=nsim, ...);
+        yForecast[] <- yForecast + mesForecasts$mean * object$ICw[i];
+        yUpper[] <- yUpper + mesForecasts$upper * object$ICw[i];
+        yLower[] <- yLower + mesForecasts$lower * object$ICw[i];
+    }
+
+    # Get rid of specific models
+    object$models <- NULL;
+
+    return(structure(list(mean=yForecast, lower=yLower, upper=yUpper, model=object,
+                          level=level, interval=interval, side=side, cumulative=cumulative),
+                     class=c("mes.forecast","smooth.forecast","forecast")));
 }
 
 #' @export

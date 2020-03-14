@@ -264,6 +264,9 @@ summary(ourModel)
 forecast(ourModel)
 plot(forecast(ourModel))
 
+# Model combination using a specified pool
+ourModel <- mes(rnorm(100,100,10), model=c("ANN","AAN","MNN","CCC"), lags=c(5,10))
+
 }
 \references{
 \itemize{
