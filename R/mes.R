@@ -502,12 +502,19 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 j <- j+1;
                 if(Ttype!="N"){
                     if(Ttype=="A" && Stype=="M"){
+                        # level fix
+                        matVt[j-1,1:lagsModelMax] <- exp(mean(log(yInSample[1:lagsModelMax])));
+                        # trend
                         matVt[j,1:lagsModelMax] <- prod(yDecomposition$initial)-yDecomposition$initial[1];
                     }
                     else if(Ttype=="M" && Stype=="A"){
+                        # level fix
+                        matVt[j-1,1:lagsModelMax] <- exp(mean(log(yInSample[1:lagsModelMax])));
+                        # trend
                         matVt[j,1:lagsModelMax] <- sum(yDecomposition$initial)/yDecomposition$initial[1];
                     }
                     else{
+                        # trend
                         matVt[j,1:lagsModelMax] <- yDecomposition$initial[2];
                     }
                     j <- j+1;
@@ -805,9 +812,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 return(1E+300);
             }
             # This is the restriction on the damping parameter
-            # if(phiEstimate && (mesElements$matF[2,2]>1.5 || mesElements$matF[2,2]<0)){
-            #     return(1E+300);
-            # }
+            if(phiEstimate && (mesElements$matF[2,2]>1 || mesElements$matF[2,2]<0)){
+                return(1E+300);
+            }
         }
         else if(bounds=="admissible"){
             # We check the condition only for the last row of matWt
@@ -1068,6 +1075,10 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         else{
             distributionNew <- distribution;
         }
+        # print(B)
+        # print(Etype)
+        # print(Ttype)
+        # print(Stype)
 
         # Parameters are chosen to speed up the optimisation process and have decent accuracy
         res <- suppressWarnings(nloptr(B, CF, lb=lb, ub=ub,
@@ -1343,6 +1354,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             }
 
             modelCurrent <- modelsPool[j];
+            # print(modelCurrent)
             Etype <- substring(modelCurrent,1,1);
             Ttype <- substring(modelCurrent,2,2);
             if(nchar(modelCurrent)==4){
