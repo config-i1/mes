@@ -643,12 +643,8 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         # Fill in persistence
         if(persistenceEstimate){
             if(any(c(Etype,Ttype,Stype)=="M")){
-                # A special type of model which is not safe: MMA
-                if((Etype=="M" && Ttype=="M" && Stype=="A")){
-                    B[j:componentsNumber] <- c(0,0,rep(0,componentsNumberSeasonal))[j:componentsNumber];
-                }
-                # Another special cae for a different model: AAM
-                else if((Etype=="A" && Ttype=="A" && Stype=="M")){
+                # A special type of model which is not safe: MMA, AAM
+                if((Etype=="M" && Ttype=="M" && Stype=="A") || (Etype=="A" && Ttype=="A" && Stype=="M")){
                     B[j:componentsNumber] <- c(0.01,0.005,rep(0,componentsNumberSeasonal))[j:componentsNumber];
                 }
                 else{
