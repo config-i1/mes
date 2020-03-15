@@ -777,6 +777,10 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             if(any(mesElements$vecG>1) || any(mesElements$vecG<0)){
                 return(1E+300);
             }
+            # This is the restriction on the damping parameter
+            if(mesElements$matF[2,2]>1 || mesElements$matF[2,2]<0){
+                return(1E+300);
+            }
         }
         else if(bounds=="admissible"){
             # We check the condition only for the last row of matWt
