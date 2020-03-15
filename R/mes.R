@@ -58,29 +58,38 @@
 #' are assumed to be the same. The model is then printed out as
 #' MES(M,Ad,M[m1],M[m2],...), where m1, m2, ... are the lags specified by the
 #' \code{lags} parameter.
-#'
-#' \code{ZZZ} means that the model will be selected based on the
-#' chosen information criteria type. Models pool can be restricted with additive
-#' only components via \code{model="XXX"}. Selection between multiplicative models
-#' (excluding additive components) is regulated using \code{model="YYY"}. Finally,
-#' \code{model="CCC"} trigers the combination of forecasts of models using AIC
-#' weights (Kolassa, 2011). All of this can be finely tuned. For example,
-#' \code{model="CCN"} will combine forecasts of all non-seasonal models and
-#' \code{model="CXY"} will combine forecasts of all the models with
-#' non-multiplicative trend and non-additive seasonality with either additive
-#' or multiplicative error.
-#'
-#' The parameter \code{model} can also be a vector of names of models for a
+#' There are several options for the \code{model} besides the conventional ones,
+#' which rely on information criteria:
+#' \enumerate{
+#' \item \code{model="ZZZ"} means that the model will be selected based on the
+#' chosen information criteria type. The Branch and Bound is used in the process.
+#' \item \code{model="XXX"} means that only additive components are tested, using
+#' Branch and Bound.
+#' \item \code{model="YYY"} implies selecting between multiplicative components.
+#' \item \code{model="CCC"} trigers the combination of forecasts of models using
+#' information criteria weights (Kolassa, 2011).
+#' \item combinations between these four and the classical components are also
+#' accepted. For example, \code{model="CAY"} will combine models with additive
+#' trend and either none or multiplicative seasonality.
+#' \item \code{model="PPP"} will produce the selection between pure additive and
+#' pure multiplicative models. "P" stands for "Pure". This cannot be mixed with
+#' other types of components.
+#' \item \code{model="FFF"} will select between all the 30 types of models. "F"
+#' stands for "Full". This cannot be mixed with other types of components.
+#' \item The parameter \code{model} can also be a vector of names of models for a
 #' finer tuning (pool of models). For example, \code{model=c("ANN","AAA")} will
 #' estimate only two models and select the best of them.
+#' }
 #'
-#' Also \code{model} can accept a previously estimated mes model and use all
+#' Also, \code{model} can accept a previously estimated mes model and use all
 #' its parameters.
 #'
 #' Keep in mind that model selection with "Z" components uses Branch and Bound
 #' algorithm and may skip some models that could have slightly smaller
 #' information criteria. If you want to do a exhaustive search, you would need
 #' to list all the models to check as a vector.
+#'
+#'
 #' @param lags Defines lags for the corresponding components. All components
 #' count, starting from level, so ETS(M,M,M) model for monthly data will have
 #' lags=c(1,1,12). If fractional numbers are provided, then it is assumed that
@@ -1548,6 +1557,8 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                               xregModel, xregData, xregNumber, xregNames);
         list2env(mesCreated, environment());
 
+        icSelection <- ICFunction(mesEstimated$logLikMESValue);
+
         ####!!! If the occurrence is auto, then compare this with the model with no occurrence !!!####
 
         parametersNumber[1,1] <- (sum(lagsModel)*(initialType=="optimal") + phiEstimate +
@@ -1765,6 +1776,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                               bounds, loss, distributionNew, horizon, multisteps, lambda, lambdaEstimate)
                                     ,nobs=obsInSample,df=parametersNumber[1,4],class="logLik")
 
+        icSelection <- ICFunction(logLikMESValue);
         # If Fisher Information is required, do that analytically
         if(FI){
             # Define parameters just for FI calculation
@@ -1942,18 +1954,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         modelReturned$ICw <- mesSelected$icWeights;
         class(modelReturned) <- c("mesCombined","mes","smooth");
     }
-
-    # model <- structure(list(model=modelName, timeElapsed=Sys.time()-startTime,
-    #                         y=yInSample, holdout=yHoldout, fitted=yFitted, residuals=errors,
-    #                         forecast=yForecast, states=ts(t(matVt), start=(time(y)[1] - deltat(y)*lagsModelMax),
-    #                                                       frequency=frequency(y)),
-    #                         persistence=persistence, phi=phi, transition=matF,
-    #                         measurement=matWt, initialType=initialType, initial=initialValue,
-    #                         nParam=parametersNumber, occurrence=oesModel, xreg=xreg,
-    #                         xregInitial=xregInitial, xregPersistence=xregPersistence,
-    #                         loss=loss, lossValue=CFValue, logLik=logLikMESValue, distribution=distribution,
-    #                         scale=scale, lambda=lambda, B=B, lags=lagsModel, FI=FI),
-    #                    class=c("mes","smooth"));
+    modelReturned$ICs <- icSelection;
 
     if(!silent){
         plot(modelReturned, 1);

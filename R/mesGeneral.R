@@ -173,10 +173,32 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
                 Stype <- "Z";
             }
         }
-        else if(any(unlist(strsplit(model,""))=="Z") |
-                any(unlist(strsplit(model,""))=="X") |
-                any(unlist(strsplit(model,""))=="Y")){
+        else if(any(unlist(strsplit(model,""))=="Z") ||
+                any(unlist(strsplit(model,""))=="X") ||
+                any(unlist(strsplit(model,""))=="Y") ||
+                any(unlist(strsplit(model,""))=="F") ||
+                any(unlist(strsplit(model,""))=="P")){
             modelDo <- "select";
+
+            # The full test, sidestepping branch and bound
+            if(any(unlist(strsplit(model,""))=="F")){
+                modelsPool <- c("ANN","AAN","AAdN","AMN","AMdN",
+                                "ANA","AAA","AAdA","AMA","AMdA",
+                                "ANM","AAM","AAdM","AMM","AMdM",
+                                "MNN","MAN","MAdN","MMN","MMdN",
+                                "MNA","MAA","MAdA","MMA","MMdA",
+                                "MNM","MAM","MAdM","MMM","MMdM");
+                model <- "ZZZ";
+                Etype[] <- Ttype[] <- Stype[] <- "Z";
+            }
+
+            # The test for pure models only
+            if(any(unlist(strsplit(model,""))=="P")){
+                modelsPool <- c("ANN","AAN","AAdN","ANA","AAA","AAdA",
+                                "MNN","MMN","MMdN","MNM","MMM","MMdM");
+                model <- "ZZZ";
+                Etype[] <- Ttype[] <- Stype[] <- "Z";
+            }
         }
         else{
             modelDo <- "estimate";
@@ -203,7 +225,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     componentsNumber <- 1;
     ### Check error type
     if(all(Etype!=c("Z","X","Y","A","M","C"))){
-        warning(paste0("Wrong error type: ",Etype,". Should be 'Z', 'X', 'Y', 'A' or 'M'.\n",
+        warning(paste0("Wrong error type: ",Etype,". Should be 'Z', 'X', 'Y', 'A' or 'M'. ",
                        "Changing to 'Z'"),call.=FALSE);
         Etype <- "Z";
         modelDo <- "select";
@@ -211,7 +233,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
 
     ### Check trend type
     if(all(Ttype!=c("Z","X","Y","N","A","M","C"))){
-        warning(paste0("Wrong trend type: ",Ttype,". Should be 'Z', 'X', 'Y', 'N', 'A' or 'M'.\n",
+        warning(paste0("Wrong trend type: ",Ttype,". Should be 'Z', 'X', 'Y', 'N', 'A' or 'M'. ",
                        "Changing to 'Z'"),call.=FALSE);
         Ttype <- "Z";
         modelDo <- "select";
@@ -247,7 +269,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     modelIsSeasonal <- Stype!="N";
     #### Check the seasonal model vs lags ####
     if(all(Stype!=c("Z","X","Y","N","A","M","C"))){
-        warning(paste0("Wrong seasonality type: ",Stype,". Should be 'Z', 'X', 'Y', 'C', 'N', 'A' or 'M'.",
+        warning(paste0("Wrong seasonality type: ",Stype,". Should be 'Z', 'X', 'Y', 'C', 'N', 'A' or 'M'. ",
                        "Setting to 'Z'."),call.=FALSE);
         if(lagsModelMax==1){
             Stype <- "N";

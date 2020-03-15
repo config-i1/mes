@@ -27,23 +27,30 @@ seasonality ("N", "A" or "M"). In case of several lags, the seasonal components
 are assumed to be the same. The model is then printed out as
 MES(M,Ad,M[m1],M[m2],...), where m1, m2, ... are the lags specified by the
 \code{lags} parameter.
-
-\code{ZZZ} means that the model will be selected based on the
-chosen information criteria type. Models pool can be restricted with additive
-only components via \code{model="XXX"}. Selection between multiplicative models
-(excluding additive components) is regulated using \code{model="YYY"}. Finally,
-\code{model="CCC"} trigers the combination of forecasts of models using AIC
-weights (Kolassa, 2011). All of this can be finely tuned. For example,
-\code{model="CCN"} will combine forecasts of all non-seasonal models and
-\code{model="CXY"} will combine forecasts of all the models with
-non-multiplicative trend and non-additive seasonality with either additive
-or multiplicative error.
-
-The parameter \code{model} can also be a vector of names of models for a
+There are several options for the \code{model} besides the conventional ones,
+which rely on information criteria:
+\enumerate{
+\item \code{model="ZZZ"} means that the model will be selected based on the
+chosen information criteria type. The Branch and Bound is used in the process.
+\item \code{model="XXX"} means that only additive components are tested, using
+Branch and Bound.
+\item \code{model="YYY"} implies selecting between multiplicative components.
+\item \code{model="CCC"} trigers the combination of forecasts of models using
+information criteria weights (Kolassa, 2011).
+\item combinations between these four and the classical components are also
+accepted. For example, \code{model="CAY"} will combine models with additive
+trend and either none or multiplicative seasonality.
+\item \code{model="PPP"} will produce the selection between pure additive and
+pure multiplicative models. "P" stands for "Pure". This cannot be mixed with
+other types of components.
+\item \code{model="FFF"} will select between all the 30 types of models. "F"
+stands for "Full". This cannot be mixed with other types of components.
+\item The parameter \code{model} can also be a vector of names of models for a
 finer tuning (pool of models). For example, \code{model=c("ANN","AAA")} will
 estimate only two models and select the best of them.
+}
 
-Also \code{model} can accept a previously estimated mes model and use all
+Also, \code{model} can accept a previously estimated mes model and use all
 its parameters.
 
 Keep in mind that model selection with "Z" components uses Branch and Bound
