@@ -1195,6 +1195,11 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             poolSmall <- paste0(rep(poolErrorsSmall,length(poolTrendsSmall)*length(poolSeasonalsSmall)),
                                  rep(poolTrendsSmall,each=length(poolSeasonalsSmall)),
                                  rep(poolSeasonalsSmall,length(poolTrendsSmall)));
+            # Align error and seasonality, if the error was not forced to be additive
+            if(any(substr(poolSmall,3,3)=="M") && all(Etype!=c("A","X"))){
+                multiplicativeSeason <- (substr(poolSmall,3,3)=="M");
+                poolSmall[multiplicativeSeason] <- paste0("M",substr(poolSmall[multiplicativeSeason],2,3));
+            }
             modelsTested <- NULL;
             modelCurrent <- NA;
 
@@ -1220,7 +1225,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                     Stype[] <- substring(modelCurrent,4,4);
                 }
                 else{
-                    phi <- 1;
+                    phi[] <- 1;
                     phiEstimate[] <- FALSE;
                     Stype[] <- substring(modelCurrent,3,3);
                 }
@@ -1239,6 +1244,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 results[[i]]$Ttype <- Ttype;
                 results[[i]]$Stype <- Stype;
                 results[[i]]$phiEstimate <- phiEstimate;
+                results[[j]]$phi <- phi;
                 results[[i]]$model <- modelCurrent;
 
                 modelsTested <- c(modelsTested,modelCurrent);
@@ -1331,11 +1337,11 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             Etype <- substring(modelCurrent,1,1);
             Ttype <- substring(modelCurrent,2,2);
             if(nchar(modelCurrent)==4){
-                phi <- 0.95;
+                phi[] <- 0.95;
                 Stype <- substring(modelCurrent,4,4);
             }
             else{
-                phi <- 1;
+                phi[] <- 1;
                 Stype <- substring(modelCurrent,3,3);
             }
 
@@ -1353,6 +1359,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             results[[j]]$Ttype <- Ttype;
             results[[j]]$Stype <- Stype;
             results[[j]]$phiEstimate <- phiEstimate;
+            results[[j]]$phi <- phi;
             results[[j]]$model <- modelCurrent;
         }
 
