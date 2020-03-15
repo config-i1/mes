@@ -1228,9 +1228,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                         if(substring(modelCurrent,2,2)==substring(poolSmall[bestj],2,2)){
                             poolSeasonals <- results[[besti]]$Stype;
                             checkSeasonal <- FALSE;
-                            j[] <- j+1;
-                            # j[] <- which(poolSmall!=poolSmall[bestj] &
-                                             # substring(poolSmall,nchar(poolSmall),nchar(poolSmall))==poolSeasonals);
+                            # j[] <- j+1;
+                            j <- which(poolSmall!=poolSmall[bestj] &
+                                           substring(poolSmall,nchar(poolSmall),nchar(poolSmall))==poolSeasonals);
                         }
                         # Otherwise we checked trend
                         else{
@@ -1245,13 +1245,14 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                 # Select another seasonal model, that is not from the previous iteration and not the current one
                                 bestj[] <- j;
                                 besti[] <- i;
-                                j[] <- 3;
+                                # j[] <- 3;
+                                j <- 3;
                             }
                             else{
                                 bestj[] <- j;
                                 besti[] <- i;
-                                j[] <- which(substring(poolSmall,nchar(poolSmall),nchar(poolSmall))==poolSeasonals &
-                                                 substring(poolSmall,2,2)!=substring(modelCurrent,2,2));
+                                j <- which(substring(poolSmall,nchar(poolSmall),nchar(poolSmall))==poolSeasonals &
+                                               substring(poolSmall,2,2)!=substring(modelCurrent,2,2));
                                 checkSeasonal[] <- FALSE;
                             }
                         }
