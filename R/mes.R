@@ -484,7 +484,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         if(initialType!="provided"){
             # For the seasonal models
             if(Stype!="N"){
-                yDecomposition <- msdecompose(yInSample, lags[lags!=1], type=switch(Stype, "A"="additive", "M"="multiplicative"));
+                # If either Etype or Stype are multiplicative, do multiplicative decomposition
+                decompositionType <- c("additive","multiplicative")[any(c(Etype,Stype)=="M")+1];
+                yDecomposition <- msdecompose(yInSample, lags[lags!=1], type=decompositionType);
                 j <- 1;
                 # level
                 matVt[j,1:lagsModelMax] <- mean(yInSample[1:lagsModelMax]);
@@ -501,8 +503,18 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                     }
                     j <- j+1;
                 }
-                for(i in 1:componentsNumberSeasonal){
-                    matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <- yDecomposition$seasonal[[i]];
+                # For pure models use stuff as is
+                if(all(c(Etype,Stype)=="A") || all(c(Etype,Stype)=="M") ||
+                   (Etype=="A" & Stype=="M")){
+                    for(i in 1:componentsNumberSeasonal){
+                        matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <- yDecomposition$seasonal[[i]];
+                    }
+                }
+                # For mixed models use a different set of initials
+                else if(Etype=="M" && Stype=="A"){
+                    for(i in 1:componentsNumberSeasonal){
+                        matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <- log(yDecomposition$seasonal[[i]])*min(y);
+                    }
                 }
             }
             # Non-seasonal models
@@ -615,7 +627,13 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         # Fill in persistence
         if(persistenceEstimate){
             if(any(c(Etype,Ttype,Stype)=="M")){
-                B[j:componentsNumber] <- c(0.01,0.005,rep(0.01,componentsNumberSeasonal))[j:componentsNumber];
+                # A special type of model which is not safe
+                if((Etype=="M" && Ttype=="M" && Stype=="A")){
+                    B[j:componentsNumber] <- c(0,0,rep(0,componentsNumberSeasonal))[j:componentsNumber];
+                }
+                else{
+                    B[j:componentsNumber] <- c(0.01,0.005,rep(0.05,componentsNumberSeasonal))[j:componentsNumber];
+                }
             }
             else{
                 B[j:componentsNumber] <- c(0.1,0.05,rep(0.1,componentsNumberSeasonal))[j:componentsNumber];
@@ -778,9 +796,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 return(1E+300);
             }
             # This is the restriction on the damping parameter
-            if(mesElements$matF[2,2]>1 || mesElements$matF[2,2]<0){
-                return(1E+300);
-            }
+            # if(phiEstimate && (mesElements$matF[2,2]>1.5 || mesElements$matF[2,2]<0)){
+            #     return(1E+300);
+            # }
         }
         else if(bounds=="admissible"){
             # We check the condition only for the last row of matWt
@@ -1911,12 +1929,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         modelReturned$holdout <- yHoldout;
         modelReturned$y <- yInSample;
         modelReturned$fitted <- ts(yFittedCombined,start=start(y), frequency=frequency(y));
-        if(h>0){
-            modelReturned$forecast <- ts(yForecastCombined,start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
-        }
-        else{
-            modelReturned$forecast <- yForecastCombined;
-        }
+        modelReturned$forecast <- ts(yForecastCombined,start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
         parametersNumberOverall[1,4] <- sum(parametersNumberOverall[1,1:4]);
         modelReturned$nParam <- parametersNumberOverall;
         modelReturned$ICw <- mesSelected$icWeights;

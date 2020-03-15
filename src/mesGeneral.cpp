@@ -24,10 +24,10 @@ double errorf(double const &yact, double &yfit, char const &E){
         return yact - yfit;
         break;
     case 'M':
-        if((yact==0) & (yfit==0)){
+        if((yact==0) && (yfit==0)){
             return 0;
         }
-        else if((yact!=0) & (yfit==0)){
+        else if((yact!=0) && (yfit==0)){
             return R_PosInf;
         }
         else{
@@ -98,9 +98,9 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
                                              nNonSeasonal, nSeasonal, nComponents);
 
             // This is a failsafe for cases of ridiculously high values
-            if(vecYfit(i-lagsModelMax) > 1e+100 && (i-lagsModelMax)>0){
-                vecYfit(i-lagsModelMax) = vecYfit(i-lagsModelMax-1);
-            }
+            // if(vecYfit(i-lagsModelMax) > 1e+100 && (i-lagsModelMax)>0){
+            //     vecYfit(i-lagsModelMax) = vecYfit(i-lagsModelMax-1);
+            // }
             // Failsafe for fitted becoming negative in mixed models
             if(((E=='M') || (T=='M') || (S=='M')) && (vecYfit(i-lagsModelMax)<0)){
                 vecYfit(i-lagsModelMax) = 0.01;
@@ -119,10 +119,10 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
                               gvalue(matrixVt(lagrows), matrixF, matrixWt.row(i-lagsModelMax), E, T, S,
                                      nNonSeasonal, nSeasonal, nComponents) % vectorG * vecErrors(i-lagsModelMax);
 
-            // Failsafe for mixed models having negative values
-            if(((E=='M') || (T=='M') || (S=='M')) && any(matrixVt.col(i)<=0)){
-                matrixVt.col(i) = matrixVt(lagrows);
-            }
+            // Failsafe for mixed models having negative values... Doesn't work correctly!
+            // if(((E=='M') || (T=='M') || (S=='M')) && any(matrixVt.col(i)<=0)){
+            //     matrixVt.col(i) = matrixVt(lagrows);
+            // }
             // Failsafe for cases, when nan values appear
             if(matrixVt.col(i).has_nan()){
                 matrixVt.col(i) = matrixVt(lagrows);
@@ -132,7 +132,7 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
                 matrixVt.col(i) = matrixVt(lagrows);
             }
             if(T=='M'){
-                if((matrixVt(0,i) <= 0) | (matrixVt(1,i) <= 0)){
+                if((matrixVt(0,i) <= 0) || (matrixVt(1,i) <= 0)){
                     matrixVt(0,i) = arma::as_scalar(matrixVt(lagrows.row(0)));
                     matrixVt(1,i) = arma::as_scalar(matrixVt(lagrows.row(1)));
                 }
@@ -202,10 +202,10 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
                                   gvalue(matrixVt(lagrows), matrixF, matrixWt.row(i-lagsModelMax), E, T, S,
                                          nNonSeasonal, nSeasonal, nComponents) % vectorG * vecErrors(i-lagsModelMax);
 
-                // Failsafe for mixed models having negative values
-                if(((E=='M') || (T=='M') || (S=='M')) && any(matrixVt.col(i)<=0)){
-                    matrixVt.col(i) = matrixVt(lagrows);
-                }
+                // Failsafe for mixed models having negative values... Doesn't work correctly!
+                // if(((E=='M') || (T=='M') || (S=='M')) && any(matrixVt.col(i)<=0)){
+                //     matrixVt.col(i) = matrixVt(lagrows);
+                // }
                 // Failsafe for cases, when nan values appear
                 if(matrixVt.col(i).has_nan()){
                     matrixVt.col(i) = matrixVt(lagrows);

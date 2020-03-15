@@ -229,7 +229,8 @@ inline arma::vec gvalue(arma::vec const &matrixVt, arma::mat const &matrixF, arm
             case 'A':
                 g.rows(0,nComponents-1).fill(as_scalar(exp(rowvecW.cols(0,1) * log(matrixVt.rows(0,1)) +
                                              rowvecW.cols(2,2+nSeasonal-1) * matrixVt.rows(2,2+nSeasonal-1))));
-                g(1) = g(0) / matrixVt(0);
+                g(0) = g(0) / matrixVt(1);
+                g(1) = g(1) / matrixVt(0);
                 // Explanatory variables
                 if(nComponents > (nSeasonal+nNonSeasonal)){
                     g.rows(nSeasonal+nNonSeasonal,nComponents-1) = matrixVt.rows(nSeasonal+nNonSeasonal,nComponents-1);
