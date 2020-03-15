@@ -97,9 +97,18 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
             vecYfit(i-lagsModelMax) = wvalue(matrixVt(lagrows), matrixWt.row(i-lagsModelMax), E, T, S,
                                              nNonSeasonal, nSeasonal, nComponents);
 
-            // This is a failsafe for cases of ridiculously high and ridiculously low values
+            // This is a failsafe for cases of ridiculously high values
             if(vecYfit(i-lagsModelMax) > 1e+100 && (i-lagsModelMax)>0){
                 vecYfit(i-lagsModelMax) = vecYfit(i-lagsModelMax-1);
+            }
+            // Failsafe for fitted becoming negative in mixed models
+            if(((E=='M') || (T=='M') || (S=='M')) && (vecYfit(i-lagsModelMax)<0)){
+                if((i-lagsModelMax)>0){
+                    vecYfit(i-lagsModelMax) = vecYfit(i-lagsModelMax-1);
+                }
+                else{
+                    vecYfit(i-lagsModelMax) = 0.01;
+                }
             }
 
             // If this is zero (intermittent), then set error to zero
@@ -179,6 +188,15 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
                 // This is a failsafe for cases of ridiculously high and ridiculously low values
                 if(vecYfit(i-lagsModelMax) > 1e+100 && (i-lagsModelMax+1)<obs){
                     vecYfit(i-lagsModelMax) = vecYfit(i-lagsModelMax+1);
+                }
+                // Failsafe for fitted becoming negative in mixed models
+                if(((E=='M') || (T=='M') || (S=='M')) && (vecYfit(i-lagsModelMax)<0)){
+                    if((i-lagsModelMax+1)<obs){
+                        vecYfit(i-lagsModelMax) = vecYfit(i-lagsModelMax+1);
+                    }
+                    else{
+                        vecYfit(i-lagsModelMax) = 0.01;
+                    }
                 }
 
                 // If this is zero (intermittent), then set error to zero
