@@ -647,6 +647,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 if((Etype=="M" && Ttype=="M" && Stype=="A") || (Etype=="A" && Ttype=="A" && Stype=="M")){
                     B[j:componentsNumber] <- c(0.01,0.005,rep(0,componentsNumberSeasonal))[j:componentsNumber];
                 }
+                else if(Etype=="M" && Ttype=="A"){
+                    B[j:componentsNumber] <- c(0.1,0.05,rep(0.1,componentsNumberSeasonal))[j:componentsNumber];
+                }
                 else{
                     B[j:componentsNumber] <- c(0.01,0.005,rep(0.05,componentsNumberSeasonal))[j:componentsNumber];
                 }
