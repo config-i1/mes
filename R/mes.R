@@ -3184,6 +3184,7 @@ forecast.mesCombined <- function(object, h=10, newxreg=NULL,
         yForecast[] <- yForecast + mesForecasts$mean * object$ICw[i];
         yUpper[] <- yUpper + mesForecasts$upper * object$ICw[i];
         yLower[] <- yLower + mesForecasts$lower * object$ICw[i];
+        cat(i); cat(", ");
     }
 
     # Get rid of specific models
