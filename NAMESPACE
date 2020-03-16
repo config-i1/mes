@@ -2,6 +2,7 @@
 
 S3method(coef,mes)
 S3method(forecast,mes)
+S3method(forecast,mesCombined)
 S3method(plot,mes)
 S3method(pointLik,mes)
 S3method(print,mes)

@@ -3156,6 +3156,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                      class=c("mes.forecast","smooth.forecast","forecast")));
 }
 
+#' @export
 forecast.mesCombined <- function(object, h=10, newxreg=NULL,
                                  interval=c("none", "simulated", "approximate", "semiparametric", "nonparametric"),
                                  level=0.95, side=c("both","upper","lower"), cumulative=FALSE, nsim=10000, ...){
@@ -3184,7 +3185,6 @@ forecast.mesCombined <- function(object, h=10, newxreg=NULL,
         yForecast[] <- yForecast + mesForecasts$mean * object$ICw[i];
         yUpper[] <- yUpper + mesForecasts$upper * object$ICw[i];
         yLower[] <- yLower + mesForecasts$lower * object$ICw[i];
-        cat(i); cat(", ");
     }
 
     # Get rid of specific models
