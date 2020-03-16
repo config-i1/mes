@@ -519,6 +519,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                     }
                     j <- j+1;
                 }
+                #### Seasonal components
                 # For pure models use stuff as is
                 if(all(c(Etype,Stype)=="A") || all(c(Etype,Stype)=="M") ||
                    (Etype=="A" & Stype=="M")){
@@ -535,7 +536,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             }
             # Non-seasonal models
             else{
-                matVt[1,1] <- mean(yInSample[1:max(lagsModelMax,obsInSample*0.2)]);
+                matVt[1,1] <- mean(yInSample[1:max(lagsModelMax,ceiling(obsInSample*0.2))]);
                 if(Ttype!="N"){
                     matVt[2,1] <- switch(Ttype,
                                          "A" = mean(diff(yInSample),na.rm=TRUE),
@@ -809,10 +810,23 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             lambda[] <- B[length(B)];
         }
 
-        # Check the bounds
+        # Check the bounds, classical restrictions
         if(bounds=="usual"){
             if(any(mesElements$vecG>1) || any(mesElements$vecG<0)){
                 return(1E+300);
+            }
+            if(Ttype!="N"){
+                if((mesElements$vecG[2]>mesElements$vecG[1])){
+                    return(1E+300);
+                }
+                if(Stype!="N" && any(mesElements$vecG[-c(1,2)]>(1-mesElements$vecG[1]))){
+                    return(1E+300);
+                }
+            }
+            else{
+                if(Stype!="N" && any(mesElements$vecG[-1]>(1-mesElements$vecG[1]))){
+                    return(1E+300);
+                }
             }
             # This is the restriction on the damping parameter
             if(phiEstimate && (mesElements$matF[2,2]>1 || mesElements$matF[2,2]<0)){
