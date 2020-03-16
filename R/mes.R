@@ -2670,11 +2670,11 @@ print.mesCombined <- function(x, digits=4, ...){
     cat(paste0("Time elapsed: ",round(as.numeric(x$timeElapsed,units="secs"),2)," seconds"));
     cat(paste0("\nModel estimated: ",x$model));
 
-    cat(paste0("\nNumber of models combined: ", length(x$models)));
+    cat(paste0("\nNumber of models combined: ", length(x$ICw)));
 
     cat("\nSample size: "); cat(nobs(x));
-    cat("\nNumber of estimated parameters: "); cat(nparam(x));
-    cat("\nNumber of degrees of freedom: "); cat(nobs(x)-nparam(x));
+    cat("\nNumber of estimated parameters: "); cat(round(nparam(x),digits=digits));
+    cat("\nNumber of degrees of freedom: "); cat(round(nobs(x)-nparam(x),digits=digits));
 }
 
 #' @export
@@ -3179,8 +3179,8 @@ forecast.mesCombined <- function(object, h=10, newxreg=NULL,
     names(mesForecasts)[c(1:3)] <- c("mean","lower","upper");
     for(i in 1:length(object$models)){
         mesForecasts[] <- forecast.mes(object$models[[i]], h=h, newxreg=newxreg,
-                                     interval=interval,
-                                     level=level, side=side, cumulative=cumulative, nsim=nsim, ...);
+                                       interval=interval,
+                                       level=level, side=side, cumulative=cumulative, nsim=nsim, ...);
         yForecast[] <- yForecast + mesForecasts$mean * object$ICw[i];
         yUpper[] <- yUpper + mesForecasts$upper * object$ICw[i];
         yLower[] <- yLower + mesForecasts$lower * object$ICw[i];
