@@ -188,16 +188,16 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
                                 "MNN","MAN","MAdN","MMN","MMdN",
                                 "MNA","MAA","MAdA","MMA","MMdA",
                                 "MNM","MAM","MAdM","MMM","MMdM");
-                model <- "ZZZ";
                 Etype[] <- Ttype[] <- Stype[] <- "Z";
+                model <- "FFF";
             }
 
             # The test for pure models only
             if(any(unlist(strsplit(model,""))=="P")){
                 modelsPool <- c("ANN","AAN","AAdN","ANA","AAA","AAdA",
                                 "MNN","MMN","MMdN","MNM","MMM","MMdM");
-                model <- "ZZZ";
                 Etype[] <- Ttype[] <- Stype[] <- "Z";
+                model <- "PPP";
             }
         }
         else{
@@ -546,6 +546,24 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
 
     # Check if multiplicative models can be fitted
     allowMultiplicative <- !((any(yInSample<=0) && !occurrenceModel) || (occurrenceModel && any(yInSample<0)));
+
+    # Clean the pool of models if only additive are allowed
+    if(!allowMultiplicative && !is.null(modelsPool)){
+        modelsPoolMultiplicative <- ((substr(modelsPool,1,1)=="M") |
+                                         substr(modelsPool,2,2)=="M" |
+                                         substr(modelsPool,nchar(modelsPool),nchar(modelsPool))=="M");
+        if(any(modelsPoolMultiplicative)){
+            modelsPool <- modelsPool[!modelsPoolMultiplicative];
+
+            if(!any(model==c("PPP","FFF"))){
+                warning("Only additive models are allowed for your data. Amending the pool.",
+                        call.=FALSE);
+            }
+        }
+    }
+    if(any(model==c("PPP","FFF"))){
+        model <- "ZZZ";
+    }
 
     ot <- matrix(otLogical*1,ncol=1);
     obsNonzero <- sum(ot);

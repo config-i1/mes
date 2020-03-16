@@ -1507,9 +1507,10 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     #### Deal with occurrence model ####
     if(occurrenceModel && !occurrenceModelProvided){
         oesModel <- suppressWarnings(oes(yInSample, model=model, occurrence=occurrence, ic=ic, h=horizon,
-                                         holdout=FALSE, bounds="usual", xreg=xreg, xregDo=xregDo));
+                                         holdout=FALSE, bounds="usual", xreg=xreg, xregDo=xregDo, silent=TRUE));
         pFitted[] <- fitted(oesModel);
         parametersNumber[1,3] <- nparam(oesModel);
+        # print(oesModel)
         # This should not happen, but just in case...
         if(oesModel$occurrence=="n"){
             occurrence <- "n";
