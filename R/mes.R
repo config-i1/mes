@@ -1360,10 +1360,12 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             if(nchar(modelCurrent)==4){
                 phi[] <- 0.95;
                 Stype <- substring(modelCurrent,4,4);
+                phiEstimate <- TRUE;
             }
             else{
                 phi[] <- 1;
                 Stype <- substring(modelCurrent,3,3);
+                phiEstimate <- FALSE;
             }
 
             results[[j]] <- estimator(Etype, Ttype, Stype, lags,
@@ -1380,7 +1382,12 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             results[[j]]$Ttype <- Ttype;
             results[[j]]$Stype <- Stype;
             results[[j]]$phiEstimate <- phiEstimate;
-            results[[j]]$phi <- phi;
+            if(phiEstimate){
+                results[[j]]$phi <- results[[j]]$B[names(results[[j]]$B)=="phi"];
+            }
+            else{
+                results[[j]]$phi <- 1;
+            }
             results[[j]]$model <- modelCurrent;
         }
 
