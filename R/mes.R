@@ -1479,6 +1479,16 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                              lagsModelAll, Etype, Ttype, Stype,
                                              componentsNumber, componentsNumberSeasonal, horizon);
             yForecast[] <- mesForecast$yForecast;
+            #### Make safety checks
+            # If there are NaN values
+            if(any(is.nan(yForecast))){
+                yForecast[is.nan(yForecast)] <- 0;
+            }
+            # If there are negative values in the multiplicative model
+            if((Etype=="M") && any(yForecast<=0)){
+                yForecast[yForecast<=0] <- 0.01;
+            }
+
             if(occurrenceModel){
                 yForecast[] <- yForecast * forecast(oesModel, h=h)$mean;
             }
@@ -2939,6 +2949,16 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                                      lagsModelAll, Etype, Ttype, Stype,
                                      componentsNumber, componentsNumberSeasonal, h);
 
+    #### Make safety checks
+    # If there are NaN values
+    if(any(is.nan(mesForecast$yForecast))){
+        mesForecast$yForecast[is.nan(mesForecast$yForecast)] <- 0;
+    }
+    # If there are negative values in the multiplicative model
+    # if(any(c(Etype,Ttype,Stype)=="M") && any(mesForecast$yForecast<=0)){
+    #     mesForecast$yForecast[mesForecast$yForecast<=0] <- 0.01;
+    # }
+
     # If this is a mixture model, produce forecasts for the occurrence
     if(!is.null(object$occurrence)){
         occurrenceModel <- TRUE;
@@ -3162,6 +3182,16 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                 yUpper[] <- Inf;
             }
         }
+
+        # Substitute NAs and NaNs with zeroes
+        # if(any(is.nan(yLower)) || any(is.na(yLower))){
+        #     yLower[is.nan(yLower)] <- 0;
+        #     yLower[is.na(yLower)] <- 0;
+        # }
+        # if(any(is.nan(yUpper)) || any(is.na(yUpper))){
+        #     yUpper[is.nan(yUpper)] <- 0;
+        #     yUpper[is.na(yUpper)] <- 0;
+        # }
 
         # Check what we have from the occurrence model
         if(occurrenceModel){

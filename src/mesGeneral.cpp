@@ -97,12 +97,8 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
             vecYfit(i-lagsModelMax) = wvalue(matrixVt(lagrows), matrixWt.row(i-lagsModelMax), E, T, S,
                                              nNonSeasonal, nSeasonal, nComponents);
 
-            // This is a failsafe for cases of ridiculously high values
-            // if(vecYfit(i-lagsModelMax) > 1e+100 && (i-lagsModelMax)>0){
-            //     vecYfit(i-lagsModelMax) = vecYfit(i-lagsModelMax-1);
-            // }
             // Failsafe for fitted becoming negative in mixed models
-            if(((E=='M') || (T=='M') || (S=='M')) && (vecYfit(i-lagsModelMax)<0)){
+            if((E=='M') && (vecYfit(i-lagsModelMax)<0)){
                 vecYfit(i-lagsModelMax) = 0.01;
             }
 
@@ -119,10 +115,6 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
                               gvalue(matrixVt(lagrows), matrixF, matrixWt.row(i-lagsModelMax), E, T, S,
                                      nNonSeasonal, nSeasonal, nComponents) % vectorG * vecErrors(i-lagsModelMax);
 
-            // Failsafe for mixed models having negative values... Doesn't work correctly!
-            // if(((E=='M') || (T=='M') || (S=='M')) && any(matrixVt.col(i)<=0)){
-            //     matrixVt.col(i) = matrixVt(lagrows);
-            // }
             // Failsafe for cases, when nan values appear
             if(matrixVt.col(i).has_nan()){
                 matrixVt.col(i) = matrixVt(lagrows);
@@ -131,15 +123,9 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
             // if(!matrixVt.col(i).is_finite()){
             //     matrixVt.col(i) = matrixVt(lagrows);
             // }
-            if(T=='M'){
-                if((matrixVt(0,i) <= 0) || (matrixVt(1,i) <= 0)){
-                    matrixVt(0,i) = arma::as_scalar(matrixVt(lagrows.row(0)));
-                    matrixVt(1,i) = arma::as_scalar(matrixVt(lagrows.row(1)));
-                }
+            if(E=='M' && (matrixVt(0,i) <= 0)){
+                matrixVt(0,i) = 0.01;
             }
-            // if(any(matrixVt.col(i)>1e+100)){
-            //     matrixVt.col(i) = matrixVt(lagrows);
-            // }
 
             /* Renormalise components if the seasonal model is chosen */
             // if(S!='N'){
@@ -158,10 +144,10 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
                 lagrows = i * nComponents - (lagsInternal + lagsModifier) + nComponents - 1;
                 matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, T, S, nComponents);
 
-                /* Failsafe for cases when unreasonable value for state vector was produced */
-                if(!matrixVt.col(i).is_finite()){
-                    matrixVt.col(i) = matrixVt(lagrows);
-                }
+                // /* Failsafe for cases when unreasonable value for state vector was produced */
+                // if(!matrixVt.col(i).is_finite()){
+                //     matrixVt.col(i) = matrixVt(lagrows);
+                // }
                 if((S=='M') && (matrixVt(nNonSeasonal,i) <= 0)){
                     matrixVt(nNonSeasonal,i) = arma::as_scalar(matrixVt(lagrows.row(nNonSeasonal)));
                 }
@@ -180,12 +166,8 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
                 vecYfit(i-lagsModelMax) = wvalue(matrixVt(lagrows), matrixWt.row(i-lagsModelMax), E, T, S,
                                                  nNonSeasonal, nSeasonal, nComponents);
 
-                // This is a failsafe for cases of ridiculously high and ridiculously low values
-                if(vecYfit(i-lagsModelMax) > 1e+100 && (i-lagsModelMax+1)<obs){
-                    vecYfit(i-lagsModelMax) = vecYfit(i-lagsModelMax+1);
-                }
                 // Failsafe for fitted becoming negative in mixed models
-                if(((E=='M') || (T=='M') || (S=='M')) && (vecYfit(i-lagsModelMax)<0)){
+                if((E=='M') && (vecYfit(i-lagsModelMax)<0)){
                     vecYfit(i-lagsModelMax) = 0.01;
                 }
 
@@ -202,26 +184,19 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
                                   gvalue(matrixVt(lagrows), matrixF, matrixWt.row(i-lagsModelMax), E, T, S,
                                          nNonSeasonal, nSeasonal, nComponents) % vectorG * vecErrors(i-lagsModelMax);
 
-                // Failsafe for mixed models having negative values... Doesn't work correctly!
-                // if(((E=='M') || (T=='M') || (S=='M')) && any(matrixVt.col(i)<=0)){
-                //     matrixVt.col(i) = matrixVt(lagrows);
-                // }
                 // Failsafe for cases, when nan values appear
                 if(matrixVt.col(i).has_nan()){
                     matrixVt.col(i) = matrixVt(lagrows);
                 }
                 /* Failsafe for cases when unreasonable value for state vector was produced */
-                if(!matrixVt.col(i).is_finite()){
-                    matrixVt.col(i) = matrixVt(lagrows);
-                }
+                // if(!matrixVt.col(i).is_finite()){
+                //     matrixVt.col(i) = matrixVt(lagrows);
+                // }
                 if(T=='M'){
                     if((matrixVt(0,i) <= 0) | (matrixVt(1,i) <= 0)){
                         matrixVt(0,i) = arma::as_scalar(matrixVt(lagrows.row(0)));
                         matrixVt(1,i) = arma::as_scalar(matrixVt(lagrows.row(1)));
                     }
-                }
-                if(any(matrixVt.col(i)>1e+100)){
-                    matrixVt.col(i) = matrixVt(lagrows);
                 }
 
                 /* Renormalise components if the seasonal model is chosen */
@@ -239,10 +214,10 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
                 lagrows = i * nComponents + lagsInternal - lagsModifier + nComponents - 1;
                 matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, T, S, nComponents);
 
-                /* Failsafe for cases when unreasonable value for state vector was produced */
-                if(!matrixVt.col(i).is_finite()){
-                    matrixVt.col(i) = matrixVt(lagrows);
-                }
+                // /* Failsafe for cases when unreasonable value for state vector was produced */
+                // if(!matrixVt.col(i).is_finite()){
+                //     matrixVt.col(i) = matrixVt(lagrows);
+                // }
                 if((S=='M') && (matrixVt(nNonSeasonal,i) <= 0)){
                     matrixVt(nNonSeasonal,i) = arma::as_scalar(matrixVt(lagrows.row(nNonSeasonal)));
                 }
