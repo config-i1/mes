@@ -503,13 +503,13 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 if(Ttype!="N"){
                     if(Ttype=="A" && Stype=="M"){
                         # level fix
-                        matVt[j-1,1:lagsModelMax] <- exp(mean(log(yInSample[1:lagsModelMax])));
+                        matVt[j-1,1:lagsModelMax] <- exp(mean(log(yInSample[otLogical][1:lagsModelMax])));
                         # trend
                         matVt[j,1:lagsModelMax] <- prod(yDecomposition$initial)-yDecomposition$initial[1];
                     }
                     else if(Ttype=="M" && Stype=="A"){
                         # level fix
-                        matVt[j-1,1:lagsModelMax] <- exp(mean(log(yInSample[1:lagsModelMax])));
+                        matVt[j-1,1:lagsModelMax] <- exp(mean(log(yInSample[otLogical][1:lagsModelMax])));
                         # trend
                         matVt[j,1:lagsModelMax] <- sum(yDecomposition$initial)/yDecomposition$initial[1];
                     }
@@ -644,9 +644,11 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         # Fill in persistence
         if(persistenceEstimate){
             if(any(c(Etype,Ttype,Stype)=="M")){
-                # A special type of model which is not safe: MMA, AAM
-                if((Etype=="M" && Ttype=="M" && Stype=="A") || (Etype=="A" && Ttype=="A" && Stype=="M")){
-                    B[j:componentsNumber] <- c(0.01,0.005,rep(0,componentsNumberSeasonal))[j:componentsNumber];
+                # A special type of model which is not safe: MMA, AAM, MAA, MAM
+                if((Etype=="M" && Ttype=="M" && Stype=="A") || (Etype=="A" && Ttype=="A" && Stype=="M") ||
+                   ((initialType=="backcasting") &&
+                    ((Etype=="M" && Ttype=="A" && Stype=="A") || (Etype=="M" && Ttype=="A" && Stype=="M")))){
+                    B[j:componentsNumber] <- c(0.01,0,rep(0,componentsNumberSeasonal))[j:componentsNumber];
                 }
                 else if(Etype=="M" && Ttype=="A"){
                     B[j:componentsNumber] <- c(0.1,0.05,rep(0.11,componentsNumberSeasonal))[j:componentsNumber];
@@ -841,6 +843,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 return(abs(eigenValues)*1E+100);
             }
         }
+        # print(mesElements$matVt)
 
         # Produce fitted values and errors
         mesFitted <- mesFitterWrap(mesElements$matVt, mesElements$matWt, mesElements$matF, mesElements$vecG,
