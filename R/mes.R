@@ -646,6 +646,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             if(any(c(Etype,Ttype,Stype)=="M")){
                 # A special type of model which is not safe: MMA, AAM, MAA, MAM
                 if((Etype=="M" && Ttype=="M" && Stype=="A") || (Etype=="A" && Ttype=="A" && Stype=="M") ||
+                   (Etype=="A" && Ttype=="M" && Stype=="A") ||
                    ((initialType=="backcasting") &&
                     ((Etype=="M" && Ttype=="A" && Stype=="A") || (Etype=="M" && Ttype=="A" && Stype=="M")))){
                     B[j:componentsNumber] <- c(0.01,0,rep(0,componentsNumberSeasonal))[j:componentsNumber];
@@ -985,6 +986,10 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             # loss==c("MSEh","TMSE","GTMSE","MSCE","MAEh","TMAE","GTMAE","MACE",
             #         "HAMh","THAM","GTHAM","CHAM","GPL",
             #         "aMSEh","aTMSE","aGTMSE","aMSCE","aGPL")
+        }
+
+        if(is.na(CFValue) || is.nan(CFValue)){
+            CFValue[] <- 1e+300;
         }
 
         return(CFValue);
