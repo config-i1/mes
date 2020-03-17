@@ -1115,6 +1115,24 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                        bounds=bounds, loss=loss, distribution=distributionNew, horizon=horizon, multisteps=multisteps,
                                        lambda=lambda, lambdaEstimate=lambdaEstimate));
 
+        if(is.infinite(res$objective) || res$objective==1e+300){
+            # If the optimisation didn't work, give it another try with zero initials
+            B[1:componentsNumber] <- 0;
+            res <- suppressWarnings(nloptr(B, CF, lb=lb, ub=ub,
+                                           opts=list(algorithm=algorithm, xtol_rel=xtol_rel, maxeval=maxeval,
+                                                     maxtime=maxtime, print_level=print_level),
+                                           Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
+                                           ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, obsInSample=obsInSample,
+                                           componentsNumber=componentsNumber, lagsModel=lagsModel, lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
+                                           matVt=mesCreated$matVt, matWt=mesCreated$matWt, matF=mesCreated$matF, vecG=mesCreated$vecG,
+                                           componentsNumberSeasonal=componentsNumberSeasonal,
+                                           persistenceEstimate=persistenceEstimate, phiEstimate=phiEstimate, initialType=initialType,
+                                           xregProvided=xregProvided, xregInitialsEstimate=xregInitialsEstimate,
+                                           xregPersistenceEstimate=xregPersistenceEstimate, xregNumber=xregNumber,
+                                           bounds=bounds, loss=loss, distribution=distributionNew, horizon=horizon, multisteps=multisteps,
+                                           lambda=lambda, lambdaEstimate=lambdaEstimate));
+        }
+
         ##### !!! Check the obtained parameters and the loss value and remove redundant parameters !!! #####
         # Cases to consider:
         # 1. Some smoothing parameters are zero or one;
