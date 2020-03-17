@@ -649,14 +649,14 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                     B[j:componentsNumber] <- c(0.01,0.005,rep(0,componentsNumberSeasonal))[j:componentsNumber];
                 }
                 else if(Etype=="M" && Ttype=="A"){
-                    B[j:componentsNumber] <- c(0.1,0.05,rep(0.1,componentsNumberSeasonal))[j:componentsNumber];
+                    B[j:componentsNumber] <- c(0.1,0.05,rep(0.11,componentsNumberSeasonal))[j:componentsNumber];
                 }
                 else{
-                    B[j:componentsNumber] <- c(0.01,0.005,rep(0.05,componentsNumberSeasonal))[j:componentsNumber];
+                    B[j:componentsNumber] <- c(0.1,0.005,rep(0.11,componentsNumberSeasonal))[j:componentsNumber];
                 }
             }
             else{
-                B[j:componentsNumber] <- c(0.1,0.05,rep(0.1,componentsNumberSeasonal))[j:componentsNumber];
+                B[j:componentsNumber] <- c(0.1,0.05,rep(0.11,componentsNumberSeasonal))[j:componentsNumber];
             }
             Bl[j:componentsNumber] <- rep(-5, componentsNumber);
             Bu[j:componentsNumber] <- rep(5, componentsNumber);
@@ -2564,6 +2564,7 @@ pointLik.mes <- function(object, ...){
         yFitted <- fitted(object);
     }
     scale <- object$scale;
+    Etype <- errorType(object);
 
     likValues <- vector("numeric",obsInSample);
     likValues[otLogical] <- switch(distribution,
@@ -3145,7 +3146,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                 yUpper[] <- yForecast*qinvgauss(levelUp, 1, dispersion=vcovMulti);
             }
             else{
-                vcovMulti <- mesVarAnal(h, matWt[1,,drop=FALSE], vecG, s2);
+                vcovMulti <- mesVarAnal(lagsModelAll, h, matWt[1,,drop=FALSE], matF, vecG, s2);
                 yLower[] <- yForecast*qinvgauss(levelLow, 1, dispersion=vcovMulti);
                 yUpper[] <- yForecast*qinvgauss(levelUp, 1, dispersion=vcovMulti);
             }
