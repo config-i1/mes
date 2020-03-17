@@ -539,7 +539,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 matVt[1,1] <- mean(yInSample[1:max(lagsModelMax,ceiling(obsInSample*0.2))]);
                 if(Ttype!="N"){
                     matVt[2,1] <- switch(Ttype,
-                                         "A" = mean(diff(yInSample),na.rm=TRUE),
+                                         "A" = mean(diff(yInSample[1:max(lagsModelMax+1,ceiling(obsInSample*0.2))]),na.rm=TRUE),
                                          "M" = exp(mean(diff(log(yInSample[otLogical])),na.rm=TRUE)));
                 }
             }
