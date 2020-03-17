@@ -210,9 +210,9 @@ inline arma::vec gvalue(arma::vec const &matrixVt, arma::mat const &matrixF, arm
             case 'A':
                 g.fill(as_scalar(rowvecW * matrixVt));
                 // Explanatory variables
-                if(nComponents > (nSeasonal+nNonSeasonal)){
-                    g.rows(nSeasonal+nNonSeasonal,nComponents-1) = matrixVt.rows(nSeasonal+nNonSeasonal,nComponents-1);
-                }
+                // if(nComponents > (nSeasonal+nNonSeasonal)){
+                //     g.rows(nSeasonal+nNonSeasonal,nComponents-1) = matrixVt.rows(nSeasonal+nNonSeasonal,nComponents-1);
+                // }
                 break;
             case 'M':
                 g.rows(0,1).fill(as_scalar(rowvecW.cols(0,1) * matrixVt.rows(0,1)));
@@ -227,15 +227,17 @@ inline arma::vec gvalue(arma::vec const &matrixVt, arma::mat const &matrixF, arm
                 g.rows(0,1) = exp(matrixF.submat(0,0,1,1) * log(matrixVt.rows(0,nNonSeasonal-1)));
                 break;
             case 'A':
-                g.rows(0,nComponents-1).fill(as_scalar(exp(rowvecW.cols(0,1) * log(matrixVt.rows(0,1)) +
-                                             rowvecW.cols(2,2+nSeasonal-1) * matrixVt.rows(2,2+nSeasonal-1))));
-                g(0) = g(0) / matrixVt(1);
-                g(1) = g(1) / matrixVt(0);
-                // Explanatory variables
-                if(nComponents > (nSeasonal+nNonSeasonal)){
-                    g.rows(nSeasonal+nNonSeasonal,nComponents-1) = matrixVt.rows(nSeasonal+nNonSeasonal,nComponents-1);
-                }
-                break;
+                ////// The following stuff doesn't work anyway, so we use the scheme from MMM //////
+                //
+                // g.rows(0,nComponents-1).fill(as_scalar(exp(rowvecW.cols(0,1) * log(matrixVt.rows(0,1)) +
+                //                              rowvecW.cols(2,2+nSeasonal-1) * matrixVt.rows(2,2+nSeasonal-1))));
+                // g(0) = g(0) / matrixVt(1);
+                // g(1) = g(1) / matrixVt(0);
+                //// Explanatory variables
+                //// if(nComponents > (nSeasonal+nNonSeasonal)){
+                ////     g.rows(nSeasonal+nNonSeasonal,nComponents-1) = matrixVt.rows(nSeasonal+nNonSeasonal,nComponents-1);
+                //// }
+                // break;
             case 'M':
                 g.rows(0,1) = exp(matrixF.submat(0,0,1,1) * log(matrixVt.rows(0,nNonSeasonal-1)));
                 g.rows(2,nComponents-1) = matrixVt.rows(2,nComponents-1);

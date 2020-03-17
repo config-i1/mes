@@ -128,18 +128,18 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
                 matrixVt.col(i) = matrixVt(lagrows);
             }
             /* Failsafe for cases when unreasonable value for state vector was produced */
-            if(!matrixVt.col(i).is_finite()){
-                matrixVt.col(i) = matrixVt(lagrows);
-            }
+            // if(!matrixVt.col(i).is_finite()){
+            //     matrixVt.col(i) = matrixVt(lagrows);
+            // }
             if(T=='M'){
                 if((matrixVt(0,i) <= 0) || (matrixVt(1,i) <= 0)){
                     matrixVt(0,i) = arma::as_scalar(matrixVt(lagrows.row(0)));
                     matrixVt(1,i) = arma::as_scalar(matrixVt(lagrows.row(1)));
                 }
             }
-            if(any(matrixVt.col(i)>1e+100)){
-                matrixVt.col(i) = matrixVt(lagrows);
-            }
+            // if(any(matrixVt.col(i)>1e+100)){
+            //     matrixVt.col(i) = matrixVt(lagrows);
+            // }
 
             /* Renormalise components if the seasonal model is chosen */
             // if(S!='N'){
