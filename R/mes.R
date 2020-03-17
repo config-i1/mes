@@ -651,7 +651,12 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                     B[j:componentsNumber] <- c(0.01,0,rep(0,componentsNumberSeasonal))[j:componentsNumber];
                 }
                 else if(Etype=="M" && Ttype=="A"){
-                    B[j:componentsNumber] <- c(0.1,0.05,rep(0.11,componentsNumberSeasonal))[j:componentsNumber];
+                    if(initialType=="backcasting"){
+                        B[j:componentsNumber] <- c(0.1,0,rep(0.11,componentsNumberSeasonal))[j:componentsNumber];
+                    }
+                    else{
+                        B[j:componentsNumber] <- c(0.1,0.05,rep(0.11,componentsNumberSeasonal))[j:componentsNumber];
+                    }
                 }
                 else{
                     B[j:componentsNumber] <- c(0.1,0.005,rep(0.11,componentsNumberSeasonal))[j:componentsNumber];
