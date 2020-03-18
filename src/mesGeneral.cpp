@@ -98,9 +98,9 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
                                              nNonSeasonal, nSeasonal, nComponents);
 
             // Failsafe for fitted becoming negative in mixed models
-            if((E=='M') && (vecYfit(i-lagsModelMax)<0)){
-                vecYfit(i-lagsModelMax) = 0.01;
-            }
+            // if((E=='M') && (vecYfit(i-lagsModelMax)<0)){
+            //     vecYfit(i-lagsModelMax) = 0.01;
+            // }
 
             // If this is zero (intermittent), then set error to zero
             if(vectorOt(i-lagsModelMax)==0){
@@ -167,9 +167,9 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
                                                  nNonSeasonal, nSeasonal, nComponents);
 
                 // Failsafe for fitted becoming negative in mixed models
-                if((E=='M') && (vecYfit(i-lagsModelMax)<0)){
-                    vecYfit(i-lagsModelMax) = 0.01;
-                }
+                // if((E=='M') && (vecYfit(i-lagsModelMax)<0)){
+                //     vecYfit(i-lagsModelMax) = 0.01;
+                // }
 
                 // If this is zero (intermittent), then set error to zero
                 if(vectorOt(i-lagsModelMax)==0){
