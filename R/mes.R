@@ -644,12 +644,15 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         # Fill in persistence
         if(persistenceEstimate){
             if(any(c(Etype,Ttype,Stype)=="M")){
-                # A special type of model which is not safe: MMA, AAM, MAA, MAM
-                if((Etype=="M" && Ttype=="M" && Stype=="A") || (Etype=="A" && Ttype=="A" && Stype=="M") ||
-                   (Etype=="A" && Ttype=="M" && Stype=="A") ||
+                # A special type of model which is not safe: AAM, MAA, MAM
+                if((Etype=="A" && Ttype=="A" && Stype=="M") || (Etype=="A" && Ttype=="M" && Stype=="A") ||
                    ((initialType=="backcasting") &&
                     ((Etype=="M" && Ttype=="A" && Stype=="A") || (Etype=="M" && Ttype=="A" && Stype=="M")))){
                     B[j:componentsNumber] <- c(0.01,0,rep(0,componentsNumberSeasonal))[j:componentsNumber];
+                }
+                # MMA is the worst. Set everything to zero and see if anything can be done...
+                else if((Etype=="M" && Ttype=="M" && Stype=="A")){
+                    B[j:componentsNumber] <- c(0,0,rep(0,componentsNumberSeasonal))[j:componentsNumber];
                 }
                 else if(Etype=="M" && Ttype=="A"){
                     if(initialType=="backcasting"){
@@ -1518,9 +1521,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 yForecast[is.nan(yForecast)] <- 0;
             }
             # If there are negative values in the multiplicative model
-            if((Etype=="M") && any(yForecast<=0)){
-                yForecast[yForecast<=0] <- 0.01;
-            }
+            # if((Etype=="M") && any(yForecast<=0)){
+            #     yForecast[yForecast<=0] <- 0.01;
+            # }
 
             if(occurrenceModel){
                 yForecast[] <- yForecast * forecast(oesModel, h=h)$mean;
