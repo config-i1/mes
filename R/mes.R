@@ -910,7 +910,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                                                     (digamma((scale+1)/2)-digamma(scale/2)) +
                                                                     log(sqrt(scale) * beta(scale/2,0.5))),
                                                 "ds" = obsZero*(2 + 2*log(2*scale)),
-                                                "dinvgauss" = obsZero*(0.5*(log(pi/2)+1+suppressWarnings(log(scale)))));
+                                                "dinvgauss" = 0.5*(obsZero*(log(pi/2)+1+suppressWarnings(log(scale)))-
+                                                                       sum(log(mesFitted$yFitted[!otLogical]))));
+                                                # "dinvgauss" = obsZero*(0.5*(log(pi/2)+1+suppressWarnings(log(scale)))));
                 }
             }
             else if(loss=="MSE"){
