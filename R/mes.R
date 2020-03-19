@@ -3053,7 +3053,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
         levelUp[levelUp<0] <- 0;
     }
 
-    # If simulated intervals are needed...
+    #### Simulated intervals ####
     if(interval=="simulated"){
         arrVt <- array(NA, c(componentsNumber+xregNumber, h+lagsModelMax, nsim));
         arrVt[,1:lagsModelMax,] <- rep(matVt,nsim);
@@ -3097,6 +3097,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
             }
         }
     }
+    #### Approximated intervals ####
     # This option will use h-steps ahead variance and produce intervals for it
     # This will rely on multicov() method
     else if(interval=="approximate"){
@@ -3226,14 +3227,14 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
         }
 
         # Substitute NAs and NaNs with zeroes
-        # if(any(is.nan(yLower)) || any(is.na(yLower))){
-        #     yLower[is.nan(yLower)] <- 0;
-        #     yLower[is.na(yLower)] <- 0;
-        # }
-        # if(any(is.nan(yUpper)) || any(is.na(yUpper))){
-        #     yUpper[is.nan(yUpper)] <- 0;
-        #     yUpper[is.na(yUpper)] <- 0;
-        # }
+        if(any(is.nan(yLower)) || any(is.na(yLower))){
+            yLower[is.nan(yLower)] <- 0;
+            yLower[is.na(yLower)] <- 0;
+        }
+        if(any(is.nan(yUpper)) || any(is.na(yUpper))){
+            yUpper[is.nan(yUpper)] <- 0;
+            yUpper[is.na(yUpper)] <- 0;
+        }
 
         # Check what we have from the occurrence model
         if(occurrenceModel){

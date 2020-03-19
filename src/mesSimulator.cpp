@@ -55,18 +55,18 @@ List mesSimulator(arma::cube &arrayVt, arma::mat const &matrixErrors, arma::mat 
             if(!matrixVt.col(j).is_finite()){
                 matrixVt.col(j) = matrixVt(lagrows);
             }
-            if((S=='M') && (matrixVt(nNonSeasonal,j) <= 0)){
-                matrixVt(nNonSeasonal,j) = arma::as_scalar(matrixVt(lagrows.row(nNonSeasonal)));
-            }
+            // if((S=='M') && (matrixVt(nNonSeasonal,j) <= 0)){
+            //     matrixVt(nNonSeasonal,j) = arma::as_scalar(matrixVt(lagrows.row(nNonSeasonal)));
+            // }
             if(T=='M'){
                 if((matrixVt(0,j) <= 0) | (matrixVt(1,j) <= 0)){
                     matrixVt(0,j) = arma::as_scalar(matrixVt(lagrows.row(0)));
                     matrixVt(1,j) = arma::as_scalar(matrixVt(lagrows.row(1)));
                 }
             }
-            if(any(matrixVt.col(j)>1e+100)){
-                matrixVt.col(j) = matrixVt(lagrows);
-            }
+            // if(any(matrixVt.col(j)>1e+100)){
+            //     matrixVt.col(j) = matrixVt(lagrows);
+            // }
         }
         arrayVt.slice(i) = matrixVt;
     }
