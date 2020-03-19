@@ -2773,6 +2773,11 @@ print.mes.forecast <- function(x, ...){
 #' @importFrom stats sigma
 #' @export
 sigma.mes <- function(object, ...){
+    df <- (nobs(object)-nparam(object));
+    # If the sample is too small, then use biased estimator
+    if(df<=0){
+        df[] <- nparam(object);
+    }
     return(sqrt(switch(object$distribution,
                        "dnorm"=,
                        "dlogis"=,
@@ -2782,7 +2787,7 @@ sigma.mes <- function(object, ...){
                        "dalaplace"=sum(residuals(object)^2),
                        "dlnorm"=sum(log(residuals(object))^2),
                        "dinvgauss"=sum((residuals(object)-1)^2))
-                /(nobs(object)-nparam(object))));
+                /df));
 }
 
 #' @export
