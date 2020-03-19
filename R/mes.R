@@ -1961,6 +1961,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
 
         class(modelReturned) <- c("mes","smooth");
     }
+    #### Return the combined model ####
     else{
         modelReturned <- list(models=vector("list",length(mesSelected$results)));
         yFittedCombined <- rep(0,obsInSample);
@@ -1983,8 +1984,10 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                                    matVt, matWt, matF, vecG,
                                                    occurrenceModel, ot, oesModel,
                                                    parametersNumber, CFValue);
+            modelReturned$models[[i]]$fitted[is.na(modelReturned$models[[i]]$fitted)] <- 0;
             yFittedCombined[] <- yFittedCombined + modelReturned$models[[i]]$fitted * mesSelected$icWeights[i];
             if(h>0){
+                modelReturned$models[[i]]$forecast[is.na(modelReturned$models[[i]]$forecast)] <- 0;
                 yForecastCombined[] <- yForecastCombined + modelReturned$models[[i]]$forecast * mesSelected$icWeights[i];
             }
 
