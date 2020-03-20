@@ -723,7 +723,8 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
         xtol_rel <- ellipsis$xtol_rel;
     }
     if(is.null(ellipsis$algorithm)){
-        algorithm <- "NLOPT_LN_NELDERMEAD";
+        # algorithm <- "NLOPT_LN_NELDERMEAD";
+        algorithm <- "NLOPT_LN_BOBYQA";
     }
     else{
         algorithm <- ellipsis$algorithm;
