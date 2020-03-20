@@ -722,9 +722,14 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     else{
         xtol_rel <- ellipsis$xtol_rel;
     }
+    if(is.null(ellipsis$xtol_abs)){
+        xtol_abs <- 0;
+    }
+    else{
+        xtol_abs <- ellipsis$xtol_abs;
+    }
     if(is.null(ellipsis$algorithm)){
-        # algorithm <- "NLOPT_LN_NELDERMEAD";
-        algorithm <- "NLOPT_LN_BOBYQA";
+        algorithm <- "NLOPT_LN_NELDERMEAD";
     }
     else{
         algorithm <- ellipsis$algorithm;
@@ -863,6 +868,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     assign("maxeval",maxeval,ParentEnvironment);
     assign("maxtime",maxtime,ParentEnvironment);
     assign("xtol_rel",xtol_rel,ParentEnvironment);
+    assign("xtol_abs",xtol_abs,ParentEnvironment);
     assign("algorithm",algorithm,ParentEnvironment);
     assign("print_level",print_level,ParentEnvironment);
     assign("B",B,ParentEnvironment);

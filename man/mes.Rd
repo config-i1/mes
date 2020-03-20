@@ -177,7 +177,9 @@ You can also pass parameters to the optimiser in order to fine tune its work:
 \itemize{
 \item \code{maxeval} - maximum number of evaluations to carry out (default is 100);
 \item \code{maxtime} - stop, when the optimisation time (in seconds) exceeds this;
-\item \code{xtol_rel} - the precision of the optimiser (the default is 1E-6);
+\item \code{xtol_rel} - the relative precision of the optimiser (the default is 1E-6);
+\item \code{xtol_abs} - the absolute precision of the optimiser (the default is 0 -
+not used);
 \item \code{algorithm} - the algorithm to use in optimisation
 (\code{"NLOPT_LN_BOBYQA"} by default);
 \item \code{print_level} - the level of output for the optimiser (0 by default).

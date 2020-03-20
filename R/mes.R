@@ -194,7 +194,9 @@
 #' \itemize{
 #' \item \code{maxeval} - maximum number of evaluations to carry out (default is 100);
 #' \item \code{maxtime} - stop, when the optimisation time (in seconds) exceeds this;
-#' \item \code{xtol_rel} - the precision of the optimiser (the default is 1E-6);
+#' \item \code{xtol_rel} - the relative precision of the optimiser (the default is 1E-6);
+#' \item \code{xtol_abs} - the absolute precision of the optimiser (the default is 0 -
+#' not used);
 #' \item \code{algorithm} - the algorithm to use in optimisation
 #' (\code{"NLOPT_LN_BOBYQA"} by default);
 #' \item \code{print_level} - the level of output for the optimiser (0 by default).
@@ -1117,8 +1119,8 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
 
         # Parameters are chosen to speed up the optimisation process and have decent accuracy
         res <- suppressWarnings(nloptr(B, CF, lb=lb, ub=ub,
-                                       opts=list(algorithm=algorithm, xtol_rel=xtol_rel, maxeval=maxeval,
-                                                 maxtime=maxtime, print_level=print_level),
+                                       opts=list(algorithm=algorithm, xtol_rel=xtol_rel, xtol_abs=xtol_abs,
+                                                 maxeval=maxeval, maxtime=maxtime, print_level=print_level),
                                        Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
                                        ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, obsInSample=obsInSample,
                                        componentsNumber=componentsNumber, lagsModel=lagsModel, lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
@@ -1147,22 +1149,6 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                            bounds=bounds, loss=loss, distribution=distributionNew, horizon=horizon, multisteps=multisteps,
                                            lambda=lambda, lambdaEstimate=lambdaEstimate));
         }
-
-        #### Continu optimisation with Nelder-Mead
-        B[] <- res$solution;
-        res <- suppressWarnings(nloptr(B, CF, lb=lb, ub=ub,
-                                       opts=list(algorithm="NLOPT_LN_NELDERMEAD", xtol_rel=xtol_rel, maxeval=maxeval,
-                                                 maxtime=maxtime, print_level=print_level),
-                                       Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
-                                       ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, obsInSample=obsInSample,
-                                       componentsNumber=componentsNumber, lagsModel=lagsModel, lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
-                                       matVt=mesCreated$matVt, matWt=mesCreated$matWt, matF=mesCreated$matF, vecG=mesCreated$vecG,
-                                       componentsNumberSeasonal=componentsNumberSeasonal,
-                                       persistenceEstimate=persistenceEstimate, phiEstimate=phiEstimate, initialType=initialType,
-                                       xregProvided=xregProvided, xregInitialsEstimate=xregInitialsEstimate,
-                                       xregPersistenceEstimate=xregPersistenceEstimate, xregNumber=xregNumber,
-                                       bounds=bounds, loss=loss, distribution=distributionNew, horizon=horizon, multisteps=multisteps,
-                                       lambda=lambda, lambdaEstimate=lambdaEstimate));
 
         ##### !!! Check the obtained parameters and the loss value and remove redundant parameters !!! #####
         # Cases to consider:
