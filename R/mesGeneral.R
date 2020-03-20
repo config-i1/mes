@@ -789,6 +789,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     # The rename of the variable is needed for the hessian to work
     assign("horizon",h,ParentEnvironment);
     assign("h",h,ParentEnvironment);
+    assign("holdout",holdout,ParentEnvironment);
 
     # Number of observations and parameters
     assign("obsInSample",obsInSample,ParentEnvironment);

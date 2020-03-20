@@ -2007,7 +2007,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             }
             modelReturned$models[[i]]$model <- modelName;
             modelReturned$models[[i]]$timeElapsed <- Sys.time()-startTime;
-            parametersNumberOverall[1,1] <- parametersNumber[1,1] * mesSelected$icWeights[i];
+            parametersNumberOverall[1,1] <- parametersNumber[1,1] + parametersNumber[1,1] * mesSelected$icWeights[i];
             modelReturned$models[[i]]$y <- yInSample;
 
             class(modelReturned$models[[i]]) <- c("mes","smooth");
@@ -2035,12 +2035,17 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         modelReturned$y <- yInSample;
         modelReturned$fitted <- ts(yFittedCombined,start=start(y), frequency=frequency(y));
         modelReturned$forecast <- ts(yForecastCombined,start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
-        parametersNumberOverall[1,4] <- sum(parametersNumberOverall[1,1:4]);
+        parametersNumberOverall[1,4] <- sum(parametersNumberOverall[1,1:3]);
         modelReturned$nParam <- parametersNumberOverall;
         modelReturned$ICw <- mesSelected$icWeights;
         class(modelReturned) <- c("mesCombined","mes","smooth");
     }
     modelReturned$ICs <- icSelection;
+
+    # Error measures if there is a holdout
+    if(holdout){
+        modelReturned$accuracy <- measures(yHoldout,modelReturned$forecast,yInSample);
+    }
 
     if(!silent){
         plot(modelReturned, 1);
@@ -2737,6 +2742,33 @@ print.mes <- function(x, digits=4, ...){
     else{
         cat("\nInformation criteria are unavailable for the chosen loss & distribution.");
     }
+
+    if(!is.null(x$holdout) && length(x$forecast)>0){
+        cat("\nForecast errors:\n");
+        if(is.null(x$occurrence)){
+            cat(paste(paste0("ME: ",round(x$accuracy["ME"],3)),
+                      paste0("MAE: ",round(x$accuracy["MAE"],3)),
+                      paste0("RMSE: ",round(sqrt(x$accuracy["MSE"]),3),"\n")
+                      # paste0("Bias: ",round(x$accuracy["cbias"],3)*100,"%"),
+                      ,sep="; "));
+            cat(paste(paste0("sCE: ",round(x$accuracy["sCE"],5)*100,"%"),
+                      paste0("sMAE: ",round(x$accuracy["sMAE"],5)*100,"%"),
+                      paste0("sMSE: ",round(x$accuracy["sMSE"],5)*100,"%\n")
+                ,sep="; "));
+            cat(paste(paste0("MASE: ",round(x$accuracy["MASE"],3)),
+                      paste0("RMSSE: ",round(x$accuracy["RMSSE"],3)),
+                      paste0("rMAE: ",round(x$accuracy["rMAE"],3)),
+                      paste0("rRMSE: ",round(x$accuracy["rRMSE"],3),"\n")
+                      ,sep="; "));
+        }
+        else{
+            cat(paste(paste0("Bias: ",round(x$accuracy["cbias"],5)*100,"%"),
+                      paste0("sMSE: ",round(x$accuracy["sMSE"],5)*100,"%"),
+                      paste0("rRMSE: ",round(x$accuracy["rRMSE"],3)),
+                      paste0("sPIS: ",round(x$accuracy["sPIS"],5)*100,"%"),
+                      paste0("sCE: ",round(x$accuracy["sCE"],5)*100,"%\n"),sep="; "));
+        }
+    }
 }
 
 #' @export
@@ -2744,11 +2776,38 @@ print.mesCombined <- function(x, digits=4, ...){
     cat(paste0("Time elapsed: ",round(as.numeric(x$timeElapsed,units="secs"),2)," seconds"));
     cat(paste0("\nModel estimated: ",x$model));
 
-    cat(paste0("\nNumber of models combined: ", length(x$ICw)));
-
+    cat(paste0("\n\nNumber of models combined: ", length(x$ICw)));
+    cat(paste0("\nLoss function type: ",x$models[[1]]$loss));
     cat("\nSample size: "); cat(nobs(x));
-    cat("\nNumber of estimated parameters: "); cat(round(nparam(x),digits=digits));
-    cat("\nNumber of degrees of freedom: "); cat(round(nobs(x)-nparam(x),digits=digits));
+    cat("\nAverage number of estimated parameters: "); cat(round(nparam(x),digits=digits));
+    cat("\nAverage number of degrees of freedom: "); cat(round(nobs(x)-nparam(x),digits=digits));
+
+    if(!is.null(x$holdout) && length(x$forecast)>0){
+        cat("\n\nForecast errors:\n");
+        if(is.null(x$occurrence)){
+            cat(paste(paste0("ME: ",round(x$accuracy["ME"],3)),
+                      paste0("MAE: ",round(x$accuracy["MAE"],3)),
+                      paste0("RMSE: ",round(sqrt(x$accuracy["MSE"]),3),"\n")
+                      # paste0("Bias: ",round(x$accuracy["cbias"],3)*100,"%"),
+                      ,sep="; "));
+            cat(paste(paste0("sCE: ",round(x$accuracy["sCE"],5)*100,"%"),
+                      paste0("sMAE: ",round(x$accuracy["sMAE"],5)*100,"%"),
+                      paste0("sMSE: ",round(x$accuracy["sMSE"],5)*100,"%\n")
+                ,sep="; "));
+            cat(paste(paste0("MASE: ",round(x$accuracy["MASE"],3)),
+                      paste0("RMSSE: ",round(x$accuracy["RMSSE"],3)),
+                      paste0("rMAE: ",round(x$accuracy["rMAE"],3)),
+                      paste0("rRMSE: ",round(x$accuracy["rRMSE"],3),"\n")
+                      ,sep="; "));
+        }
+        else{
+            cat(paste(paste0("Bias: ",round(x$accuracy["cbias"],5)*100,"%"),
+                      paste0("sMSE: ",round(x$accuracy["sMSE"],5)*100,"%"),
+                      paste0("rRMSE: ",round(x$accuracy["rRMSE"],3)),
+                      paste0("sPIS: ",round(x$accuracy["sPIS"],5)*100,"%"),
+                      paste0("sCE: ",round(x$accuracy["sCE"],5)*100,"%\n"),sep="; "));
+        }
+    }
 }
 
 #' @export
