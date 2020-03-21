@@ -37,12 +37,14 @@ double errorf(double const &yact, double &yfit, char const &E){
     }
 }
 
-/* # Function is needed to estimate the correct error for ETS when multisteps model selection with r(matvt) is sorted out. */
-arma::mat errorvf(arma::mat yact, arma::mat yfit, char const &E){
-    if(E=='A'){
+/* # Function is needed to estimate the correct error for ETS with multistep errors */
+arma::vec errorfVector(arma::vec yact, arma::vec yfit, char const &E){
+    switch(E){
+    default:
+    case 'A':
         return yact - yfit;
-    }
-    else{
+        break;
+    case 'M':
         yfit.elem(find(yfit==0)).fill(1e-100);
         return (yact - yfit) / yfit;
     }
@@ -280,9 +282,9 @@ RcppExport SEXP mesFitterWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP vecG,
 
 
 /* # Function produces the point forecasts for the specified model */
-List mesForecaster(arma::mat const &matrixVt, arma::mat const &matrixWt, arma::mat const &matrixF, arma::vec const &vectorG,
-                   arma::uvec lags, char const &E, char const &T, char const &S,
-                   unsigned int const &nNonSeasonal, unsigned int const &nSeasonal, unsigned int const &horizon){
+arma::vec mesForecaster(arma::mat const &matrixVt, arma::mat const &matrixWt, arma::mat const &matrixF,
+                        arma::uvec lags, char const &E, char const &T, char const &S,
+                        unsigned int const &nNonSeasonal, unsigned int const &nSeasonal, unsigned int const &horizon){
     unsigned int lagslength = lags.n_rows;
     unsigned int lagsModelMax = max(lags);
     unsigned int hh = horizon + lagsModelMax;
@@ -309,12 +311,13 @@ List mesForecaster(arma::mat const &matrixVt, arma::mat const &matrixWt, arma::m
                                               nNonSeasonal, nSeasonal, nComponents));
     }
 
-    return List::create(Named("matVt") = matrixVtnew, Named("yForecast") = vecYfor);
+    // return List::create(Named("matVt") = matrixVtnew, Named("yForecast") = vecYfor);
+    return vecYfor;
 }
 
 /* # Wrapper for forecaster */
 // [[Rcpp::export]]
-RcppExport SEXP mesForecasterWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP vecG,
+RcppExport SEXP mesForecasterWrap(SEXP matVt, SEXP matWt, SEXP matF,
                                   SEXP lagsModelAll, SEXP Etype, SEXP Ttype, SEXP Stype,
                                   SEXP componentsNumber, SEXP componentsNumberSeasonal, SEXP h){
 
@@ -326,9 +329,6 @@ RcppExport SEXP mesForecasterWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP vecG,
 
     NumericMatrix matF_n(matF);
     arma::mat matrixF(matF_n.begin(), matF_n.nrow(), matF_n.ncol(), false);
-
-    NumericMatrix vecg_n(vecG);
-    arma::vec vectorG(vecg_n.begin(), vecg_n.nrow(), false);
 
     IntegerVector lagsModel_n(lagsModelAll);
     arma::uvec lags = as<arma::uvec>(lagsModel_n);
@@ -342,7 +342,78 @@ RcppExport SEXP mesForecasterWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP vecG,
 
     unsigned int horizon = as<int>(h);
 
-    return wrap(mesForecaster(matrixVt, matrixWt, matrixF, vectorG,
+    return wrap(mesForecaster(matrixVt, matrixWt, matrixF,
                               lags, E, T, S,
                               nNonSeasonal, nSeasonal, horizon));
+}
+
+/* # Function produces matrix of errors based on multisteps forecast */
+arma::mat mesErrorer(arma::mat const &matrixVt, arma::mat const &matrixWt, arma::mat const &matrixF,
+                     arma::uvec &lags, char const &E, char const &T, char const &S,
+                     unsigned int const &nNonSeasonal, unsigned int const &nSeasonal, unsigned int const &horizon,
+                     arma::vec const &vectorYt, arma::vec const &vectorOt){
+    unsigned int obs = vectorYt.n_rows;
+    // This is needed for cases, when hor>obs
+    unsigned int hh = 0;
+    arma::mat matErrors(horizon, obs, arma::fill::zeros);
+    unsigned int lagsModelMax = max(lags);
+
+    for(unsigned int i = 0; i < (obs-horizon); i=i+1){
+        hh = std::min(horizon, obs-i);
+        matErrors.submat(0, i, hh-1, i) = (vectorOt.rows(i, i+hh-1) % errorfVector(vectorYt.rows(i, i+hh-1),
+                                           mesForecaster(matrixVt.cols(i,i+lagsModelMax-1), matrixWt.rows(i,i+hh-1),
+                                                         matrixF, lags, E, T, S, nNonSeasonal, nSeasonal, hh), E));
+    }
+
+    // Cut-off the redundant last part
+    if(obs>horizon){
+        matErrors = matErrors.cols(0,obs-horizon-1);
+    }
+
+// Fix for GV in order to perform better in the sides of the series
+    // for(int i=0; i<(hor-1); i=i+1){
+    //     matErrors.submat((hor-2)-(i),i+1,(hor-2)-(i),hor-1) = matErrors.submat(hor-1,0,hor-1,hor-i-2) * sqrt(1.0+i);
+    // }
+
+    return matErrors.t();
+}
+
+/* # Wrapper for error function */
+// [[Rcpp::export]]
+RcppExport SEXP mesErrorerWrap(SEXP matVt, SEXP matWt, SEXP matF,
+                               SEXP lagsModelAll, SEXP Etype, SEXP Ttype, SEXP Stype,
+                               SEXP componentsNumber, SEXP componentsNumberSeasonal, SEXP h,
+                               SEXP yInSample, SEXP ot){
+
+    NumericMatrix matvt_n(matVt);
+    arma::mat matrixVt(matvt_n.begin(), matvt_n.nrow(), matvt_n.ncol(), false);
+
+    NumericMatrix matWt_n(matWt);
+    arma::mat matrixWt(matWt_n.begin(), matWt_n.nrow(), matWt_n.ncol(), false);
+
+    NumericMatrix matF_n(matF);
+    arma::mat matrixF(matF_n.begin(), matF_n.nrow(), matF_n.ncol(), false);
+
+    IntegerVector lagsModel_n(lagsModelAll);
+    arma::uvec lags = as<arma::uvec>(lagsModel_n);
+
+    char E = as<char>(Etype);
+    char T = as<char>(Ttype);
+    char S = as<char>(Stype);
+
+    unsigned int nSeasonal = as<int>(componentsNumberSeasonal);
+    unsigned int nNonSeasonal = as<int>(componentsNumber) - nSeasonal;
+
+    unsigned int horizon = as<int>(h);
+
+    NumericMatrix yt_n(yInSample);
+    arma::vec vectorYt(yt_n.begin(), yt_n.nrow(), false);
+
+    NumericVector ot_n(ot);
+    arma::vec vectorOt(ot_n.begin(), ot_n.size(), false);
+
+    return wrap(mesErrorer(matrixVt, matrixWt, matrixF,
+                           lags, E, T, S,
+                           nNonSeasonal, nSeasonal, horizon,
+                           vectorYt, vectorOt));
 }

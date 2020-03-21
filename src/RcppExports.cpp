@@ -42,15 +42,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // mesForecasterWrap
-RcppExport SEXP mesForecasterWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP vecG, SEXP lagsModelAll, SEXP Etype, SEXP Ttype, SEXP Stype, SEXP componentsNumber, SEXP componentsNumberSeasonal, SEXP h);
-RcppExport SEXP _mes_mesForecasterWrap(SEXP matVtSEXP, SEXP matWtSEXP, SEXP matFSEXP, SEXP vecGSEXP, SEXP lagsModelAllSEXP, SEXP EtypeSEXP, SEXP TtypeSEXP, SEXP StypeSEXP, SEXP componentsNumberSEXP, SEXP componentsNumberSeasonalSEXP, SEXP hSEXP) {
+RcppExport SEXP mesForecasterWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP lagsModelAll, SEXP Etype, SEXP Ttype, SEXP Stype, SEXP componentsNumber, SEXP componentsNumberSeasonal, SEXP h);
+RcppExport SEXP _mes_mesForecasterWrap(SEXP matVtSEXP, SEXP matWtSEXP, SEXP matFSEXP, SEXP lagsModelAllSEXP, SEXP EtypeSEXP, SEXP TtypeSEXP, SEXP StypeSEXP, SEXP componentsNumberSEXP, SEXP componentsNumberSeasonalSEXP, SEXP hSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< SEXP >::type matVt(matVtSEXP);
     Rcpp::traits::input_parameter< SEXP >::type matWt(matWtSEXP);
     Rcpp::traits::input_parameter< SEXP >::type matF(matFSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type vecG(vecGSEXP);
     Rcpp::traits::input_parameter< SEXP >::type lagsModelAll(lagsModelAllSEXP);
     Rcpp::traits::input_parameter< SEXP >::type Etype(EtypeSEXP);
     Rcpp::traits::input_parameter< SEXP >::type Ttype(TtypeSEXP);
@@ -58,7 +57,29 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< SEXP >::type componentsNumber(componentsNumberSEXP);
     Rcpp::traits::input_parameter< SEXP >::type componentsNumberSeasonal(componentsNumberSeasonalSEXP);
     Rcpp::traits::input_parameter< SEXP >::type h(hSEXP);
-    rcpp_result_gen = Rcpp::wrap(mesForecasterWrap(matVt, matWt, matF, vecG, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, h));
+    rcpp_result_gen = Rcpp::wrap(mesForecasterWrap(matVt, matWt, matF, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, h));
+    return rcpp_result_gen;
+END_RCPP
+}
+// mesErrorerWrap
+RcppExport SEXP mesErrorerWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP lagsModelAll, SEXP Etype, SEXP Ttype, SEXP Stype, SEXP componentsNumber, SEXP componentsNumberSeasonal, SEXP h, SEXP yInSample, SEXP ot);
+RcppExport SEXP _mes_mesErrorerWrap(SEXP matVtSEXP, SEXP matWtSEXP, SEXP matFSEXP, SEXP lagsModelAllSEXP, SEXP EtypeSEXP, SEXP TtypeSEXP, SEXP StypeSEXP, SEXP componentsNumberSEXP, SEXP componentsNumberSeasonalSEXP, SEXP hSEXP, SEXP yInSampleSEXP, SEXP otSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type matVt(matVtSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type matWt(matWtSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type matF(matFSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type lagsModelAll(lagsModelAllSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type Etype(EtypeSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type Ttype(TtypeSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type Stype(StypeSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type componentsNumber(componentsNumberSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type componentsNumberSeasonal(componentsNumberSeasonalSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type h(hSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type yInSample(yInSampleSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type ot(otSEXP);
+    rcpp_result_gen = Rcpp::wrap(mesErrorerWrap(matVt, matWt, matF, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, h, yInSample, ot));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -88,7 +109,8 @@ END_RCPP
 static const R_CallMethodDef CallEntries[] = {
     {"_mes_matrixPowerWrap", (DL_FUNC) &_mes_matrixPowerWrap, 2},
     {"_mes_mesFitterWrap", (DL_FUNC) &_mes_mesFitterWrap, 13},
-    {"_mes_mesForecasterWrap", (DL_FUNC) &_mes_mesForecasterWrap, 11},
+    {"_mes_mesForecasterWrap", (DL_FUNC) &_mes_mesForecasterWrap, 10},
+    {"_mes_mesErrorerWrap", (DL_FUNC) &_mes_mesErrorerWrap, 12},
     {"_mes_mesSimulatorwrap", (DL_FUNC) &_mes_mesSimulatorwrap, 12},
     {NULL, NULL, 0}
 };

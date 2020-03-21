@@ -5,9 +5,7 @@
 #' The list of functions includes:
 #' \itemize{
 #' \item \code{is.mes()} tests if the object was produced by a \link[mes]{mes} function
-#' \item \code{is.omes()} tests if the object was produced by the \link[mes]{omes} function;
 #' \item \code{is.mes.sim()} tests if the object was produced by \link[mes]{sim.mes} function;
-#' \item \code{is.omes.sim()} tests if the object was produced by \link[mes]{sim.omes} function;
 #' }
 #'
 #' @param x The object to check.

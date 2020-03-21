@@ -124,8 +124,8 @@ mechanism a+b=1,
 The type of model used in the occurrence is equal to the one provided in the
 \code{model} parameter.
 
-Also, a model produced using omess() (NOT AVAILABLE YET), \link[smooth]{oes} or
-\link[greybox]{alm} function can be used here.}
+Also, a model produced using \link[smooth]{oes} or \link[greybox]{alm} function
+can be used here.}
 
 \item{ic}{The information criterion to use in the model selection / combination
 procedure.}
@@ -185,7 +185,7 @@ not used);
 \item \code{print_level} - the level of output for the optimiser (0 by default).
 }
 You can read more about these parameters by running the function
-\link[nloptr]{nloptr.print.options()}.
+\link[nloptr]{nloptr.print.options}.
 Finally, the parameter \code{lambda} for LASSO / RIDGE, Asymmetric Laplace and df
 of Student's distribution can be provided here as well.}
 }
