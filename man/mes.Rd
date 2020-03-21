@@ -92,7 +92,7 @@ There are also available analytical approximations for multistep functions:
 of small samples.
 
 Finally, just for fun the absolute and half analogues of multistep estimators
-are available: \code{MAEh}, \code{TMAE}, \code{GTMAE}, \code{MACE}, \code{TMAE},
+are available: \code{MAEh}, \code{TMAE}, \code{GTMAE}, \code{MACE},
 \code{HAMh}, \code{THAM}, \code{GTHAM}, \code{CHAM}.}
 
 \item{h}{The forecast horizon. Mainly needed for the multistep loss functions.}

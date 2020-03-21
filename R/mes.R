@@ -122,7 +122,7 @@
 #' of small samples.
 #'
 #' Finally, just for fun the absolute and half analogues of multistep estimators
-#' are available: \code{MAEh}, \code{TMAE}, \code{GTMAE}, \code{MACE}, \code{TMAE},
+#' are available: \code{MAEh}, \code{TMAE}, \code{GTMAE}, \code{MACE},
 #' \code{HAMh}, \code{THAM}, \code{GTHAM}, \code{CHAM}.
 #' @param h The forecast horizon. Mainly needed for the multistep loss functions.
 #' @param holdout Logical. If \code{TRUE}, then the holdout of the size \code{h}
@@ -989,10 +989,50 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         }
         else{
             # Call for the Rcpp function to produce a matrix of multistep errors
-            # The function should produce vector forecasts for the whole sample (Nikos' style)
-            # loss==c("MSEh","TMSE","GTMSE","MSCE","MAEh","TMAE","GTMAE","MACE",
-            #         "HAMh","THAM","GTHAM","CHAM","GPL",
-            #         "aMSEh","aTMSE","aGTMSE","aMSCE","aGPL")
+            mesErrors <- mesErrorerWrap(mesFitted$matVt, mesElements$matWt, mesElements$matF,
+                                        lagsModelAll, Etype, Ttype, Stype,
+                                        componentsNumber, componentsNumberSeasonal, h,
+                                        yInSample, ot);
+            # Not done yet: "aMSEh","aTMSE","aGTMSE","aMSCE","aGPL"
+            scale <- switch(loss,
+                            "MSEh"=mean(mesErrors[,h]^2),
+                            "TMSE"=sum(colMeans(mesErrors^2)),
+                            "GTMSE"=prod(colMeans(mesErrors^2)),
+                            "MSCE"=mean(rowSums(mesErrors)^2),
+                            "MAEh"=mean(abs(mesErrors[,h])),
+                            "TMAE"=sum(colMeans(abs(mesErrors))),
+                            "GTMAE"=prod(colMeans(abs(mesErrors))),
+                            "MACE"=mean(abs(rowSums(mesErrors))),
+                            "HAMh"=mean(sqrt(abs(mesErrors[,h]))),
+                            "THAM"=sum(colMeans(sqrt(abs(mesErrors)))),
+                            "GTHAM"=prod(colMeans(sqrt(abs(mesErrors)))),
+                            "CHAM"=mean(sqrt(abs(rowSums(mesErrors)))),
+                            "GPL"=det(t(mesErrors) %*% mesErrors/(obsInSample-h)),
+                            0);
+
+            CFValue <- switch(loss,
+                              "MSEh"=,
+                              "aMSEh"=,
+                              "TMSE"=,
+                              "aTMSE"=,
+                              "GTMSE"=,
+                              "aGTMSE"=,
+                              "MSCE"=,
+                              "aMSCE"=(obsInSample-h)/2*(log(2*pi)+1+log(scale)),
+                              "MAEh"=,
+                              "TMAE"=,
+                              "GTMAE"=,
+                              "MACE"=(obsInSample-h)*(log(2)+1+log(scale)),
+                              "HAMh"=,
+                              "THAM"=,
+                              "GTHAM"=,
+                              "CHAM"=(obsInSample-h)*(log(4)+2+2*log(scale)),
+                              #### Divide GPL by 8 in order to make it comparable with the univariate ones
+                              "GPL"=,
+                              "aGPL"=(obsInSample-h)/2*(h*log(2*pi)+h+log(scale))/h);
+
+            # This is not well motivated at the moment, but should make likelihood comparable, taking T instead of T-h
+            CFValue[] <- CFValue / (obsInSample-h) * obsInSample;
         }
 
         if(is.na(CFValue) || is.nan(CFValue)){
@@ -1012,6 +1052,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                           xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
                           xregNumber,
                           bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate){
+
         if(!multisteps){
             if(any(loss==c("LASSO","RIDGE"))){
                 return(0);
@@ -1064,6 +1105,17 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             # - Normal for MSEh, MSCE, GPL and their analytical counterparts
             # - Laplace for MAEh and MACE,
             # - S for HAMh and CHAM
+            logLikReturn <- -CF(B,
+                                Etype, Ttype, Stype, yInSample,
+                                ot, otLogical, occurrenceModel, obsInSample,
+                                componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
+                                matVt, matWt, matF, vecG, componentsNumberSeasonal,
+                                persistenceEstimate, phiEstimate, initialType,
+                                xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
+                                xregNumber,
+                                bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
+
+            return(logLikReturn);
         }
     }
 
@@ -1104,9 +1156,21 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         }
 
         # If the distribution is default, change it according to the error term
-        if(loss=="likelihood" && distribution=="default"){
+        if(distribution=="default"){
             distributionNew <- switch(Etype,
-                                      "A"="dnorm",
+                                     "A"=switch(loss,
+                                                "MAEh"=,
+                                                "MACE"=,
+                                                "MAE"="dlaplace",
+                                                "HAMh"=,
+                                                "CHAM"=,
+                                                "HAM"="ds",
+                                                "MSEh"=,
+                                                "MSCE"=,
+                                                "GPL"=,
+                                                "MSE"=,
+                                                "likelihood"=,
+                                                "dnorm"),
                                       "M"="dinvgauss");
         }
         else{
@@ -1535,9 +1599,21 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         }
 
         # If the distribution is default, change it according to the error term
-        if(loss=="likelihood" && distribution=="default"){
+        if(distribution=="default"){
             distribution[] <- switch(Etype,
-                                     "A"="dnorm",
+                                     "A"=switch(loss,
+                                                "MAEh"=,
+                                                "MACE"=,
+                                                "MAE"="dlaplace",
+                                                "HAMh"=,
+                                                "CHAM"=,
+                                                "HAM"="ds",
+                                                "MSEh"=,
+                                                "MSCE"=,
+                                                "GPL"=,
+                                                "MSE"=,
+                                                "likelihood"=,
+                                                "dnorm"),
                                      "M"="dinvgauss");
         }
 
@@ -2795,7 +2871,8 @@ print.mes <- function(x, digits=4, ...){
     cat("\nNumber of degrees of freedom: "); cat(nobs(x)-nparam(x));
 
     if(x$loss=="likelihood" ||
-       (any(x$loss==c("MSE","MSEh","MSCE")) & any(x$distribution==c("dnorm","dlnorm"))) ||
+       (any(x$loss==c("MSE","MSEh","MSCE","GPL")) & (x$distribution=="dnorm")) ||
+       (any(x$loss==c("aMSE","aMSEh","aMSCE","aGPL")) & (x$distribution=="dnorm")) ||
        (any(x$loss==c("MAE","MAEh","MACE")) & x$distribution=="dlaplace") ||
        (any(x$loss==c("HAM","HAMh","CHAM")) & x$distribution=="ds")){
            ICs <- c(AIC(x),AICc(x),BIC(x),BICc(x));
@@ -2804,7 +2881,7 @@ print.mes <- function(x, digits=4, ...){
            print(round(ICs,digits));
     }
     else{
-        cat("\nInformation criteria are unavailable for the chosen loss & distribution.");
+        cat("\nInformation criteria are unavailable for the chosen loss & distribution.\n");
     }
 
     if(!is.null(x$holdout) && length(x$forecast)>0){
