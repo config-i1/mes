@@ -2762,9 +2762,21 @@ summary.mes <- function(object, level=0.95, ...){
 
     # Collect parameters and their standard errors
     parametersConfint <- confint(object, level=level);
-    parametersConfint[,2:3] <- coef(object) + parametersConfint[,2:3];
-    parametersTable <- cbind(coef(object),parametersConfint);
-    rownames(parametersTable) <- names(coef(object));
+    parametersValues <- coef(object);
+    if(is.null(parametersValues)){
+        if(!is.null(object$xreg) && all(object$xregPersistence!=0)){
+            parametersValues <- c(object$persistence,object$xregPersistence,object$initial,object$xregInitial);
+        }
+        else{
+            parametersValues <- c(object$persistence,object$initial);
+        }
+        warning(paste0("Parameters are not available. You have probably provided them in the model, ",
+                       "so there was nothing to estimate. We extracted smoothing parameters and initials."),
+                call.=FALSE);
+    }
+    parametersConfint[,2:3] <- parametersValues + parametersConfint[,2:3];
+    parametersTable <- cbind(parametersValues,parametersConfint);
+    rownames(parametersTable) <- rownames(parametersConfint);
     colnames(parametersTable) <- c("Estimate","Std. Error",
                                    paste0("Lower ",(1-level)/2*100,"%"),
                                    paste0("Upper ",(1+level)/2*100,"%"));
