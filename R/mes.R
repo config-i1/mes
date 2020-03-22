@@ -1652,6 +1652,10 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         }
 
         scale <- scaler(distribution, Etype, errors[otLogical], yFitted[otLogical], obsInSample, lambda);
+        # If this is artificial distribution, then use the loss function value as scale
+        if(any(distribution==c("dllaplace","dls"))){
+            scale[] <- CFValue;
+        }
         yFitted <- ts(yFitted,start=start(y), frequency=frequency(y));
 
         return(list(model=NA, timeElapsed=NA,
@@ -2146,39 +2150,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     return(modelReturned);
 }
 
-#### Methods for mes ####
-confint.mes <- function(object, parm, level=0.95, ...){
-    mesVcov <- vcov(object);
-    mesSD <- sqrt(abs(diag(mesVcov)));
-    # mesCoef <- coef(object);
-    mesCoefBounds <- matrix(0,length(mesSD),2);
-    mesCoefBounds[,1] <- qnorm((1-level)/2, 0, mesSD);
-    mesCoefBounds[,2] <- qnorm((1+level)/2, 0, mesSD);
-    mesReturn <- cbind(mesSD,mesCoefBounds);
-    colnames(mesReturn) <- c("S.E.",
-                             paste0((1-level)/2*100,"%"), paste0((1+level)/2*100,"%"));
-    # colnames(mesReturn) <- c("Estimate", "Std. Error",
-    #                          paste0("Lower ",(1-level)/2*100,"%"), paste0("Upper ",(1+level)/2*100,"%"));
-
-    return(mesReturn);
-}
-
-#' @export
-coef.mes <- function(object, ...){
-    return(object$B);
-}
-#
-# covar.mes <- function(object, type=c("analytical","empirical","simulated"), ...){
-#     h <- length(object$holdout);
-#     lagsModel <- lags(object);
-#     s2 <- sigma(object)^2;
-#     persistence <- matrix(object$persistence,length(object$persistence),1);
-#     transition <- object$transition;
-#     measurement <- object$measurement;
-#
-#     covarMat <- covarAnal(lagsModel, h, measurement, transition, persistence, s2);
-# }
-
+#### Technical methods ####
 #' @export
 lags.mes <- function(object, ...){
     if(!is.null(object$xreg)){
@@ -2187,178 +2159,6 @@ lags.mes <- function(object, ...){
     else{
         return(object$lags);
     }
-}
-
-#' @export
-residuals.mes <- function(object, ...){
-    return(switch(object$distribution,
-                  "dnorm"=,
-                  "dlogis"=,
-                  "dlaplace"=,
-                  "dt"=,
-                  "ds"=,
-                  "dalaplace"=object$residuals,
-                  "dlnorm"=,
-                  "dllaplace"=,
-                  "dls"=,
-                  "dinvgauss"=switch(errorType(object),
-                                     "A"=1+object$residuals/fitted(object),
-                                     "M"=1+object$residuals)));
-}
-
-#### Multistep residuals function. Documentation is needed ####
-#' Multiple steps ahead forecast errors
-#'
-#' The function extracts 1 to h steps ahead forecast errors from the model.
-#'
-#' The errors correspond to the error term epsilon_t in the ETS models. Don't forget
-#' that different models make different assumptions about epsilon_t and / or 1+epsilon_t.
-#'
-#' @template ssAuthor
-#' @template ssKeywords
-#'
-#' @param object Model estimated using one of the forecasting functions.
-#' @param h The forecasting horizon to use.
-#' @param ... Currently nothing is accepted via ellipsis.
-#' @return The matrix with observations in rows and h steps ahead values in columns.
-#' So, the first row corresponds to the forecast produced from the 0th observation
-#' from 1 to h steps ahead.
-#' @seealso \link[stats]{residuals}, \link[stats]{rstandard}, \link[stats]{rstudent}
-#' @examples
-#'
-#' x <- rnorm(100,0,1)
-#' ourModel <- mes(x)
-#' rmultistep(ourModel, h=13)
-#'
-#' @export rmultistep
-rmultistep <- function(object, h=10, ...) UseMethod("rmultistep")
-
-#' @export
-rmultistep.default <- function(object, h=10, ...){
-    return(NULL);
-}
-
-#' @export
-rmultistep.mes <- function(object, h=10, ...){
-    # Technical parameters
-    lagsModelAll <- lags(object);
-    componentsNumber <- length(object$persistence);
-    componentsNumberSeasonal <- sum(lagsModelAll>1);
-    lagsModelMax <- max(lagsModelAll);
-    obsInSample <- nobs(object);
-
-    # Model type
-    model <- modelType(object);
-    Etype <- errorType(object);
-    Ttype <- substr(model,2,2);
-    Stype <- substr(model,nchar(model),nchar(model));
-
-    # Function returns the matrix with multi-step errors
-    if(is.oes(object$occurrence)){
-        ot <- matrix(actuals(object$occurrence),obsInSample,1);
-    }
-    else{
-        ot <- matrix(1,obsInSample,1);
-    }
-
-    # Produce multi-step errors matrix
-    return(ts(mesErrorerWrap(t(object$states), object$measurement, object$transition,
-                             lagsModelAll, Etype, Ttype, Stype,
-                             componentsNumber, componentsNumberSeasonal, h,
-                             matrix(actuals(object),obsInSample,1), ot),
-              start=start(actuals(object)), frequency=frequency(actuals(object))));
-}
-
-#' @importFrom stats rstandard
-#' @export
-rstandard.mes <- function(model, ...){
-    obs <- nobs(model);
-    df <- obs - nparam(model);
-    errors <- residuals(model);
-    # If this is an occurrence model, then only modify the non-zero obs
-    if(is.oes(model$occurrence)){
-        residsToGo <- which(actuals(model$occurrence)!=0);
-    }
-    else{
-        residsToGo <- c(1:obs);
-    }
-    if(any(model$distribution==c("dt","dnorm"))){
-        return((errors - mean(errors[residsToGo])) / sqrt(model$scale^2 * obs / df));
-    }
-    else if(model$distribution=="ds"){
-        return((errors - mean(errors[residsToGo])) / (model$scale * obs / df)^2);
-    }
-    else if(model$distribution=="dinvgauss"){
-        return(errors / mean(errors[residsToGo]));
-    }
-    else if(model$distribution=="dlnorm"){
-        errors[] <- log(errors);
-        return(exp((errors - mean(errors[residsToGo])) / sqrt(model$scale^2 * obs / df)));
-    }
-    else{
-        return(errors / model$scale * obs / df);
-    }
-}
-
-#' @importFrom stats rstudent
-#' @export
-rstudent.mes <- function(model, ...){
-    obs <- nobs(model);
-    df <- obs - nparam(model) - 1;
-    rstudentised <- errors <- residuals(model);
-    # If this is an occurrence model, then only modify the non-zero obs
-    if(is.alm(model$occurrence)){
-        residsToGo <- which(actuals(model$occurrence)!=0);
-    }
-    else{
-        residsToGo <- c(1:obs);
-    }
-    if(any(model$distribution==c("dt","dnorm"))){
-        errors[] <- errors - mean(errors);
-        for(i in residsToGo){
-            rstudentised[i] <- errors[i] / sqrt(sum(errors[-i]^2) / df);
-        }
-    }
-    else if(model$distribution=="ds"){
-        errors[] <- errors - mean(errors);
-        for(i in residsToGo){
-            rstudentised[i] <- errors[i] / (sum(sqrt(abs(errors[-i]))) / (2*df))^2;
-        }
-    }
-    else if(model$distribution=="dlaplace"){
-        errors[] <- errors - mean(errors);
-        for(i in residsToGo){
-            rstudentised[i] <- errors[i] / (sum(abs(errors[-i])) / df);
-        }
-    }
-    else if(model$distribution=="dalaplace"){
-        for(i in residsToGo){
-            rstudentised[i] <- errors[i] / (sum(errors[-i] * (model$lambda - (errors[-i]<=0)*1)) / df);
-        }
-    }
-    else if(model$distribution=="dlogis"){
-        errors[] <- errors - mean(errors);
-        for(i in residsToGo){
-            rstudentised[i] <- errors[i] / (sqrt(sum(errors[-i]^2) / df) * sqrt(3) / pi);
-        }
-    }
-    else if(model$distribution=="dlnorm"){
-        errors[] <- log(errors) - mean(log(errors));
-        for(i in residsToGo){
-            rstudentised[i] <- exp(errors[i] / sqrt(sum(errors[-i]^2) / df));
-        }
-    }
-    else if(model$distribution=="dinvgauss"){
-        for(i in residsToGo){
-            rstudentised[i] <- errors[i] / mean(errors[residsToGo][-i]);
-        }
-    }
-    else{
-        for(i in residsToGo){
-            rstudentised[i] <- errors[i] / sqrt(sum(errors[-i]^2) / df);
-        }
-    }
-    return(rstudentised);
 }
 
 #' @rdname plot.smooth
@@ -2757,78 +2557,6 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
 }
 
 #' @export
-pointLik.mes <- function(object, ...){
-    distribution <- object$distribution;
-    yInSample <- actuals(object);
-    obsInSample <- nobs(object);
-    if(is.oes(object$occurrence)){
-        otLogical <- yInSample!=0;
-        yFitted <- fitted(object) / fitted(object$occurrence);
-    }
-    else{
-        otLogical <- rep(TRUE, obsInSample);
-        yFitted <- fitted(object);
-    }
-    scale <- object$scale;
-    Etype <- errorType(object);
-
-    likValues <- vector("numeric",obsInSample);
-    likValues[otLogical] <- switch(distribution,
-                                   "dnorm"=switch(Etype,
-                                                  "A"=dnorm(x=yInSample[otLogical], mean=yFitted[otLogical],
-                                                            sd=scale, log=TRUE),
-                                                  "M"=dnorm(x=yInSample[otLogical], mean=yFitted[otLogical],
-                                                            sd=scale*yFitted[otLogical], log=TRUE)),
-                                   "dlogis"=switch(Etype,
-                                                   "A"=dlogis(x=yInSample[otLogical], location=yFitted[otLogical],
-                                                              scale=scale, log=TRUE),
-                                                   "M"=dlogis(x=yInSample[otLogical], location=yFitted[otLogical],
-                                                              scale=scale*yFitted[otLogical], log=TRUE)),
-                                   "dlaplace"=switch(Etype,
-                                                     "A"=dlaplace(q=yInSample[otLogical], mu=yFitted[otLogical],
-                                                                  scale=scale, log=TRUE),
-                                                     "M"=dlaplace(q=yInSample[otLogical], mu=yFitted[otLogical],
-                                                                  scale=scale*yFitted[otLogical], log=TRUE)),
-                                   "dt"=switch(Etype,
-                                               "A"=dt(mesFitted$errors[otLogical], df=abs(lambda), log=TRUE),
-                                               "M"=dt(mesFitted$errors[otLogical]*yFitted[otLogical],
-                                                      df=abs(lambda), log=TRUE)),
-                                   "ds"=switch(Etype,
-                                               "A"=ds(q=yInSample[otLogical],mu=yFitted[otLogical],
-                                                      scale=scale, log=TRUE),
-                                               "M"=ds(q=yInSample[otLogical],mu=yFitted[otLogical],
-                                                      scale=scale*sqrt(yFitted[otLogical]), log=TRUE)),
-                                   "dalaplace"=switch(Etype,
-                                                      "A"=dalaplace(q=yInSample[otLogical], mu=yFitted[otLogical],
-                                                                    scale=scale, alpha=lambda, log=TRUE),
-                                                      "M"=dalaplace(q=yInSample[otLogical], mu=yFitted[otLogical],
-                                                                    scale=scale*yFitted[otLogical], alpha=lambda, log=TRUE)),
-                                   "dlnorm"=dlnorm(x=yInSample[otLogical], meanlog=log(yFitted[otLogical]),
-                                                   sdlog=scale, log=TRUE),
-                                   "dinvgauss"=dinvgauss(x=yInSample[otLogical], mean=yFitted[otLogical],
-                                                         dispersion=scale/yFitted[otLogical], log=TRUE))
-
-    # If this is a mixture model, take the respective probabilities into account (differential entropy)
-    if(is.oes(object$occurrence)){
-        likValues[!otLogical] <- -switch(distribution,
-                                         "dnorm" =,
-                                         "dlnorm" = (log(sqrt(2*pi)*scale)+0.5),
-                                         "dlogis" = 2,
-                                         "dlaplace" =,
-                                         "dalaplace" = (1 + log(2*scale)),
-                                         "dt" = ((scale+1)/2 * (digamma((scale+1)/2)-digamma(scale/2)) +
-                                                     log(sqrt(scale) * beta(scale/2,0.5))),
-                                         "ds" = (2 + 2*log(2*scale)),
-                                         "dinvgauss" = (0.5*(log(pi/2)+1+log(scale))));
-
-        likValues[] <- likValues + pointLik(object$occurrence);
-    }
-    likValues <- ts(likValues, start=start(yFitted), frequency=frequency(yFitted));
-
-    return(likValues);
-}
-
-#' @export
 print.mes <- function(x, digits=4, ...){
     cat(paste0("Time elapsed: ",round(as.numeric(x$timeElapsed,units="secs"),2)," seconds"));
     cat(paste0("\nModel estimated: ",x$model));
@@ -2975,27 +2703,26 @@ print.mesCombined <- function(x, digits=4, ...){
     }
 }
 
-#' @export
-print.mes.forecast <- function(x, ...){
-    if(x$interval!="none"){
-        returnedValue <- switch(x$side,
-                                "both"=cbind(x$mean,x$lower,x$upper),
-                                "lower"=cbind(x$mean,x$lower),
-                                "upper"=cbind(x$mean,x$upper));
-        colnames(returnedValue) <- switch(x$side,
-                                          "both"=c("Point forecast",
-                                                   paste0("Lower bound (",mean((1-x$level)/2)*100,"%)"),
-                                                   paste0("Upper bound (",mean((1+x$level)/2)*100,"%)")),
-                                          "lower"=c("Point forecast",
-                                                   paste0("Lower bound (",mean((1-x$level))*100,"%)")),
-                                          "upper"=c("Point forecast",
-                                                   paste0("Upper bound (",mean(x$level)*100,"%)")));
-    }
-    else{
-        returnedValue <- x$mean;
-    }
-    print(returnedValue);
+#### Coefficients ####
+confint.mes <- function(object, parm, level=0.95, ...){
+    mesVcov <- vcov(object);
+    mesSD <- sqrt(abs(diag(mesVcov)));
+    # mesCoef <- coef(object);
+    mesCoefBounds <- matrix(0,length(mesSD),2);
+    mesCoefBounds[,1] <- qnorm((1-level)/2, 0, mesSD);
+    mesCoefBounds[,2] <- qnorm((1+level)/2, 0, mesSD);
+    mesReturn <- cbind(mesSD,mesCoefBounds);
+    colnames(mesReturn) <- c("S.E.",
+                             paste0((1-level)/2*100,"%"), paste0((1+level)/2*100,"%"));
+
+    return(mesReturn);
 }
+
+#' @export
+coef.mes <- function(object, ...){
+    return(object$B);
+}
+
 
 #' @importFrom stats sigma
 #' @export
@@ -3127,6 +2854,185 @@ print.summary.mes <- function(x, ...){
 }
 
 #' @export
+vcov.mes <- function(object, ...){
+    modelReturn <- mes(actuals(object), model=object, FI=TRUE);
+    return(solve(modelReturn$FI));
+}
+
+#### Residuals functions ####
+#' @export
+residuals.mes <- function(object, ...){
+    return(switch(object$distribution,
+                  "dnorm"=,
+                  "dlogis"=,
+                  "dlaplace"=,
+                  "dt"=,
+                  "ds"=,
+                  "dalaplace"=object$residuals,
+                  "dlnorm"=,
+                  "dllaplace"=,
+                  "dls"=,
+                  "dinvgauss"=switch(errorType(object),
+                                     "A"=1+object$residuals/fitted(object),
+                                     "M"=1+object$residuals)));
+}
+
+#' Multiple steps ahead forecast errors
+#'
+#' The function extracts 1 to h steps ahead forecast errors from the model.
+#'
+#' The errors correspond to the error term epsilon_t in the ETS models. Don't forget
+#' that different models make different assumptions about epsilon_t and / or 1+epsilon_t.
+#'
+#' @template ssAuthor
+#' @template ssKeywords
+#'
+#' @param object Model estimated using one of the forecasting functions.
+#' @param h The forecasting horizon to use.
+#' @param ... Currently nothing is accepted via ellipsis.
+#' @return The matrix with observations in rows and h steps ahead values in columns.
+#' So, the first row corresponds to the forecast produced from the 0th observation
+#' from 1 to h steps ahead.
+#' @seealso \link[stats]{residuals}, \link[stats]{rstandard}, \link[stats]{rstudent}
+#' @examples
+#'
+#' x <- rnorm(100,0,1)
+#' ourModel <- mes(x)
+#' rmultistep(ourModel, h=13)
+#'
+#' @export rmultistep
+rmultistep <- function(object, h=10, ...) UseMethod("rmultistep")
+
+#' @export
+rmultistep.default <- function(object, h=10, ...){
+    return(NULL);
+}
+
+#' @export
+rmultistep.mes <- function(object, h=10, ...){
+    # Technical parameters
+    lagsModelAll <- lags(object);
+    componentsNumber <- length(object$persistence);
+    componentsNumberSeasonal <- sum(lagsModelAll>1);
+    lagsModelMax <- max(lagsModelAll);
+    obsInSample <- nobs(object);
+
+    # Model type
+    model <- modelType(object);
+    Etype <- errorType(object);
+    Ttype <- substr(model,2,2);
+    Stype <- substr(model,nchar(model),nchar(model));
+
+    # Function returns the matrix with multi-step errors
+    if(is.oes(object$occurrence)){
+        ot <- matrix(actuals(object$occurrence),obsInSample,1);
+    }
+    else{
+        ot <- matrix(1,obsInSample,1);
+    }
+
+    # Produce multi-step errors matrix
+    return(ts(mesErrorerWrap(t(object$states), object$measurement, object$transition,
+                             lagsModelAll, Etype, Ttype, Stype,
+                             componentsNumber, componentsNumberSeasonal, h,
+                             matrix(actuals(object),obsInSample,1), ot),
+              start=start(actuals(object)), frequency=frequency(actuals(object))));
+}
+
+#' @importFrom stats rstandard
+#' @export
+rstandard.mes <- function(model, ...){
+    obs <- nobs(model);
+    df <- obs - nparam(model);
+    errors <- residuals(model);
+    # If this is an occurrence model, then only modify the non-zero obs
+    if(is.oes(model$occurrence)){
+        residsToGo <- which(actuals(model$occurrence)!=0);
+    }
+    else{
+        residsToGo <- c(1:obs);
+    }
+    if(any(model$distribution==c("dt","dnorm"))){
+        return((errors - mean(errors[residsToGo])) / sqrt(model$scale^2 * obs / df));
+    }
+    else if(model$distribution=="ds"){
+        return((errors - mean(errors[residsToGo])) / (model$scale * obs / df)^2);
+    }
+    else if(model$distribution=="dinvgauss"){
+        return(errors / mean(errors[residsToGo]));
+    }
+    else if(model$distribution=="dlnorm"){
+        errors[] <- log(errors);
+        return(exp((errors - mean(errors[residsToGo])) / sqrt(model$scale^2 * obs / df)));
+    }
+    else{
+        return(errors / model$scale * obs / df);
+    }
+}
+
+#' @importFrom stats rstudent
+#' @export
+rstudent.mes <- function(model, ...){
+    obs <- nobs(model);
+    df <- obs - nparam(model) - 1;
+    rstudentised <- errors <- residuals(model);
+    # If this is an occurrence model, then only modify the non-zero obs
+    if(is.alm(model$occurrence)){
+        residsToGo <- which(actuals(model$occurrence)!=0);
+    }
+    else{
+        residsToGo <- c(1:obs);
+    }
+    if(any(model$distribution==c("dt","dnorm"))){
+        errors[] <- errors - mean(errors);
+        for(i in residsToGo){
+            rstudentised[i] <- errors[i] / sqrt(sum(errors[-i]^2) / df);
+        }
+    }
+    else if(model$distribution=="ds"){
+        errors[] <- errors - mean(errors);
+        for(i in residsToGo){
+            rstudentised[i] <- errors[i] / (sum(sqrt(abs(errors[-i]))) / (2*df))^2;
+        }
+    }
+    else if(model$distribution=="dlaplace"){
+        errors[] <- errors - mean(errors);
+        for(i in residsToGo){
+            rstudentised[i] <- errors[i] / (sum(abs(errors[-i])) / df);
+        }
+    }
+    else if(model$distribution=="dalaplace"){
+        for(i in residsToGo){
+            rstudentised[i] <- errors[i] / (sum(errors[-i] * (model$lambda - (errors[-i]<=0)*1)) / df);
+        }
+    }
+    else if(model$distribution=="dlogis"){
+        errors[] <- errors - mean(errors);
+        for(i in residsToGo){
+            rstudentised[i] <- errors[i] / (sqrt(sum(errors[-i]^2) / df) * sqrt(3) / pi);
+        }
+    }
+    else if(model$distribution=="dlnorm"){
+        errors[] <- log(errors) - mean(log(errors));
+        for(i in residsToGo){
+            rstudentised[i] <- exp(errors[i] / sqrt(sum(errors[-i]^2) / df));
+        }
+    }
+    else if(model$distribution=="dinvgauss"){
+        for(i in residsToGo){
+            rstudentised[i] <- errors[i] / mean(errors[residsToGo][-i]);
+        }
+    }
+    else{
+        for(i in residsToGo){
+            rstudentised[i] <- errors[i] / sqrt(sum(errors[-i]^2) / df);
+        }
+    }
+    return(rstudentised);
+}
+
+#### Predict and forecast functions ####
+#' @export
 predict.mes <- function(object, newxreg=NULL, interval=c("none", "confidence", "prediction"),
                         level=0.95, side=c("both","upper","lower"), ...){
 
@@ -3149,7 +3055,9 @@ predict.mes <- function(object, newxreg=NULL, interval=c("none", "confidence", "
     else{
         # If there are no newxreg, then we need to produce fitted with / without interval
         if(interval=="none"){
-            return(fitted(object));
+            return(structure(list(mean=fitted(object), lower=NA, upper=NA, model=object,
+                                  level=level, interval=interval, side=side),
+                             class=c("mes.predict","mes.forecast")));
         }
         # Otherwise we do one-step-ahead prediction / confidence interval
         else{
@@ -3175,6 +3083,7 @@ predict.mes <- function(object, newxreg=NULL, interval=c("none", "confidence", "
     }
 
     yUpper <- yLower <- yForecast;
+    yUpper[] <- yLower[] <- NA;
 
     # If this is a mixture model, produce forecasts for the occurrence
     if(!is.null(object$occurrence)){
@@ -3328,7 +3237,22 @@ predict.mes <- function(object, newxreg=NULL, interval=c("none", "confidence", "
 
     return(structure(list(mean=yForecast, lower=yLower, upper=yUpper, model=object,
                           level=level, interval=interval, side=side),
-                     class=c("mes.predict")));
+                     class=c("mes.predict","mes.forecast")));
+}
+
+#' @export
+plot.mes.predict <- function(x, ...){
+    ellipsis <- list(...);
+    if(is.null(ellipsis$ylim)){
+        ellipsis$ylim <- range(c(actuals(x$model),x$mean,x$lower,x$upper),na.rm=TRUE);
+    }
+    ellipsis$x <- actuals(x$model);
+    do.call(plot, ellipsis);
+    lines(x$mean,col="purple",lwd=2,lty=2);
+    if(x$interval!="none"){
+        lines(x$lower,col="grey",lwd=3,lty=2);
+        lines(x$upper,col="grey",lwd=3,lty=2);
+    }
 }
 
 # Work in progress...
@@ -3843,6 +3767,29 @@ forecast.mesCombined <- function(object, h=10, newxreg=NULL,
 }
 
 #' @export
+print.mes.forecast <- function(x, ...){
+    if(x$interval!="none"){
+        returnedValue <- switch(x$side,
+                                "both"=cbind(x$mean,x$lower,x$upper),
+                                "lower"=cbind(x$mean,x$lower),
+                                "upper"=cbind(x$mean,x$upper));
+        colnames(returnedValue) <- switch(x$side,
+                                          "both"=c("Point forecast",
+                                                   paste0("Lower bound (",mean((1-x$level)/2)*100,"%)"),
+                                                   paste0("Upper bound (",mean((1+x$level)/2)*100,"%)")),
+                                          "lower"=c("Point forecast",
+                                                   paste0("Lower bound (",mean((1-x$level))*100,"%)")),
+                                          "upper"=c("Point forecast",
+                                                   paste0("Upper bound (",mean(x$level)*100,"%)")));
+    }
+    else{
+        returnedValue <- x$mean;
+    }
+    print(returnedValue);
+}
+
+#### Other methods ####
+#' @export
 multicov.mes <- function(object, type=c("analytical","empirical","simulated"), ...){
     type <- match.arg(type);
 
@@ -3876,11 +3823,81 @@ multicov.mes <- function(object, type=c("analytical","empirical","simulated"), .
 }
 
 #' @export
-vcov.mes <- function(object, ...){
-    modelReturn <- mes(actuals(object), model=object, FI=TRUE);
-    return(solve(modelReturn$FI));
+pointLik.mes <- function(object, ...){
+    distribution <- object$distribution;
+    yInSample <- actuals(object);
+    obsInSample <- nobs(object);
+    if(is.oes(object$occurrence)){
+        otLogical <- yInSample!=0;
+        yFitted <- fitted(object) / fitted(object$occurrence);
+    }
+    else{
+        otLogical <- rep(TRUE, obsInSample);
+        yFitted <- fitted(object);
+    }
+    scale <- object$scale;
+    Etype <- errorType(object);
+
+    likValues <- vector("numeric",obsInSample);
+    likValues[otLogical] <- switch(distribution,
+                                   "dnorm"=switch(Etype,
+                                                  "A"=dnorm(x=yInSample[otLogical], mean=yFitted[otLogical],
+                                                            sd=scale, log=TRUE),
+                                                  "M"=dnorm(x=yInSample[otLogical], mean=yFitted[otLogical],
+                                                            sd=scale*yFitted[otLogical], log=TRUE)),
+                                   "dlogis"=switch(Etype,
+                                                   "A"=dlogis(x=yInSample[otLogical], location=yFitted[otLogical],
+                                                              scale=scale, log=TRUE),
+                                                   "M"=dlogis(x=yInSample[otLogical], location=yFitted[otLogical],
+                                                              scale=scale*yFitted[otLogical], log=TRUE)),
+                                   "dlaplace"=switch(Etype,
+                                                     "A"=dlaplace(q=yInSample[otLogical], mu=yFitted[otLogical],
+                                                                  scale=scale, log=TRUE),
+                                                     "M"=dlaplace(q=yInSample[otLogical], mu=yFitted[otLogical],
+                                                                  scale=scale*yFitted[otLogical], log=TRUE)),
+                                   "dt"=switch(Etype,
+                                               "A"=dt(mesFitted$errors[otLogical], df=abs(lambda), log=TRUE),
+                                               "M"=dt(mesFitted$errors[otLogical]*yFitted[otLogical],
+                                                      df=abs(lambda), log=TRUE)),
+                                   "ds"=switch(Etype,
+                                               "A"=ds(q=yInSample[otLogical],mu=yFitted[otLogical],
+                                                      scale=scale, log=TRUE),
+                                               "M"=ds(q=yInSample[otLogical],mu=yFitted[otLogical],
+                                                      scale=scale*sqrt(yFitted[otLogical]), log=TRUE)),
+                                   "dalaplace"=switch(Etype,
+                                                      "A"=dalaplace(q=yInSample[otLogical], mu=yFitted[otLogical],
+                                                                    scale=scale, alpha=lambda, log=TRUE),
+                                                      "M"=dalaplace(q=yInSample[otLogical], mu=yFitted[otLogical],
+                                                                    scale=scale*yFitted[otLogical], alpha=lambda, log=TRUE)),
+                                   "dlnorm"=dlnorm(x=yInSample[otLogical], meanlog=log(yFitted[otLogical]),
+                                                   sdlog=scale, log=TRUE),
+                                   "dllaplace"=dlaplace(q=log(yInSample[otLogical]), mu=log(yFitted[otLogical]),
+                                                        scale=scale, log=TRUE),
+                                   "dllaplace"=dlaplace(q=log(yInSample[otLogical]), mu=log(yFitted[otLogical]),
+                                                        scale=scale, log=TRUE),
+                                   "dinvgauss"=dinvgauss(x=yInSample[otLogical], mean=yFitted[otLogical],
+                                                         dispersion=scale/yFitted[otLogical], log=TRUE))
+
+    # If this is a mixture model, take the respective probabilities into account (differential entropy)
+    if(is.oes(object$occurrence)){
+        likValues[!otLogical] <- -switch(distribution,
+                                         "dnorm" =,
+                                         "dlnorm" = (log(sqrt(2*pi)*scale)+0.5),
+                                         "dlogis" = 2,
+                                         "dlaplace" =,
+                                         "dalaplace" = (1 + log(2*scale)),
+                                         "dt" = ((scale+1)/2 * (digamma((scale+1)/2)-digamma(scale/2)) +
+                                                     log(sqrt(scale) * beta(scale/2,0.5))),
+                                         "ds" = (2 + 2*log(2*scale)),
+                                         "dinvgauss" = (0.5*(log(pi/2)+1+log(scale))));
+
+        likValues[] <- likValues + pointLik(object$occurrence);
+    }
+    likValues <- ts(likValues, start=start(yFitted), frequency=frequency(yFitted));
+
+    return(likValues);
 }
 
-##### Other functions to implement #####
+##### Other methods to implement #####
 # accuracy.mes <- function(object, holdout, ...){}
 # simulate.mes <- function(object, nsim=1, seed=NULL, obs=NULL, ...){}
