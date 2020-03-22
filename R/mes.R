@@ -1099,25 +1099,17 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
 
             logLikReturn[] <- -switch(loss,
-                                      "MSEh"=,
-                                      "aMSEh"=,
-                                      "TMSE"=,
-                                      "aTMSE"=,
-                                      "MSCE"=,
-                                      "aMSCE"=(obsInSample-h)/2*(log(2*pi)+1+log(logLikReturn)),
-                                      "GTMSE"=,
-                                      "aGTMSE"=(obsInSample-h)/2*(log(2*pi)+1+logLikReturn),
-                                      "MAEh"=,
-                                      "TMAE"=,
-                                      "GTMAE"=,
-                                      "MACE"=(obsInSample-h)*(log(2)+1+log(logLikReturn)),
-                                      "HAMh"=,
-                                      "THAM"=,
-                                      "GTHAM"=,
-                                      "CHAM"=(obsInSample-h)*(log(4)+2+2*log(logLikReturn)),
+                                      "MSEh"=, "aMSEh"=, "TMSE"=, "aTMSE"=, "MSCE"=, "aMSCE"=
+                                          (obsInSample-h)/2*(log(2*pi)+1+log(logLikReturn)),
+                                      "GTMSE"=, "aGTMSE"=
+                                          (obsInSample-h)/2*(log(2*pi)+1+logLikReturn),
+                                      "MAEh"=, "TMAE"=, "GTMAE"=, "MACE"=
+                                          (obsInSample-h)*(log(2)+1+log(logLikReturn)),
+                                      "HAMh"=, "THAM"=, "GTHAM"=, "CHAM"=
+                                          (obsInSample-h)*(log(4)+2+2*log(logLikReturn)),
                                       #### Divide GPL by 8 in order to make it comparable with the univariate ones
-                                      "GPL"=,
-                                      "aGPL"=(obsInSample-h)/2*(h*log(2*pi)+h+logLikReturn)/h);
+                                      "GPL"=, "aGPL"=
+                                          (obsInSample-h)/2*(h*log(2*pi)+h+logLikReturn)/h);
 
             # This is not well motivated at the moment, but should make likelihood comparable, taking T instead of T-h
             logLikReturn[] <- logLikReturn / (obsInSample-h) * obsInSample;
@@ -1171,18 +1163,9 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         if(distribution=="default"){
             distributionNew <- switch(Etype,
                                      "A"=switch(loss,
-                                                "MAEh"=,
-                                                "MACE"=,
-                                                "MAE"="dlaplace",
-                                                "HAMh"=,
-                                                "CHAM"=,
-                                                "HAM"="ds",
-                                                "MSEh"=,
-                                                "MSCE"=,
-                                                "GPL"=,
-                                                "MSE"=,
-                                                "likelihood"=,
-                                                "dnorm"),
+                                                "MAEh"=, "MACE"=, "MAE"="dlaplace",
+                                                "HAMh"=, "CHAM"=, "HAM"="ds",
+                                                "MSEh"=, "MSCE"=, "MSE"=, "GPL"=, "likelihood"=, "dnorm"),
                                       "M"="dinvgauss");
         }
         else{
