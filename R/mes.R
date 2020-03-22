@@ -2189,6 +2189,8 @@ residuals.mes <- function(object, ...){
                   "ds"=,
                   "dalaplace"=object$residuals,
                   "dlnorm"=,
+                  "dllaplace"=,
+                  "dls"=,
                   "dinvgauss"=switch(errorType(object),
                                      "A"=1+object$residuals/fitted(object),
                                      "M"=1+object$residuals)));
@@ -3000,7 +3002,9 @@ sigma.mes <- function(object, ...){
                        "dt"=,
                        "ds"=,
                        "dalaplace"=sum(residuals(object)^2),
-                       "dlnorm"=sum(log(residuals(object))^2),
+                       "dlnorm"=,
+                       "dllaplace"=,
+                       "dls"=sum(log(residuals(object))^2),
                        "dinvgauss"=sum((residuals(object)-1)^2))
                 /df));
 }
@@ -3284,11 +3288,13 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                                                          object$lambda),
                                    "dlnorm"=rlnorm(h*nsim, 0, sigmaValue)-1,
                                    "dinvgauss"=rinvgauss(h*nsim, 1, dispersion=sigmaValue^2)-1,
+                                   "dls"=exp(rs(h*nsim, 0, (sigmaValue^2/120)^0.25))-1,
+                                   "dllaplace"=exp(rlaplace(h*nsim, 0, sigmaValue/2))-1
                                    ),
                             h,nsim);
         # This stuff is needed in order to produce adequate values for weird models
         EtypeModified <- Etype;
-        if(Etype=="A" && any(object$distribution==c("dlnorm","dinvgauss"))){
+        if(Etype=="A" && any(object$distribution==c("dlnorm","dinvgauss","dls","dllaplace"))){
             EtypeModified[] <- "M";
         }
         matOt <- matrix(rbinom(h*nsim, 1, pForecast), h, nsim);
@@ -3318,9 +3324,9 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
         if(interval=="approximate"){
             s2 <- sigma(object)^2;
             # IG and Lnorm can use approximations from the multiplications
-            if(any(object$distribution==c("dinvgauss","dlnorm")) && Etype=="M"){
+            if(any(object$distribution==c("dinvgauss","dlnorm","dls","dllaplace")) && Etype=="M"){
                 vcovMulti <- mesVarAnal(lagsModelAll, h, matWt[1,,drop=FALSE], matF, vecG, s2);
-                if(object$distribution=="dlnorm"){
+                if(any(object$distribution==c("dlnorm","dls","dllaplace"))){
                     vcovMulti[] <- log((1+vcovMulti));
                 }
 
@@ -3346,14 +3352,12 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
             if(h>1){
                 mesErrors <- rmultistep(object, h=h);
 
-                if(any(object$distribution==c("dinvgauss","dlnorm"))){
-                    if(Etype=="A"){
-                        yFittedMatrix <- mesErrors;
-                        for(i in 1:h){
-                            yFittedMatrix[,i] <- fitted(object)[1:(obsInSample-h)+i];
-                        }
-                        mesErrors[] <- mesErrors/yFittedMatrix;
+                if(any(object$distribution==c("dinvgauss","dlnorm","dls","dllaplace")) && (Etype=="A")){
+                    yFittedMatrix <- mesErrors;
+                    for(i in 1:h){
+                        yFittedMatrix[,i] <- fitted(object)[1:(obsInSample-h)+i];
                     }
+                    mesErrors[] <- mesErrors/yFittedMatrix;
                 }
 
                 if(interval=="semiparametric"){
@@ -3389,7 +3393,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                     yUpper[] <- yForecast*qnorm(levelUp, 1, sqrt(vcovMulti));
                 }
             }
-            if(object$distribution=="dlogis"){
+            else if(object$distribution=="dlogis"){
                 if(Etype=="A"){
                     yLower[] <- qlogis(levelLow, yForecast, sqrt(vcovMulti*3)/pi);
                     yUpper[] <- qlogis(levelUp, yForecast, sqrt(vcovMulti*3)/pi);
@@ -3399,7 +3403,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                     yUpper[] <- yForecast*qlogis(levelUp, 1, sqrt(vcovMulti*3)/pi);
                 }
             }
-            if(object$distribution=="dlaplace"){
+            else if(object$distribution=="dlaplace"){
                 if(Etype=="A"){
                     yLower[] <- qlaplace(levelLow, yForecast, sqrt(vcovMulti/2));
                     yUpper[] <- qlaplace(levelUp, yForecast, sqrt(vcovMulti/2));
@@ -3409,7 +3413,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                     yUpper[] <- yForecast*qlaplace(levelUp, 1, sqrt(vcovMulti/2));
                 }
             }
-            if(object$distribution=="dt"){
+            else if(object$distribution=="dt"){
                 df <- nobs(object) - nparam(object);
                 if(Etype=="A"){
                     yLower[] <- yForecast + sqrt(vcovMulti)*qt(levelLow, df);
@@ -3420,7 +3424,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                     yUpper[] <- yForecast*(1 + sqrt(vcovMulti)*qt(levelUp, df));
                 }
             }
-            if(object$distribution=="ds"){
+            else if(object$distribution=="ds"){
                 if(Etype=="A"){
                     yLower[] <- qs(levelLow, yForecast, (vcovMulti/120)^0.25);
                     yUpper[] <- qs(levelUp, yForecast, (vcovMulti/120)^0.25);
@@ -3430,7 +3434,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                     yUpper[] <- yForecast*qs(levelUp, 1, (vcovMulti/120)^0.25);
                 }
             }
-            if(object$distribution=="dalaplace"){
+            else if(object$distribution=="dalaplace"){
                 lambda <- object$lambda;
                 if(Etype=="A"){
                     yLower[] <- qalaplace(levelLow, yForecast,
@@ -3445,9 +3449,17 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                                                     sqrt(vcovMulti*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
                 }
             }
-            if(object$distribution=="dlnorm"){
+            else if(object$distribution=="dlnorm"){
                 yLower[] <- yForecast*qlnorm(levelLow, 0, sqrt(vcovMulti));
                 yUpper[] <- yForecast*qlnorm(levelUp, 0, sqrt(vcovMulti));
+            }
+            else if(object$distribution=="dllaplace"){
+                yLower[] <- yForecast*exp(qlaplace(levelLow, 0, sqrt(vcovMulti/2)));
+                yUpper[] <- yForecast*exp(qlaplace(levelUp, 0, sqrt(vcovMulti/2)));
+            }
+            else if(object$distribution=="dls"){
+                yLower[] <- yForecast*exp(qs(levelLow, 0, (vcovMulti/120)^0.25));
+                yUpper[] <- yForecast*exp(qs(levelUp, 0, (vcovMulti/120)^0.25));
             }
             else if(object$distribution=="dinvgauss"){
                 yLower[] <- yForecast*qinvgauss(levelLow, 1, dispersion=vcovMulti);
