@@ -569,7 +569,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
 
         # Fill in the initials for xreg
         if(xregExist){
-            if(Etype=="A"){
+            if(Etype=="A" || xregInitialsProvided){
                 matVt[componentsNumber+1:xregNumber,1:lagsModelMax] <- xregModel[[1]]$xregInitial;
             }
             else{
