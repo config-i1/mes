@@ -1639,10 +1639,10 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         if(any(distribution==c("dllaplace","dls"))){
             scale[] <- CFValue;
         }
-        yFitted <- ts(yFitted,start=start(y), frequency=frequency(y));
+        yFitted <- ts(yFitted, start=start(y), frequency=frequency(y));
 
         return(list(model=NA, timeElapsed=NA,
-                    y=NA, holdout=NA, fitted=yFitted, residuals=errors,
+                    y=NA, holdout=NA, fitted=yFitted, residuals=ts(errors, start=start(y), frequency=frequency(y)),
                     forecast=yForecast, states=ts(t(matVt), start=(time(y)[1] - deltat(y)*lagsModelMax),
                                                   frequency=frequency(y)),
                     persistence=persistence, phi=phi, transition=matF,
@@ -2479,6 +2479,9 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
     plot6 <- function(x, ...){
         parDefault <- par(no.readonly = TRUE);
         if(any(unlist(gregexpr("C",x$model))==-1)){
+            statesNames <- c(colnames(x$states),"residuals");
+            x$states <- cbind(x$states,residuals(x));
+            colnames(x$states) <- statesNames;
             if(ncol(x$states)>10){
                 message("Too many states. Plotting them one by one on several graphs.");
                 if(is.null(ellipsis$main)){
