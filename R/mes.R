@@ -854,7 +854,6 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 return(abs(eigenValues)*1E+100);
             }
         }
-        # print(mesElements$matVt)
 
         # Produce fitted values and errors
         mesFitted <- mesFitterWrap(mesElements$matVt, mesElements$matWt, mesElements$matF, mesElements$vecG,
@@ -993,46 +992,29 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                         lagsModelAll, Etype, Ttype, Stype,
                                         componentsNumber, componentsNumberSeasonal, h,
                                         yInSample, ot);
+
+            # This is a fix for the multistep in case of Etype=="M", assuming logN
+            if(Etype=="M"){
+                mesErrors[] <- log(1+mesErrors);
+            }
+
             # Not done yet: "aMSEh","aTMSE","aGTMSE","aMSCE","aGPL"
-            scale <- switch(loss,
-                            "MSEh"=mean(mesErrors[,h]^2),
-                            "TMSE"=sum(colMeans(mesErrors^2)),
-                            "GTMSE"=prod(colMeans(mesErrors^2)),
-                            "MSCE"=mean(rowSums(mesErrors)^2),
-                            "MAEh"=mean(abs(mesErrors[,h])),
-                            "TMAE"=sum(colMeans(abs(mesErrors))),
-                            "GTMAE"=prod(colMeans(abs(mesErrors))),
-                            "MACE"=mean(abs(rowSums(mesErrors))),
-                            "HAMh"=mean(sqrt(abs(mesErrors[,h]))),
-                            "THAM"=sum(colMeans(sqrt(abs(mesErrors)))),
-                            "GTHAM"=prod(colMeans(sqrt(abs(mesErrors)))),
-                            "CHAM"=mean(sqrt(abs(rowSums(mesErrors)))),
-                            "GPL"=det(t(mesErrors) %*% mesErrors/(obsInSample-h)),
-                            0);
-
             CFValue <- switch(loss,
-                              "MSEh"=,
-                              "aMSEh"=,
-                              "TMSE"=,
-                              "aTMSE"=,
-                              "GTMSE"=,
-                              "aGTMSE"=,
-                              "MSCE"=,
-                              "aMSCE"=(obsInSample-h)/2*(log(2*pi)+1+log(scale)),
-                              "MAEh"=,
-                              "TMAE"=,
-                              "GTMAE"=,
-                              "MACE"=(obsInSample-h)*(log(2)+1+log(scale)),
-                              "HAMh"=,
-                              "THAM"=,
-                              "GTHAM"=,
-                              "CHAM"=(obsInSample-h)*(log(4)+2+2*log(scale)),
-                              #### Divide GPL by 8 in order to make it comparable with the univariate ones
-                              "GPL"=,
-                              "aGPL"=(obsInSample-h)/2*(h*log(2*pi)+h+log(scale))/h);
+                              "MSEh"=sum(mesErrors[,h]^2)/(obsInSample-h),
+                              "TMSE"=sum(colSums(mesErrors^2)/(obsInSample-h)),
+                              "GTMSE"=sum(log(colSums(mesErrors^2)/(obsInSample-h))),
+                              "MSCE"=sum(rowSums(mesErrors)^2)/(obsInSample-h),
+                              "MAEh"=sum(abs(mesErrors[,h]))/(obsInSample-h),
+                              "TMAE"=sum(colSums(abs(mesErrors))/(obsInSample-h)),
+                              "GTMAE"=sum(log(colSums(abs(mesErrors))/(obsInSample-h))),
+                              "MACE"=sum(abs(rowSums(mesErrors)))/(obsInSample-h),
+                              "HAMh"=sum(sqrt(abs(mesErrors[,h])))/(obsInSample-h),
+                              "THAM"=sum(colSums(sqrt(abs(mesErrors)))/(obsInSample-h)),
+                              "GTHAM"=sum(log(colSums(sqrt(abs(mesErrors)))/(obsInSample-h))),
+                              "CHAM"=sum(sqrt(abs(rowSums(mesErrors))))/(obsInSample-h),
+                              "GPL"=log(det(t(mesErrors) %*% mesErrors/(obsInSample-h))),
+                              0);
 
-            # This is not well motivated at the moment, but should make likelihood comparable, taking T instead of T-h
-            CFValue[] <- CFValue / (obsInSample-h) * obsInSample;
         }
 
         if(is.na(CFValue) || is.nan(CFValue)){
@@ -1105,15 +1087,44 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             # - Normal for MSEh, MSCE, GPL and their analytical counterparts
             # - Laplace for MAEh and MACE,
             # - S for HAMh and CHAM
-            logLikReturn <- -CF(B,
-                                Etype, Ttype, Stype, yInSample,
-                                ot, otLogical, occurrenceModel, obsInSample,
-                                componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
-                                matVt, matWt, matF, vecG, componentsNumberSeasonal,
-                                persistenceEstimate, phiEstimate, initialType,
-                                xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
-                                xregNumber,
-                                bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
+            logLikReturn <- CF(B,
+                               Etype, Ttype, Stype, yInSample,
+                               ot, otLogical, occurrenceModel, obsInSample,
+                               componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
+                               matVt, matWt, matF, vecG, componentsNumberSeasonal,
+                               persistenceEstimate, phiEstimate, initialType,
+                               xregProvided, xregInitialsEstimate, xregPersistenceEstimate,
+                               xregNumber,
+                               bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
+
+            logLikReturn[] <- -switch(loss,
+                                      "MSEh"=,
+                                      "aMSEh"=,
+                                      "TMSE"=,
+                                      "aTMSE"=,
+                                      "MSCE"=,
+                                      "aMSCE"=(obsInSample-h)/2*(log(2*pi)+1+log(logLikReturn)),
+                                      "GTMSE"=,
+                                      "aGTMSE"=(obsInSample-h)/2*(log(2*pi)+1+logLikReturn),
+                                      "MAEh"=,
+                                      "TMAE"=,
+                                      "GTMAE"=,
+                                      "MACE"=(obsInSample-h)*(log(2)+1+log(logLikReturn)),
+                                      "HAMh"=,
+                                      "THAM"=,
+                                      "GTHAM"=,
+                                      "CHAM"=(obsInSample-h)*(log(4)+2+2*log(logLikReturn)),
+                                      #### Divide GPL by 8 in order to make it comparable with the univariate ones
+                                      "GPL"=,
+                                      "aGPL"=(obsInSample-h)/2*(h*log(2*pi)+h+logLikReturn)/h);
+
+            # This is not well motivated at the moment, but should make likelihood comparable, taking T instead of T-h
+            logLikReturn[] <- logLikReturn / (obsInSample-h) * obsInSample;
+
+            # In case of multiplicative model, we assume log- distribution
+            if(Etype=="M"){
+                logLikReturn[] <- logLikReturn - sum(log(yInSample));
+            }
 
             return(logLikReturn);
         }
@@ -1602,19 +1613,18 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         if(distribution=="default"){
             distribution[] <- switch(Etype,
                                      "A"=switch(loss,
-                                                "MAEh"=,
-                                                "MACE"=,
-                                                "MAE"="dlaplace",
-                                                "HAMh"=,
-                                                "CHAM"=,
-                                                "HAM"="ds",
-                                                "MSEh"=,
-                                                "MSCE"=,
-                                                "GPL"=,
-                                                "MSE"=,
-                                                "likelihood"=,
-                                                "dnorm"),
+                                                "MAEh"=, "MACE"=, "MAE"="dlaplace",
+                                                "HAMh"=, "CHAM"=, "HAM"="ds",
+                                                "MSEh"=, "MSCE"=, "GPL"=, "MSE"=,
+                                                "aMSEh"=, "aMSCE"=, "aGPL"=, "likelihood"=, "dnorm"),
                                      "M"="dinvgauss");
+            if(multisteps && Etype=="M"){
+                distribution[] <- switch(loss,
+                                         "MAEh"=, "MACE"=, "MAE"="dllaplace",
+                                         "HAMh"=, "CHAM"=, "HAM"="dls",
+                                         "MSEh"=, "MSCE"=, "GPL"=, "MSE"=,
+                                         "aMSEh"=, "aMSCE"=, "aGPL"=, "dlnorm");
+            }
         }
 
         if(initialType=="optimal"){
@@ -2834,6 +2844,8 @@ print.mes <- function(x, digits=4, ...){
                       "dt" = paste0("Student t with df=",round(x$lambda, digits)),
                       "ds" = "S",
                       "dlnorm" = "Log Normal",
+                      "dllaplace" = "Log Laplace",
+                      "dls" = "Log S",
                       # "dbcnorm" = paste0("Box-Cox Normal with lambda=",round(x$other$lambda,2)),
                       "dinvgauss" = "Inverse Gaussian"
     );
@@ -2871,10 +2883,10 @@ print.mes <- function(x, digits=4, ...){
     cat("\nNumber of degrees of freedom: "); cat(nobs(x)-nparam(x));
 
     if(x$loss=="likelihood" ||
-       (any(x$loss==c("MSE","MSEh","MSCE","GPL")) & (x$distribution=="dnorm")) ||
-       (any(x$loss==c("aMSE","aMSEh","aMSCE","aGPL")) & (x$distribution=="dnorm")) ||
-       (any(x$loss==c("MAE","MAEh","MACE")) & x$distribution=="dlaplace") ||
-       (any(x$loss==c("HAM","HAMh","CHAM")) & x$distribution=="ds")){
+       (any(x$loss==c("MSE","MSEh","MSCE","GPL")) & any(x$distribution==c("dnorm","dlnorm"))) ||
+       (any(x$loss==c("aMSE","aMSEh","aMSCE","aGPL")) & any(x$distribution==c("dnorm","dlnorm"))) ||
+       (any(x$loss==c("MAE","MAEh","MACE")) & any(x$distribution==c("dlaplace","dllaplace"))) ||
+       (any(x$loss==c("HAM","HAMh","CHAM")) & any(x$distribution==c("ds","dls")))){
            ICs <- c(AIC(x),AICc(x),BIC(x),BICc(x));
            names(ICs) <- c("AIC","AICc","BIC","BICc");
            cat("\nInformation criteria:\n");
