@@ -270,7 +270,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 occurrence=c("none","auto","fixed","general","odds-ratio","inverse-odds-ratio","direct"),
                 ic=c("AICc","AIC","BIC","BICc"), bounds=c("usual","admissible","none"),
                 xreg=NULL, xregDo=c("use","select"), xregInitial=NULL, xregPersistence=0,
-                silent=TRUE, ...){
+                silent=TRUE, fast=FALSE, ...){
     # Copyright (C) 2019 - Inf  Ivan Svetunkov
     #
     # Parameters that were moved to forecast() and predict() functions:
@@ -408,7 +408,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     parametersChecker(y, model, lags, persistence, phi, initial,
                       distribution, loss, h, holdout, occurrence, ic, bounds,
                       xreg, xregDo, xregInitial, xregPersistence,
-                      silent, modelDo, ParentEnvironment=environment(), ellipsis);
+                      silent, modelDo, ParentEnvironment=environment(), ellipsis, fast);
 
     #### The function creates the technical variables (lags etc) based on the type of the model ####
     architector <- function(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType){
@@ -455,7 +455,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     # This is needed in order to initialise the estimation
     creator <- function(Etype, Ttype, Stype,
                         lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
-                        obsStates, obsInSample, componentsNumber, componentsNumberSeasonal,
+                        obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
                         componentsNames, otLogical,
                         yInSample, persistence, persistenceEstimate, phi,
                         initialValue, initialType,
@@ -465,10 +465,11 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         matVt <- matrix(NA, componentsNumber+xregNumber, obsStates, dimnames=list(c(componentsNames,xregNames),NULL));
 
         # Measurement rowvector
-        matWt <- matrix(1, obsInSample, componentsNumber+xregNumber, dimnames=list(NULL,c(componentsNames,xregNames)));
+        matWt <- matrix(1, obsAll, componentsNumber+xregNumber, dimnames=list(NULL,c(componentsNames,xregNames)));
         # If xreg are provided, then fill in the respective values in Wt vector
         if(xregProvided){
             matWt[,componentsNumber+1:xregNumber] <- xregData;
+
         }
 
         # Transition matrix
@@ -1148,7 +1149,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         # Create the matrices for the specific ETS model
         mesCreated <- creator(Etype, Ttype, Stype,
                               lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
-                              obsStates, obsInSample, componentsNumber, componentsNumberSeasonal,
+                              obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
                               componentsNames, otLogical,
                               yInSample, persistence, persistenceEstimate, phi,
                               initialValue, initialType,
@@ -1628,11 +1629,11 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         }
 
         if(initialType=="optimal"){
-            initialValue <- vector("numeric", sum(lagsModelAll));
+            initialValue <- vector("numeric", sum(lagsModel));
             j <- 0;
-            for(i in 1:length(lagsModelAll)){
-                initialValue[j+1:lagsModelAll[i]] <- matVt[i,1:lagsModelAll[i]];
-                j <- j + lagsModelAll[i];
+            for(i in 1:length(lagsModel)){
+                initialValue[j+1:lagsModel[i]] <- matVt[i,1:lagsModel[i]];
+                j <- j + lagsModel[i];
             }
         }
 
@@ -1644,6 +1645,10 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         if(xregPersistenceEstimate){
             xregPersistence <- vecG[-c(1:componentsNumber),];
             names(xregPersistence) <- rownames(vecG)[-c(1:componentsNumber)];
+        }
+
+        if(xregInitialsEstimate){
+            xregInitial <- matVt[-c(1:componentsNumber),lagsModelMax];
         }
 
         scale <- scaler(distribution, Etype, errors[otLogical], yFitted[otLogical], obsInSample, lambda);
@@ -1719,7 +1724,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         # Create the matrices for the specific ETS model
         mesCreated <- creator(Etype, Ttype, Stype,
                               lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
-                              obsStates, obsInSample, componentsNumber, componentsNumberSeasonal,
+                              obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
                               componentsNames, otLogical,
                               yInSample, persistence, persistenceEstimate, phi,
                               initialValue, initialType,
@@ -1765,7 +1770,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         # Create the matrices for the specific ETS model
         mesCreated <- creator(Etype, Ttype, Stype,
                               lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
-                              obsStates, obsInSample, componentsNumber, componentsNumberSeasonal,
+                              obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
                               componentsNames, otLogical,
                               yInSample, persistence, persistenceEstimate, phi,
                               initialValue, initialType,
@@ -1872,7 +1877,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             # Create the matrices for the specific ETS model
             mesCreated <- creator(Etype, Ttype, Stype,
                                   lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
-                                  obsStates, obsInSample, componentsNumber, componentsNumberSeasonal,
+                                  obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
                                   componentsNames, otLogical,
                                   yInSample, persistence, persistenceEstimate, phi,
                                   initialValue, initialType,
@@ -1915,7 +1920,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         # Create the matrices for the specific ETS model
         mesCreated <- creator(Etype, Ttype, Stype,
                               lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
-                              obsStates, obsInSample, componentsNumber, componentsNumberSeasonal,
+                              obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
                               componentsNames, otLogical,
                               yInSample, persistence, persistenceEstimate, phi,
                               initialValue, initialType,
@@ -2176,7 +2181,12 @@ coef.mes <- function(object, ...){
 
 #' @export
 lags.mes <- function(object, ...){
-    return(object$lags);
+    if(!is.null(object$xreg)){
+        return(c(object$lags,rep(1,ncol(object$xreg))));
+    }
+    else{
+        return(object$lags);
+    }
 }
 
 #' @export
@@ -2232,10 +2242,9 @@ rmultistep.default <- function(object, h=10, ...){
 rmultistep.mes <- function(object, h=10, ...){
     # Technical parameters
     lagsModelAll <- lags(object);
-    componentsNumber <- length(lagsModelAll);
+    componentsNumber <- length(object$persistence);
     componentsNumberSeasonal <- sum(lagsModelAll>1);
     lagsModelMax <- max(lagsModelAll);
-    obsStates <- nrow(object$states);
     obsInSample <- nobs(object);
 
     # Model type
@@ -2246,16 +2255,17 @@ rmultistep.mes <- function(object, h=10, ...){
 
     # Function returns the matrix with multi-step errors
     if(is.oes(object$occurrence)){
-        ot <- matrix(actuals(object$occurrence),nobs(object$occurrence),1);
+        ot <- matrix(actuals(object$occurrence),obsInSample,1);
     }
     else{
-        ot <- matrix(1,nobs(object),1);
+        ot <- matrix(1,obsInSample,1);
     }
+
     # Produce multi-step errors matrix
     return(ts(mesErrorerWrap(t(object$states), object$measurement, object$transition,
                              lagsModelAll, Etype, Ttype, Stype,
                              componentsNumber, componentsNumberSeasonal, h,
-                             matrix(actuals(object),nobs(object),1), ot),
+                             matrix(actuals(object),obsInSample,1), ot),
               start=start(actuals(object)), frequency=frequency(actuals(object))));
 }
 
@@ -3192,18 +3202,18 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
     # All the important matrices
     matVt <- t(object$states[obsStates-(lagsModelMax:1)+1,,drop=FALSE]);
     matWt <- tail(object$measurement,h);
-    vecG <- matrix(object$persistence, ncol=1);
     if(!is.null(object$xreg)){
         xregNumber <- ncol(object$xreg);
-        lagsModelAll <- rbind(lagsModelAll,rep(1,xregNumber));
+        componentsNumber[] <- componentsNumber - xregNumber;
         matWt[,componentsNumber+c(1:xregNumber)] <- newxreg[1:h,];
-        vecG <- rbind(vecG,object$xregPersistence);
+        vecG <- matrix(c(object$persistence,object$xregPersistence), ncol=1);
     }
     else{
+        vecG <- matrix(object$persistence, ncol=1);
         xregNumber <- 0;
     }
     matF <- diag(componentsNumber+xregNumber);
-    matF[1:componentsNumber,1:componentsNumber] <- object$transition;
+    matF[] <- object$transition;
 
     # Produce point forecasts
     mesForecast <- mesForecasterWrap(matVt, matWt, matF,

@@ -3,7 +3,8 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
                                              "dlnorm","dinvgauss"),
                               loss, h, holdout,occurrence,
                               ic=c("AICc","AIC","BIC","BICc"), bounds=c("traditional","admissible","none"),
-                              xreg, xregDo, xregInitial, xregPersistence, silent, modelDo, ParentEnvironment, ellipsis){
+                              xreg, xregDo, xregInitial, xregPersistence, silent, modelDo, ParentEnvironment,
+                              ellipsis, fast=FALSE){
 
     # The function checks the provided parameters of mes and/or oes
     ##### data #####
@@ -69,59 +70,61 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
 
     # Predefine models pool for a model selection
     modelsPool <- NULL;
-    # Deal with the list of models. Check what has been provided. Stop if there is a mistake.
-    if(length(model)>1){
-        if(any(nchar(model)>4)){
-            stop(paste0("You have defined strange model(s) in the pool: ",
-                        paste0(model[nchar(model)>4],collapse=",")),call.=FALSE);
-        }
-        else if(any(substr(model,1,1)!="A" & substr(model,1,1)!="M" & substr(model,1,1)!="C")){
-            stop(paste0("You have defined strange model(s) in the pool: ",
-                        paste0(model[substr(model,1,1)!="A" & substr(model,1,1)!="M"],collapse=",")),
-                 call.=FALSE);
-        }
-        else if(any(substr(model,2,2)!="N" & substr(model,2,2)!="A" &
-                    substr(model,2,2)!="M" & substr(model,2,2)!="C")){
-            stop(paste0("You have defined strange model(s) in the pool: ",
-                        paste0(model[substr(model,2,2)!="N" & substr(model,2,2)!="A" &
-                                         substr(model,2,2)!="M"],collapse=",")),call.=FALSE);
-        }
-        else if(any(substr(model,3,3)!="N" & substr(model,3,3)!="A" &
-                    substr(model,3,3)!="M" & substr(model,3,3)!="d" & substr(model,3,3)!="C")){
-            stop(paste0("You have defined strange model(s) in the pool: ",
-                        paste0(model[substr(model,3,3)!="N" & substr(model,3,3)!="A" &
-                                         substr(model,3,3)!="M" & substr(model,3,3)!="d"],collapse=",")),
-                 call.=FALSE);
-        }
-        else if(any(nchar(model)==4 & substr(model,4,4)!="N" & substr(model,4,4)!="A" &
-                    substr(model,4,4)!="M" & substr(model,4,4)!="C")){
-            stop(paste0("You have defined strange model(s) in the pool: ",
-                        paste0(model[nchar(model)==4 & substr(model,4,4)!="N" &
-                                         substr(model,4,4)!="A" & substr(model,4,4)!="M"],collapse=",")),
-                 call.=FALSE);
-        }
-        else{
-            modelsPoolCombiner <- (substr(model,1,1)=="C" | substr(model,2,2)=="C" |
-                                       substr(model,3,3)=="C" | substr(model,4,4)=="C");
-            modelsPool <- model[!modelsPoolCombiner];
-            modelsPool <- unique(modelsPool);
-            if(any(modelsPoolCombiner)){
-                if(any(substr(model,nchar(model),nchar(model))!="N")){
-                    model <- "CCC";
-                }
-                else{
-                    model <- "CCN";
-                }
+    if(!fast){
+        # Deal with the list of models. Check what has been provided. Stop if there is a mistake.
+        if(length(model)>1){
+            if(any(nchar(model)>4)){
+                stop(paste0("You have defined strange model(s) in the pool: ",
+                            paste0(model[nchar(model)>4],collapse=",")),call.=FALSE);
+            }
+            else if(any(substr(model,1,1)!="A" & substr(model,1,1)!="M" & substr(model,1,1)!="C")){
+                stop(paste0("You have defined strange model(s) in the pool: ",
+                            paste0(model[substr(model,1,1)!="A" & substr(model,1,1)!="M"],collapse=",")),
+                     call.=FALSE);
+            }
+            else if(any(substr(model,2,2)!="N" & substr(model,2,2)!="A" &
+                        substr(model,2,2)!="M" & substr(model,2,2)!="C")){
+                stop(paste0("You have defined strange model(s) in the pool: ",
+                            paste0(model[substr(model,2,2)!="N" & substr(model,2,2)!="A" &
+                                             substr(model,2,2)!="M"],collapse=",")),call.=FALSE);
+            }
+            else if(any(substr(model,3,3)!="N" & substr(model,3,3)!="A" &
+                        substr(model,3,3)!="M" & substr(model,3,3)!="d" & substr(model,3,3)!="C")){
+                stop(paste0("You have defined strange model(s) in the pool: ",
+                            paste0(model[substr(model,3,3)!="N" & substr(model,3,3)!="A" &
+                                             substr(model,3,3)!="M" & substr(model,3,3)!="d"],collapse=",")),
+                     call.=FALSE);
+            }
+            else if(any(nchar(model)==4 & substr(model,4,4)!="N" & substr(model,4,4)!="A" &
+                        substr(model,4,4)!="M" & substr(model,4,4)!="C")){
+                stop(paste0("You have defined strange model(s) in the pool: ",
+                            paste0(model[nchar(model)==4 & substr(model,4,4)!="N" &
+                                             substr(model,4,4)!="A" & substr(model,4,4)!="M"],collapse=",")),
+                     call.=FALSE);
             }
             else{
-                model <- c("Z","Z","Z");
-                if(all(substr(modelsPool,nchar(modelsPool),nchar(modelsPool))=="N")){
-                    model[3] <- "N";
+                modelsPoolCombiner <- (substr(model,1,1)=="C" | substr(model,2,2)=="C" |
+                                           substr(model,3,3)=="C" | substr(model,4,4)=="C");
+                modelsPool <- model[!modelsPoolCombiner];
+                modelsPool <- unique(modelsPool);
+                if(any(modelsPoolCombiner)){
+                    if(any(substr(model,nchar(model),nchar(model))!="N")){
+                        model <- "CCC";
+                    }
+                    else{
+                        model <- "CCN";
+                    }
                 }
-                if(all(substr(modelsPool,2,2)=="N")){
-                    model[2] <- "N";
+                else{
+                    model <- c("Z","Z","Z");
+                    if(all(substr(modelsPool,nchar(modelsPool),nchar(modelsPool))=="N")){
+                        model[3] <- "N";
+                    }
+                    if(all(substr(modelsPool,2,2)=="N")){
+                        model[2] <- "N";
+                    }
+                    model <- paste0(model,collapse="");
                 }
-                model <- paste0(model,collapse="");
             }
         }
     }
@@ -325,8 +328,10 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
         stop("The number of components of the model is smaller than the number of provided lags", call.=FALSE);
     }
 
-    #### Distribution selected ####
-    distribution <- match.arg(distribution);
+    if(!fast){
+        #### Distribution selected ####
+        distribution <- match.arg(distribution);
+    }
 
     #### Loss function type ####
     loss <- match.arg(loss[1],c("likelihood","MSE","MAE","HAM","LASSO","RIDGE",
@@ -470,7 +475,6 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
         }
     }
     initialEstimate <- initialType=="optimal";
-
 
     # Observations in the states matrix
     # Define the number of cols that should be in the matvt
@@ -645,6 +649,9 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
             xregNumber <- ncol(testModel$data)-1;
             xregNames <- colnames(testModel$data)[-1];
             xregData <- testModel$data[,-1];
+            if(nrow(xreg>obsInSample)){
+                xregData <- as.matrix(model.frame(~xreg));
+            }
         }
         else{
             xregInitialsProvided <- TRUE;
@@ -656,7 +663,12 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
             }
 
             # Write down the number and names of parameters
-            xregData <- xreg;
+            if(nrow(xreg>obsAll)){
+                xregData <- xreg[1:obsAll,];
+            }
+            else{
+                xregData <- xreg;
+            }
             xregNumber <- ncol(xregData);
             xregNames <- names(xregModel[[1]]$xregInitial);
         }
@@ -799,6 +811,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
 
     # Number of observations and parameters
     assign("obsInSample",obsInSample,ParentEnvironment);
+    assign("obsAll",obsAll,ParentEnvironment);
     assign("obsStates",obsStates,ParentEnvironment);
     assign("obsNonzero",obsNonzero,ParentEnvironment);
     assign("obsZero",obsZero,ParentEnvironment);
