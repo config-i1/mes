@@ -3126,33 +3126,210 @@ print.summary.mes <- function(x, ...){
     }
 }
 
-# Work in progress...
-# predict.mes <- function(object, newxreg=NULL, interval=c("none", "confidence", "prediction"),
-#                         level=0.95, side=c("both","upper","lower"), ...){
-#
-#     h <- nrow(newxreg);
-#     lagsModelAll <- object$lags;
-#     componentsNumber <- length(lagsModelAll);
-#     componentsNumberSeasonal <- sum(lagsModelAll>1);
-#     lagsModelMax <- max(lagsModelAll);
-#
-#     matVt <- t(object$states[obsStates-(lagsModelMax:1)+1,,drop=FALSE]);
-#     matWt <- tail(object$measurement,h);
-#     matF <- object$transition;
-#     vecG <- object$persistence;
-#
-#     model <- modelType(test);
-#     Etype <- errorType(object);
-#     Ttype <- substr(model,2,2);
-#     Stype <- substr(model,nchar(model),nchar(model));
-#
-#     mesForecast <- mesForecasterWrap(matVt, tail(matWt,h), matF,
-#                                      lagsModelAll, Etype, Ttype, Stype,
-#                                      componentsNumber, componentsNumberSeasonal, h);
-#
-#     yForecast <- mesForecast$yForecast;
-#
-#     return(yForecast);
+#' @export
+predict.mes <- function(object, newxreg=NULL, interval=c("none", "confidence", "prediction"),
+                        level=0.95, side=c("both","upper","lower"), ...){
+
+    interval <- match.arg(interval);
+    obsInSample <- nobs(object);
+
+    # Check if newxreg is provided
+    if(!is.null(newxreg)){
+        h <- nrow(newxreg);
+        # If the newxreg is provided, then just do forecasts for that part
+        if(any(interval==c("none","prediction"))){
+            if(interval==c("prediction")){
+                interval[] <- "simulated";
+            }
+            return(forecast(object, h=h, newxreg=newxreg,
+                            interval=interval,
+                            level=level, side=side, ...));
+        }
+    }
+    else{
+        # If there are no newxreg, then we need to produce fitted with / without interval
+        if(interval=="none"){
+            return(fitted(object));
+        }
+        # Otherwise we do one-step-ahead prediction / confidence interval
+        else{
+            yForecast <- fitted(object);
+        }
+    }
+    side <- match.arg(side);
+
+    # Basic parameters
+    model <- modelType(object);
+    Etype <- errorType(object);
+
+    # ts structure
+    yForecastStart <- time(actuals(object))[obsInSample]+deltat(actuals(object));
+    yFrequency <- frequency(actuals(object));
+
+    # Extract variance and amend it in case of confidence interval
+    s2 <- sigma(object)^2;
+    if(interval=="confidence"){
+        warning("We don't really have proper confidence intervals. This one is approximate.",
+                call.=FALSE);
+        s2[] <- s2 / (obsInSample-nparam(object));
+    }
+
+    yUpper <- yLower <- yForecast;
+
+    # If this is a mixture model, produce forecasts for the occurrence
+    if(!is.null(object$occurrence)){
+        occurrenceModel <- TRUE;
+        pForecast <- fitted(object$occurrence);
+    }
+    else{
+        occurrenceModel <- FALSE;
+        pForecast <- rep(1, obsInSample);
+    }
+
+    # If this is an occurrence model, then take probability into account in the level.
+    if(occurrenceModel && (interval=="prediction")){
+        levelNew <- (level-(1-pForecast))/pForecast;
+        levelNew[levelNew<0] <- 0;
+    }
+    else{
+        levelNew <- level;
+    }
+
+    levelLow <- levelUp <- vector("numeric",obsInSample);
+    if(side=="both"){
+        levelLow[] <- (1-levelNew)/2;
+        levelUp[] <- (1+levelNew)/2;
+    }
+    else if(side=="upper"){
+        levelLow[] <- rep(0,length(levelNew));
+        levelUp[] <- levelNew;
+    }
+    else{
+        levelLow[] <- 1-levelNew;
+        levelUp[] <- rep(1,length(levelNew));
+    }
+    levelLow[levelLow<0] <- 0;
+    levelUp[levelUp<0] <- 0;
+
+    #### Produce the intervals for the data ####
+    if(object$distribution=="dnorm"){
+        if(Etype=="A"){
+            yLower[] <- qnorm(levelLow, yForecast, sqrt(s2));
+            yUpper[] <- qnorm(levelUp, yForecast, sqrt(s2));
+        }
+        else{
+            yLower[] <- yForecast*qnorm(levelLow, 1, sqrt(s2));
+            yUpper[] <- yForecast*qnorm(levelUp, 1, sqrt(s2));
+        }
+    }
+    else if(object$distribution=="dlogis"){
+        if(Etype=="A"){
+            yLower[] <- qlogis(levelLow, yForecast, sqrt(s2*3)/pi);
+            yUpper[] <- qlogis(levelUp, yForecast, sqrt(s2*3)/pi);
+        }
+        else{
+            yLower[] <- yForecast*qlogis(levelLow, 1, sqrt(s2*3)/pi);
+            yUpper[] <- yForecast*qlogis(levelUp, 1, sqrt(s2*3)/pi);
+        }
+    }
+    else if(object$distribution=="dlaplace"){
+        if(Etype=="A"){
+            yLower[] <- qlaplace(levelLow, yForecast, sqrt(s2/2));
+            yUpper[] <- qlaplace(levelUp, yForecast, sqrt(s2/2));
+        }
+        else{
+            yLower[] <- yForecast*qlaplace(levelLow, 1, sqrt(s2/2));
+            yUpper[] <- yForecast*qlaplace(levelUp, 1, sqrt(s2/2));
+        }
+    }
+    else if(object$distribution=="dt"){
+        df <- nobs(object) - nparam(object);
+        if(Etype=="A"){
+            yLower[] <- yForecast + sqrt(s2)*qt(levelLow, df);
+            yUpper[] <- yForecast + sqrt(s2)*qt(levelUp, df);
+        }
+        else{
+            yLower[] <- yForecast*(1 + sqrt(s2)*qt(levelLow, df));
+            yUpper[] <- yForecast*(1 + sqrt(s2)*qt(levelUp, df));
+        }
+    }
+    else if(object$distribution=="ds"){
+        if(Etype=="A"){
+            yLower[] <- qs(levelLow, yForecast, (s2/120)^0.25);
+            yUpper[] <- qs(levelUp, yForecast, (s2/120)^0.25);
+        }
+        else{
+            yLower[] <- yForecast*qs(levelLow, 1, (s2/120)^0.25);
+            yUpper[] <- yForecast*qs(levelUp, 1, (s2/120)^0.25);
+        }
+    }
+    else if(object$distribution=="dalaplace"){
+        lambda <- object$lambda;
+        if(Etype=="A"){
+            yLower[] <- qalaplace(levelLow, yForecast,
+                                  sqrt(s2*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
+            yUpper[] <- qalaplace(levelUp, yForecast,
+                                  sqrt(s2*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
+        }
+        else{
+            yLower[] <- yForecast*qalaplace(levelLow, 1,
+                                            sqrt(s2*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
+            yUpper[] <- yForecast*qalaplace(levelUp, 1,
+                                            sqrt(s2*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
+        }
+    }
+    else if(object$distribution=="dlnorm"){
+        yLower[] <- yForecast*qlnorm(levelLow, 0, sqrt(s2));
+        yUpper[] <- yForecast*qlnorm(levelUp, 0, sqrt(s2));
+    }
+    else if(object$distribution=="dllaplace"){
+        yLower[] <- yForecast*exp(qlaplace(levelLow, 0, sqrt(s2/2)));
+        yUpper[] <- yForecast*exp(qlaplace(levelUp, 0, sqrt(s2/2)));
+    }
+    else if(object$distribution=="dls"){
+        yLower[] <- yForecast*exp(qs(levelLow, 0, (s2/120)^0.25));
+        yUpper[] <- yForecast*exp(qs(levelUp, 0, (s2/120)^0.25));
+    }
+    else if(object$distribution=="dinvgauss"){
+        yLower[] <- yForecast*qinvgauss(levelLow, 1, dispersion=s2);
+        yUpper[] <- yForecast*qinvgauss(levelUp, 1, dispersion=s2);
+    }
+
+    #### Clean up the produced values for the interval ####
+    # Make sensible values out of those weird quantiles
+    if(Etype=="A"){
+        yLower[levelLow==0] <- -Inf;
+    }
+    else{
+        yLower[levelLow==0] <- 0;
+    }
+    yUpper[levelUp==1] <- Inf;
+
+    # Substitute NAs and NaNs with zeroes
+    if(any(is.nan(yLower)) || any(is.na(yLower))){
+        yLower[is.nan(yLower)] <- 0;
+        yLower[is.na(yLower)] <- 0;
+    }
+    if(any(is.nan(yUpper)) || any(is.na(yUpper))){
+        yUpper[is.nan(yUpper)] <- 0;
+        yUpper[is.na(yUpper)] <- 0;
+    }
+
+    # Check what we have from the occurrence model
+    if(occurrenceModel){
+        # If there are NAs, then there's no variability and no intervals.
+        if(any(is.na(yUpper))){
+            yUpper[is.na(yUpper)] <- (yForecast/pForecast)[is.na(yUpper)];
+        }
+        if(any(is.na(yLower))){
+            yLower[is.na(yLower)] <- 0;
+        }
+    }
+
+    return(structure(list(mean=yForecast, lower=yLower, upper=yUpper, model=object,
+                          level=level, interval=interval, side=side),
+                     class=c("mes.predict")));
+}
 
 # Work in progress...
 #' @param nsim Number of iterations to do in case of \code{interval="simulated"}.
@@ -3162,22 +3339,31 @@ print.summary.mes <- function(x, ...){
 #' @importFrom greybox rlaplace rs ralaplace qlaplace qs qalaplace
 #' @export
 forecast.mes <- function(object, h=10, newxreg=NULL,
-                         interval=c("none", "simulated", "approximate", "semiparametric", "nonparametric"),
+                         interval=c("none", "simulated", "approximate", "semiparametric", "nonparametric", "confidence"),
                          level=0.95, side=c("both","upper","lower"), cumulative=FALSE, nsim=10000, ...){
 
     ellipsis <- list(...);
 
+    interval <- match.arg(interval[1],c("none", "simulated", "approximate", "semiparametric",
+                                        "nonparametric", "confidence", "parametric"));
     # If the horizon is zero, just construct fitted and potentially confidence interval thingy
     if(h<=0){
+        if(all(interval!=c("none","confidence"))){
+            interval[] <- "prediction";
+        }
         return(predict(object, newxreg=newxreg,
                        interval=interval,
-                       level=level, side=side, ...))
+                       level=level, side=side, ...));
     }
-    interval <- match.arg(interval[1],c("none", "simulated", "approximate", "semiparametric", "nonparametric","parametric"));
+
     if(interval=="parametric"){
         warning("The parameter 'interval' does not accept 'parametric' anymore. We use 'approximate' value instead.",
-                call.=FALSE)
+                call.=FALSE);
         interval <- "approximate";
+    }
+    else if(interval=="confidence"){
+        warning("We don't really have proper confidence intervals. This one is approximate.",
+                call.=FALSE);
     }
     side <- match.arg(side);
 
@@ -3204,6 +3390,30 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
     matWt <- tail(object$measurement,h);
     if(!is.null(object$xreg)){
         xregNumber <- ncol(object$xreg);
+        if(is.null(newxreg)){
+            warning("The newxreg is not provided. Predicting the explanatory variables based on what we have in-sample.",
+                    call.=FALSE);
+            newxreg <- matrix(NA,h,xregNumber);
+            for(i in 1:xregNumber){
+                newxreg[,i] <- mes(object$xreg[,i],h=h,silent=TRUE)$forecast;
+            }
+        }
+        else{
+            if(nrow(newxreg)<h){
+                warning(paste0("The newxreg has ",nrow(newxreg)," observations, while ",h," are needed. ",
+                               "Using the last available values as future ones."),
+                        call.=FALSE);
+                newnRows <- h-nrow(newxreg);
+                newxreg <- rbind(newxreg,matrix(rep(tail(newxreg,1),each=newnRows),newnRows,xregNumber));
+            }
+            else if(nrow(newxreg)>h){
+                warning(paste0("The newxreg has ",nrow(newxreg)," observations, while only ",h," are needed. ",
+                               "Using the last ",h," of them."),
+                        call.=FALSE);
+                newxreg <- tail(newxreg,h);
+            }
+        }
+
         componentsNumber[] <- componentsNumber - xregNumber;
         matWt[,componentsNumber+c(1:xregNumber)] <- newxreg[1:h,];
         vecG <- matrix(c(object$persistence,object$xregPersistence), ncol=1);
@@ -3212,8 +3422,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
         vecG <- matrix(object$persistence, ncol=1);
         xregNumber <- 0;
     }
-    matF <- diag(componentsNumber+xregNumber);
-    matF[] <- object$transition;
+    matF <- object$transition;
 
     # Produce point forecasts
     mesForecast <- mesForecasterWrap(matVt, matWt, matF,
@@ -3329,15 +3538,18 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
         }
     }
     else{
-        #### Approximated interval ####
+        #### Approximate and confidence interval ####
         # Produce covatiance matrix and use it
-        if(interval=="approximate"){
+        if(any(interval==c("approximate","confidence"))){
             s2 <- sigma(object)^2;
+            if(interval=="confidence"){
+                s2[] <- s2 / (obsInSample-nparam(object));
+            }
             # IG and Lnorm can use approximations from the multiplications
             if(any(object$distribution==c("dinvgauss","dlnorm","dls","dllaplace")) && Etype=="M"){
                 vcovMulti <- mesVarAnal(lagsModelAll, h, matWt[1,,drop=FALSE], matF, vecG, s2);
                 if(any(object$distribution==c("dlnorm","dls","dllaplace"))){
-                    vcovMulti[] <- log((1+vcovMulti));
+                    vcovMulti[] <- log(1+vcovMulti);
                 }
 
                 # We don't do correct cumulatives in this case...
@@ -3392,7 +3604,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
             }
         }
         # Calculate interval for approximate and semiparametric
-        if(any(interval==c("approximate", "semiparametric"))){
+        if(any(interval==c("approximate","confidence","semiparametric"))){
             if(object$distribution=="dnorm"){
                 if(Etype=="A"){
                     yLower[] <- qnorm(levelLow, yForecast, sqrt(vcovMulti));
@@ -3472,6 +3684,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                 yUpper[] <- yForecast*exp(qs(levelUp, 0, (vcovMulti/120)^0.25));
             }
             else if(object$distribution=="dinvgauss"){
+                print(vcovMulti)
                 yLower[] <- yForecast*qinvgauss(levelLow, 1, dispersion=vcovMulti);
                 yUpper[] <- yForecast*qinvgauss(levelUp, 1, dispersion=vcovMulti);
             }
