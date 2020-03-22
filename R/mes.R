@@ -1927,7 +1927,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                       lambda=lambda, lambdaEstimate=lambdaEstimate);
 
         parametersNumber[1,1] <- parametersNumber[1,4] <- 1;
-        logLikMESValue <- structure(logLikMES(B,
+        logLikMESValue <- structure(logLikMES(B=0,
                                               Etype, Ttype, Stype, yInSample,
                                               ot, otLogical, occurrenceModel, pFitted, obsInSample,
                                               componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
@@ -1941,6 +1941,16 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         icSelection <- ICFunction(logLikMESValue);
         # If Fisher Information is required, do that analytically
         if(FI){
+            # If B is not provided, then use the standard thing
+            if(is.null(B)){
+                BValues <- initialiser(Etype, Ttype, Stype, componentsNumberSeasonal,
+                                       componentsNumber, lagsModel, lagsModelMax, mesCreated$matVt,
+                                       TRUE, damped, "optimal",
+                                       xregProvided, FALSE, xregNumber, FALSE);
+                # Create the vector of initials for the optimisation
+                B <- BValues$B;
+            }
+
             # Define parameters just for FI calculation
             if(initialType=="provided" && any(names(B)=="level")){
                 initialTypeFI <- "optimal";

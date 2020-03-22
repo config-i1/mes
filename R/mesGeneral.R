@@ -263,6 +263,10 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     if(Ttype!="N"){
         lags <- c(1,lags);
     }
+    # If we don't have seasonality, remove seasonal lag
+    if(Stype=="N" & any(lags>1)){
+        lags <- lags[lags==1];
+    }
 
     # Lags of the model
     lagsModel <- matrix(lags,ncol=1);
@@ -460,7 +464,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
             }
             else{
                 if(length(initial)!=sum(lags)){
-                    warning(paste0("Wrong length of initial vector. Should be ",sum(lags),
+                    warning(paste0("Wrong length of the initial vector. Should be ",sum(lags),
                                    " instead of ",length(initial),".\n",
                                    "Values of initial vector will be estimated."),call.=FALSE);
                     initialValue <- NULL;
