@@ -3085,9 +3085,10 @@ predict.mes <- function(object, newxreg=NULL, interval=c("none", "confidence", "
     # Extract variance and amend it in case of confidence interval
     s2 <- sigma(object)^2;
     if(interval=="confidence"){
-        warning("We don't really have proper confidence intervals. This one is approximate.",
+        warning(paste0("Note that the ETS assumes that the initial level is known, ",
+                       "so the confidence interval depends on smoothing parameters only."),
                 call.=FALSE);
-        s2[] <- s2 / (obsInSample-nparam(object));
+        s2 <- s2 * object$measurement[1:obsInSample,1:length(object$persistence),drop=FALSE] %*% object$persistence;
     }
 
     yUpper <- yLower <- yForecast;
@@ -3131,85 +3132,85 @@ predict.mes <- function(object, newxreg=NULL, interval=c("none", "confidence", "
     #### Produce the intervals for the data ####
     if(object$distribution=="dnorm"){
         if(Etype=="A"){
-            yLower[] <- qnorm(levelLow, yForecast, sqrt(s2));
-            yUpper[] <- qnorm(levelUp, yForecast, sqrt(s2));
+            yLower[] <- qnorm(levelLow, 0, sqrt(s2));
+            yUpper[] <- qnorm(levelUp, 0, sqrt(s2));
         }
         else{
-            yLower[] <- yForecast*qnorm(levelLow, 1, sqrt(s2));
-            yUpper[] <- yForecast*qnorm(levelUp, 1, sqrt(s2));
+            yLower[] <- qnorm(levelLow, 1, sqrt(s2));
+            yUpper[] <- qnorm(levelUp, 1, sqrt(s2));
         }
     }
     else if(object$distribution=="dlogis"){
         if(Etype=="A"){
-            yLower[] <- qlogis(levelLow, yForecast, sqrt(s2*3)/pi);
-            yUpper[] <- qlogis(levelUp, yForecast, sqrt(s2*3)/pi);
+            yLower[] <- qlogis(levelLow, 0, sqrt(s2*3)/pi);
+            yUpper[] <- qlogis(levelUp, 0, sqrt(s2*3)/pi);
         }
         else{
-            yLower[] <- yForecast*qlogis(levelLow, 1, sqrt(s2*3)/pi);
-            yUpper[] <- yForecast*qlogis(levelUp, 1, sqrt(s2*3)/pi);
+            yLower[] <- qlogis(levelLow, 1, sqrt(s2*3)/pi);
+            yUpper[] <- qlogis(levelUp, 1, sqrt(s2*3)/pi);
         }
     }
     else if(object$distribution=="dlaplace"){
         if(Etype=="A"){
-            yLower[] <- qlaplace(levelLow, yForecast, sqrt(s2/2));
-            yUpper[] <- qlaplace(levelUp, yForecast, sqrt(s2/2));
+            yLower[] <- qlaplace(levelLow, 0, sqrt(s2/2));
+            yUpper[] <- qlaplace(levelUp, 0, sqrt(s2/2));
         }
         else{
-            yLower[] <- yForecast*qlaplace(levelLow, 1, sqrt(s2/2));
-            yUpper[] <- yForecast*qlaplace(levelUp, 1, sqrt(s2/2));
+            yLower[] <- qlaplace(levelLow, 1, sqrt(s2/2));
+            yUpper[] <- qlaplace(levelUp, 1, sqrt(s2/2));
         }
     }
     else if(object$distribution=="dt"){
         df <- nobs(object) - nparam(object);
         if(Etype=="A"){
-            yLower[] <- yForecast + sqrt(s2)*qt(levelLow, df);
-            yUpper[] <- yForecast + sqrt(s2)*qt(levelUp, df);
+            yLower[] <- sqrt(s2)*qt(levelLow, df);
+            yUpper[] <- sqrt(s2)*qt(levelUp, df);
         }
         else{
-            yLower[] <- yForecast*(1 + sqrt(s2)*qt(levelLow, df));
-            yUpper[] <- yForecast*(1 + sqrt(s2)*qt(levelUp, df));
+            yLower[] <- (1 + sqrt(s2)*qt(levelLow, df));
+            yUpper[] <- (1 + sqrt(s2)*qt(levelUp, df));
         }
     }
     else if(object$distribution=="ds"){
         if(Etype=="A"){
-            yLower[] <- qs(levelLow, yForecast, (s2/120)^0.25);
-            yUpper[] <- qs(levelUp, yForecast, (s2/120)^0.25);
+            yLower[] <- qs(levelLow, 0, (s2/120)^0.25);
+            yUpper[] <- qs(levelUp, 0, (s2/120)^0.25);
         }
         else{
-            yLower[] <- yForecast*qs(levelLow, 1, (s2/120)^0.25);
-            yUpper[] <- yForecast*qs(levelUp, 1, (s2/120)^0.25);
+            yLower[] <- qs(levelLow, 1, (s2/120)^0.25);
+            yUpper[] <- qs(levelUp, 1, (s2/120)^0.25);
         }
     }
     else if(object$distribution=="dalaplace"){
         lambda <- object$lambda;
         if(Etype=="A"){
-            yLower[] <- qalaplace(levelLow, yForecast,
+            yLower[] <- qalaplace(levelLow, 0,
                                   sqrt(s2*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
-            yUpper[] <- qalaplace(levelUp, yForecast,
+            yUpper[] <- qalaplace(levelUp, 0,
                                   sqrt(s2*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
         }
         else{
-            yLower[] <- yForecast*qalaplace(levelLow, 1,
+            yLower[] <- qalaplace(levelLow, 1,
                                             sqrt(s2*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
-            yUpper[] <- yForecast*qalaplace(levelUp, 1,
+            yUpper[] <- qalaplace(levelUp, 1,
                                             sqrt(s2*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
         }
     }
     else if(object$distribution=="dlnorm"){
-        yLower[] <- yForecast*qlnorm(levelLow, 0, sqrt(s2));
-        yUpper[] <- yForecast*qlnorm(levelUp, 0, sqrt(s2));
+        yLower[] <- qlnorm(levelLow, 0, sqrt(s2));
+        yUpper[] <- qlnorm(levelUp, 0, sqrt(s2));
     }
     else if(object$distribution=="dllaplace"){
-        yLower[] <- yForecast*exp(qlaplace(levelLow, 0, sqrt(s2/2)));
-        yUpper[] <- yForecast*exp(qlaplace(levelUp, 0, sqrt(s2/2)));
+        yLower[] <- exp(qlaplace(levelLow, 0, sqrt(s2/2)));
+        yUpper[] <- exp(qlaplace(levelUp, 0, sqrt(s2/2)));
     }
     else if(object$distribution=="dls"){
-        yLower[] <- yForecast*exp(qs(levelLow, 0, (s2/120)^0.25));
-        yUpper[] <- yForecast*exp(qs(levelUp, 0, (s2/120)^0.25));
+        yLower[] <- exp(qs(levelLow, 0, (s2/120)^0.25));
+        yUpper[] <- exp(qs(levelUp, 0, (s2/120)^0.25));
     }
     else if(object$distribution=="dinvgauss"){
-        yLower[] <- yForecast*qinvgauss(levelLow, 1, dispersion=s2);
-        yUpper[] <- yForecast*qinvgauss(levelUp, 1, dispersion=s2);
+        yLower[] <- qinvgauss(levelLow, 1, dispersion=s2);
+        yUpper[] <- qinvgauss(levelUp, 1, dispersion=s2);
     }
 
     #### Clean up the produced values for the interval ####
@@ -3232,15 +3233,13 @@ predict.mes <- function(object, newxreg=NULL, interval=c("none", "confidence", "
         yUpper[is.na(yUpper)] <- 0;
     }
 
-    # Check what we have from the occurrence model
-    if(occurrenceModel){
-        # If there are NAs, then there's no variability and no intervals.
-        if(any(is.na(yUpper))){
-            yUpper[is.na(yUpper)] <- (yForecast/pForecast)[is.na(yUpper)];
-        }
-        if(any(is.na(yLower))){
-            yLower[is.na(yLower)] <- 0;
-        }
+    if(Etype=="A"){
+        yLower[] <- yForecast + yLower;
+        yUpper[] <- yForecast + yUpper;
+    }
+    else{
+        yLower[] <- yForecast * yLower;
+        yUpper[] <- yForecast * yUpper;
     }
 
     return(structure(list(mean=yForecast, lower=yLower, upper=yUpper, model=object,
@@ -3294,7 +3293,8 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
         interval <- "approximate";
     }
     else if(interval=="confidence"){
-        warning("We don't really have proper confidence intervals. This one is approximate.",
+        warning(paste0("Note that the ETS assumes that the initial level is known, ",
+                       "so the confidence interval depends on smoothing parameters only."),
                 call.=FALSE);
     }
     side <- match.arg(side);
@@ -3468,20 +3468,31 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                 yUpper[i] <- quantile(ySimulated[i,],levelUp[i],na.rm=T,type=7);
             }
         }
+        # This step is needed in order to make intervals similar between the different methods
+        if(Etype=="A"){
+            yLower[] <- yLower - yForecast;
+            yUpper[] <- yUpper - yForecast;
+        }
+        else{
+            yLower[] <- yLower / yForecast;
+            yUpper[] <- yUpper / yForecast;
+        }
     }
     else{
         #### Approximate and confidence interval ####
         # Produce covatiance matrix and use it
         if(any(interval==c("approximate","confidence"))){
             s2 <- sigma(object)^2;
-            if(interval=="confidence"){
-                s2[] <- s2 / (obsInSample-nparam(object));
-            }
             # IG and Lnorm can use approximations from the multiplications
             if(any(object$distribution==c("dinvgauss","dlnorm","dls","dllaplace")) && Etype=="M"){
                 vcovMulti <- mesVarAnal(lagsModelAll, h, matWt[1,,drop=FALSE], matF, vecG, s2);
                 if(any(object$distribution==c("dlnorm","dls","dllaplace"))){
                     vcovMulti[] <- log(1+vcovMulti);
+                }
+
+                # The confidence interval relies on the assumption that initial level is known
+                if(interval=="confidence"){
+                    vcovMulti[] <- vcovMulti - s2;
                 }
 
                 # We don't do correct cumulatives in this case...
@@ -3491,6 +3502,12 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
             }
             else{
                 vcovMulti <- covarAnal(lagsModelAll, h, matWt[1,,drop=FALSE], matF, vecG, s2);
+
+                # The confidence interval relies on the assumption that initial level is known
+                if(interval=="confidence"){
+                    vcovMulti[] <- vcovMulti - s2;
+                }
+
                 # Do either the variance of sum, or a diagonal
                 if(cumulative){
                     vcovMulti <- sum(vcovMulti);
@@ -3539,86 +3556,85 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
         if(any(interval==c("approximate","confidence","semiparametric"))){
             if(object$distribution=="dnorm"){
                 if(Etype=="A"){
-                    yLower[] <- qnorm(levelLow, yForecast, sqrt(vcovMulti));
-                    yUpper[] <- qnorm(levelUp, yForecast, sqrt(vcovMulti));
+                    yLower[] <- qnorm(levelLow, 0, sqrt(vcovMulti));
+                    yUpper[] <- qnorm(levelUp, 0, sqrt(vcovMulti));
                 }
                 else{
-                    yLower[] <- yForecast*qnorm(levelLow, 1, sqrt(vcovMulti));
-                    yUpper[] <- yForecast*qnorm(levelUp, 1, sqrt(vcovMulti));
+                    yLower[] <- qnorm(levelLow, 1, sqrt(vcovMulti));
+                    yUpper[] <- qnorm(levelUp, 1, sqrt(vcovMulti));
                 }
             }
             else if(object$distribution=="dlogis"){
                 if(Etype=="A"){
-                    yLower[] <- qlogis(levelLow, yForecast, sqrt(vcovMulti*3)/pi);
-                    yUpper[] <- qlogis(levelUp, yForecast, sqrt(vcovMulti*3)/pi);
+                    yLower[] <- qlogis(levelLow, 0, sqrt(vcovMulti*3)/pi);
+                    yUpper[] <- qlogis(levelUp, 0, sqrt(vcovMulti*3)/pi);
                 }
                 else{
-                    yLower[] <- yForecast*qlogis(levelLow, 1, sqrt(vcovMulti*3)/pi);
-                    yUpper[] <- yForecast*qlogis(levelUp, 1, sqrt(vcovMulti*3)/pi);
+                    yLower[] <- qlogis(levelLow, 1, sqrt(vcovMulti*3)/pi);
+                    yUpper[] <- qlogis(levelUp, 1, sqrt(vcovMulti*3)/pi);
                 }
             }
             else if(object$distribution=="dlaplace"){
                 if(Etype=="A"){
-                    yLower[] <- qlaplace(levelLow, yForecast, sqrt(vcovMulti/2));
-                    yUpper[] <- qlaplace(levelUp, yForecast, sqrt(vcovMulti/2));
+                    yLower[] <- qlaplace(levelLow, 0, sqrt(vcovMulti/2));
+                    yUpper[] <- qlaplace(levelUp, 0, sqrt(vcovMulti/2));
                 }
                 else{
-                    yLower[] <- yForecast*qlaplace(levelLow, 1, sqrt(vcovMulti/2));
-                    yUpper[] <- yForecast*qlaplace(levelUp, 1, sqrt(vcovMulti/2));
+                    yLower[] <- qlaplace(levelLow, 1, sqrt(vcovMulti/2));
+                    yUpper[] <- qlaplace(levelUp, 1, sqrt(vcovMulti/2));
                 }
             }
             else if(object$distribution=="dt"){
                 df <- nobs(object) - nparam(object);
                 if(Etype=="A"){
-                    yLower[] <- yForecast + sqrt(vcovMulti)*qt(levelLow, df);
-                    yUpper[] <- yForecast + sqrt(vcovMulti)*qt(levelUp, df);
+                    yLower[] <- sqrt(vcovMulti)*qt(levelLow, df);
+                    yUpper[] <- sqrt(vcovMulti)*qt(levelUp, df);
                 }
                 else{
-                    yLower[] <- yForecast*(1 + sqrt(vcovMulti)*qt(levelLow, df));
-                    yUpper[] <- yForecast*(1 + sqrt(vcovMulti)*qt(levelUp, df));
+                    yLower[] <- (1 + sqrt(vcovMulti)*qt(levelLow, df));
+                    yUpper[] <- (1 + sqrt(vcovMulti)*qt(levelUp, df));
                 }
             }
             else if(object$distribution=="ds"){
                 if(Etype=="A"){
-                    yLower[] <- qs(levelLow, yForecast, (vcovMulti/120)^0.25);
-                    yUpper[] <- qs(levelUp, yForecast, (vcovMulti/120)^0.25);
+                    yLower[] <- qs(levelLow, 0, (vcovMulti/120)^0.25);
+                    yUpper[] <- qs(levelUp, 0, (vcovMulti/120)^0.25);
                 }
                 else{
-                    yLower[] <- yForecast*qs(levelLow, 1, (vcovMulti/120)^0.25);
-                    yUpper[] <- yForecast*qs(levelUp, 1, (vcovMulti/120)^0.25);
+                    yLower[] <- qs(levelLow, 1, (vcovMulti/120)^0.25);
+                    yUpper[] <- qs(levelUp, 1, (vcovMulti/120)^0.25);
                 }
             }
             else if(object$distribution=="dalaplace"){
                 lambda <- object$lambda;
                 if(Etype=="A"){
-                    yLower[] <- qalaplace(levelLow, yForecast,
+                    yLower[] <- qalaplace(levelLow, 0,
                                           sqrt(vcovMulti*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
-                    yUpper[] <- qalaplace(levelUp, yForecast,
+                    yUpper[] <- qalaplace(levelUp, 0,
                                           sqrt(vcovMulti*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
                 }
                 else{
-                    yLower[] <- yForecast*qalaplace(levelLow, 1,
+                    yLower[] <- qalaplace(levelLow, 1,
                                                     sqrt(vcovMulti*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
-                    yUpper[] <- yForecast*qalaplace(levelUp, 1,
+                    yUpper[] <- qalaplace(levelUp, 1,
                                                     sqrt(vcovMulti*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
                 }
             }
             else if(object$distribution=="dlnorm"){
-                yLower[] <- yForecast*qlnorm(levelLow, 0, sqrt(vcovMulti));
-                yUpper[] <- yForecast*qlnorm(levelUp, 0, sqrt(vcovMulti));
+                yLower[] <- qlnorm(levelLow, 0, sqrt(vcovMulti));
+                yUpper[] <- qlnorm(levelUp, 0, sqrt(vcovMulti));
             }
             else if(object$distribution=="dllaplace"){
-                yLower[] <- yForecast*exp(qlaplace(levelLow, 0, sqrt(vcovMulti/2)));
-                yUpper[] <- yForecast*exp(qlaplace(levelUp, 0, sqrt(vcovMulti/2)));
+                yLower[] <- exp(qlaplace(levelLow, 0, sqrt(vcovMulti/2)));
+                yUpper[] <- exp(qlaplace(levelUp, 0, sqrt(vcovMulti/2)));
             }
             else if(object$distribution=="dls"){
-                yLower[] <- yForecast*exp(qs(levelLow, 0, (vcovMulti/120)^0.25));
-                yUpper[] <- yForecast*exp(qs(levelUp, 0, (vcovMulti/120)^0.25));
+                yLower[] <- exp(qs(levelLow, 0, (vcovMulti/120)^0.25));
+                yUpper[] <- exp(qs(levelUp, 0, (vcovMulti/120)^0.25));
             }
             else if(object$distribution=="dinvgauss"){
-                print(vcovMulti)
-                yLower[] <- yForecast*qinvgauss(levelLow, 1, dispersion=vcovMulti);
-                yUpper[] <- yForecast*qinvgauss(levelUp, 1, dispersion=vcovMulti);
+                yLower[] <- qinvgauss(levelLow, 1, dispersion=vcovMulti);
+                yUpper[] <- qinvgauss(levelUp, 1, dispersion=vcovMulti);
             }
         }
         # Use Taylor & Bunn approach for the nonparametric ones
@@ -3668,15 +3684,9 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                 yLower[] <- quantile(mesErrors,levelLow,type=7);
                 yUpper[] <- quantile(mesErrors,levelUp,type=7);
             }
-
-            # Do intervals around the forecasts...
-            if(Etype=="A"){
-                yLower[] <- yForecast + yLower;
-                yUpper[] <- yForecast + yUpper;
-            }
-            else{
-                yLower[] <- yForecast*(1+yLower);
-                yUpper[] <- yForecast*(1+yUpper);
+            if(Etype=="M"){
+                yLower[] <- 1+yLower;
+                yUpper[] <- 1+yUpper;
             }
         }
         else{
@@ -3710,12 +3720,22 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
 
         # Substitute NAs and NaNs with zeroes
         if(any(is.nan(yLower)) || any(is.na(yLower))){
-            yLower[is.nan(yLower)] <- 0;
-            yLower[is.na(yLower)] <- 0;
+            yLower[is.nan(yLower)] <- switch(Etype,"A"=0,"M"=1);
+            yLower[is.na(yLower)] <- switch(Etype,"A"=0,"M"=1);
         }
         if(any(is.nan(yUpper)) || any(is.na(yUpper))){
-            yUpper[is.nan(yUpper)] <- 0;
-            yUpper[is.na(yUpper)] <- 0;
+            yUpper[is.nan(yUpper)] <- switch(Etype,"A"=0,"M"=1);
+            yUpper[is.na(yUpper)] <- switch(Etype,"A"=0,"M"=1);
+        }
+
+        # Do intervals around the forecasts...
+        if(Etype=="A"){
+            yLower[] <- yForecast + yLower;
+            yUpper[] <- yForecast + yUpper;
+        }
+        else{
+            yLower[] <- yForecast*yLower;
+            yUpper[] <- yForecast*yUpper;
         }
 
         # Check what we have from the occurrence model
