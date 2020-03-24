@@ -2803,6 +2803,7 @@ summary.mes <- function(object, level=0.95, ...){
     return(structure(ourReturn, class="summary.mes"));
 }
 
+#' @export
 print.summary.mes <- function(x, ...){
     ellipsis <- list(...);
     if(!any(names(ellipsis)=="digits")){
