@@ -659,8 +659,8 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
             xregNumber <- ncol(testModel$data)-1;
             xregNames <- colnames(testModel$data)[-1];
             xregData <- testModel$data[,-1];
-            if(nrow(xreg>obsInSample)){
-                xregData <- as.matrix(model.frame(~xreg));
+            if(nrow(xreg)>obsInSample){
+                xregData <- as.matrix(model.matrix(~xreg))[,xregNames];
             }
         }
         else{
