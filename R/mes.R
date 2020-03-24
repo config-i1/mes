@@ -1647,7 +1647,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                                   frequency=frequency(y)),
                     persistence=persistence, phi=phi, transition=matF,
                     measurement=matWt, initialType=initialType, initial=initialValue,
-                    nParam=parametersNumber, occurrence=oesModel, xreg=xreg,
+                    nParam=parametersNumber, occurrence=oesModel, xreg=xregData,
                     xregInitial=xregInitial, xregPersistence=xregPersistence,
                     loss=loss, lossValue=CFValue, logLik=logLikMESValue, distribution=distribution,
                     scale=scale, lambda=lambda, B=B, lags=lagsModel, FI=FI));
@@ -2868,7 +2868,18 @@ print.summary.mes <- function(x, ...){
 #' @export
 vcov.mes <- function(object, ...){
     modelReturn <- mes(actuals(object), model=object, FI=TRUE);
-    return(solve(modelReturn$FI));
+    vcovMatrix <- try(chol2inv(chol(modelReturn$FI)), silent=TRUE);
+    if(inherits(vcovMatrix,"try-error")){
+        vcovMatrix <- try(solve(modelReturn$FI, diag(ncol(modelReturn$FI)), tol=1e-20), silent=TRUE);
+        if(inherits(vcovMatrix,"try-error")){
+            warning(paste0("Sorry, but the hessian is singular, so we could not invert it.\n",
+                           "We failed to produce the covariance matrix of parameters."),
+                    call.=FALSE);
+            vcovMatrix <- diag(1e+100,ncol(modelReturn$FI));
+            colnames(vcovMatrix) <- rownames(vcovMatrix) <- colnames(modelReturn$FI);
+        }
+    }
+    return(vcovMatrix);
 }
 
 #### Residuals functions ####
@@ -3340,14 +3351,21 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
                                "Using the last available values as future ones."),
                         call.=FALSE);
                 newnRows <- h-nrow(newxreg);
-                newxreg <- rbind(newxreg,matrix(rep(tail(newxreg,1),each=newnRows),newnRows,xregNumber));
+                xreg <- rbind(newxreg,matrix(rep(tail(newxreg,1),each=newnRows),newnRows,xregNumber));
             }
             else if(nrow(newxreg)>h){
                 warning(paste0("The newxreg has ",nrow(newxreg)," observations, while only ",h," are needed. ",
                                "Using the last ",h," of them."),
                         call.=FALSE);
-                newxreg <- tail(newxreg,h);
+                xreg <- tail(newxreg,h);
             }
+            else{
+                xreg <- newxreg;
+            }
+            xregNames <- colnames(object$xreg);
+            # Expand the variables and use only those that are in the model
+            newxreg <- as.matrix(model.frame(~.,data=xreg))[,xregNames];
+            rm(xreg);
         }
 
         componentsNumber[] <- componentsNumber - xregNumber;

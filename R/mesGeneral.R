@@ -625,12 +625,16 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
                 }
                 # Return the estimated model based on the provided xreg
                 if(Etype=="M" && any(distribution==c("dnorm","dlogis","dlaplace","dt","ds","dalaplace"))){
-                    return(alm(log(y)~xreg,distribution=distribution,subset=c(1:obsInSample)));
+                    return(alm(log(y)~.,xregData,distribution=distribution));
                 }
                 else{
-                    return(alm(y~xreg,distribution=distribution,subset=c(1:obsInSample)));
+                    return(alm(y~.,xregData,distribution=distribution));
                 }
             }
+            # Extract names and form a proper matrix for the regression
+            xregNames <- c("y",colnames(xreg));
+            xregData <- cbind(yInSample,xreg[1:obsInSample,]);
+            colnames(xregData) <- xregNames;
 
             if(Etype!="Z"){
                 testModel <- xregInitialiser(Etype,distribution);
@@ -660,7 +664,8 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
             xregNames <- colnames(testModel$data)[-1];
             xregData <- testModel$data[,-1];
             if(nrow(xreg)>obsInSample){
-                xregData <- as.matrix(model.matrix(~xreg))[,xregNames];
+                xregData <- as.matrix(model.frame(~.,data=xreg))[,xregNames];
+                # xregData <- as.matrix(model.matrix(~xreg))[,xregNames];
             }
         }
         else{
