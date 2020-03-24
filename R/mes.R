@@ -1522,7 +1522,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     }
 
     ##### !!!! This function will use residuals in order to determine the needed xreg !!!! #####
-    # XregSelector <- function(listToReturn){
+    # xregSelector <- function(listToReturn){
     # }
 
     ##### Function prepares all the matrices and vectors for return #####
@@ -2867,7 +2867,7 @@ print.summary.mes <- function(x, ...){
 
 #' @export
 vcov.mes <- function(object, ...){
-    modelReturn <- mes(actuals(object), model=object, FI=TRUE);
+    modelReturn <- mes(actuals(object), h=length(object$forecast), model=object, FI=TRUE);
     vcovMatrix <- try(chol2inv(chol(modelReturn$FI)), silent=TRUE);
     if(inherits(vcovMatrix,"try-error")){
         vcovMatrix <- try(solve(modelReturn$FI, diag(ncol(modelReturn$FI)), tol=1e-20), silent=TRUE);
@@ -2876,9 +2876,9 @@ vcov.mes <- function(object, ...){
                            "We failed to produce the covariance matrix of parameters."),
                     call.=FALSE);
             vcovMatrix <- diag(1e+100,ncol(modelReturn$FI));
-            colnames(vcovMatrix) <- rownames(vcovMatrix) <- colnames(modelReturn$FI);
         }
     }
+    colnames(vcovMatrix) <- rownames(vcovMatrix) <- colnames(modelReturn$FI);
     return(vcovMatrix);
 }
 

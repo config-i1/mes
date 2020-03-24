@@ -723,7 +723,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
         xregPersistenceProvided <- FALSE;
         xregPersistenceEstimate <- FALSE;
         xregModel <- NULL;
-        xregData <- 0;
+        xregData <- NULL;
         xregNumber <- 0;
         xregNames <- NULL;
         lagsModelAll <- lagsModel;
