@@ -605,10 +605,24 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     if(!xregExist){
         xregDo <- "use";
     }
+    else{
+        if(xregDo=="select"){
+            if(!is.null(xregInitial)){
+                warning("Variables selection does not work with the provided initials for explantory variables. We will drop them.",
+                        call.=FALSE);
+                xregInitial <- NULL;
+            }
+            if(!is.null(xregPersistence) && any(xregPersistence!=0)){
+                warning(paste0("We cannot do variables selection with the provided smoothing parameters ",
+                               "for explantory variables. We will estimate them instead."),
+                        call.=FALSE);
+                xregPersistence <- NULL;
+            }
+        }
+    }
 
     # Use alm() in order to fit the preliminary model for xreg
     if(xregExist){
-        xregProvided <- TRUE;
         xregModel <- vector("list",2);
 
         # If the initials are not provided, estimate them using ALM.
@@ -665,7 +679,6 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
             xregData <- testModel$data[,-1];
             if(nrow(xreg)>obsInSample){
                 xregData <- as.matrix(model.frame(~.,data=xreg))[,xregNames];
-                # xregData <- as.matrix(model.matrix(~xreg))[,xregNames];
             }
         }
         else{
@@ -712,12 +725,9 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
             xregPersistenceProvided <- FALSE;
             xregPersistenceEstimate <- TRUE;
         }
-        xregEstimate <- any(xregInitialsEstimate,xregPersistenceEstimate);
         lagsModelAll <- matrix(c(lagsModel,rep(1,xregNumber)),ncol=1);
     }
     else{
-        xregProvided <- FALSE;
-        xregEstimate <- FALSE;
         xregInitialsProvided <- FALSE;
         xregInitialsEstimate <- FALSE;
         xregPersistenceProvided <- FALSE;
@@ -879,13 +889,12 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     assign("bounds",bounds,ParentEnvironment);
 
     # Explanatory variables
+    assign("xregDo",xregDo,ParentEnvironment);
     assign("xregExist",xregExist,ParentEnvironment);
     assign("xregModel",xregModel,ParentEnvironment);
     assign("xregData",xregData,ParentEnvironment);
     assign("xregNumber",xregNumber,ParentEnvironment);
     assign("xregNames",xregNames,ParentEnvironment);
-    assign("xregProvided",xregProvided,ParentEnvironment);
-    assign("xregEstimate",xregEstimate,ParentEnvironment);
     assign("xregInitialsProvided",xregInitialsProvided,ParentEnvironment);
     assign("xregInitialsEstimate",xregInitialsEstimate,ParentEnvironment);
     assign("xregPersistenceProvided",xregPersistenceProvided,ParentEnvironment);
