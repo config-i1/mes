@@ -1992,8 +1992,8 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 xregPersistenceEstimateFI <- FALSE;
             }
 
-            FI <- hessian(CF, B, Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
-                          ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, obsInSample=obsInSample,
+            FI <- hessian(logLikMES, B, Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
+                          ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, pFitted=pFitted, obsInSample=obsInSample,
                           componentsNumber=componentsNumber, lagsModel=lagsModel, lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
                           matVt=matVt, matWt=matWt, matF=matF, vecG=vecG,
                           componentsNumberSeasonal=componentsNumberSeasonal,
@@ -2002,6 +2002,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                           xregPersistenceEstimate=xregPersistenceEstimateFI, xregNumber=xregNumber,
                           bounds=bounds, loss=loss, distribution=distribution, horizon=horizon, multisteps=multisteps,
                           lambda=lambda, lambdaEstimate=lambdaEstimateFI);
+
             colnames(FI) <- names(B);
             rownames(FI) <- names(B);
         }
