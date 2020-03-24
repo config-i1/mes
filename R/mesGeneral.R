@@ -36,6 +36,12 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
         }
     }
 
+    ####!!! This is a temporary solution !!!####
+    # If this is xts, get rid of it
+    if(inherits(y,"xts")){
+        y <- as.ts(y);
+    }
+
     # Substitute NAs with zeroes.
     ####!!! This will be changed after the introduction of missing data !!!####
     if(any(is.na(y))){
