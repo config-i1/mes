@@ -408,7 +408,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     parametersChecker(y, model, lags, persistence, phi, initial,
                       distribution, loss, h, holdout, occurrence, ic, bounds,
                       xreg, xregDo, xregInitial, xregPersistence,
-                      silent, modelDo, ParentEnvironment=environment(), ellipsis, fast);
+                      silent, modelDo, ParentEnvironment=environment(), ellipsis, fast=FALSE);
 
     #### The function creates the technical variables (lags etc) based on the type of the model ####
     architector <- function(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType){
@@ -1227,8 +1227,8 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                               persistenceEstimate, phiEstimate, initialType,
                                               xregExist, xregInitialsEstimate, xregPersistenceEstimate,
                                               xregNumber,
-                                              bounds, loss, distributionNew, horizon, multisteps, lambda, lambdaEstimate)
-                                    ,nobs=obsInSample,df=nParamEstimated,class="logLik");
+                                              bounds, loss, distributionNew, horizon, multisteps, lambda, lambdaEstimate),
+                                    nobs=obsInSample,df=nParamEstimated,class="logLik");
 
         #### If we do variables selection, do it here, then reestimate the model. ####
         if(xregDo=="select"){
@@ -1625,6 +1625,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             matVt <- matVt[,1:(obsInSample+lagsModelMax), drop=FALSE];
         }
 
+        # Produce forecasts if the horizon is non-zero
         if(horizon>0){
             yForecast <- ts(rep(NA, horizon), start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
             yForecast[] <- mesForecasterWrap(matVt[,obsInSample+(1:lagsModelMax),drop=FALSE], tail(matWt,horizon), matF,
@@ -1640,8 +1641,12 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             #     yForecast[yForecast<=0] <- 0.01;
             # }
 
-            if(occurrenceModel){
+            # Amend forecasts, multiplying by probability
+            if(occurrenceModel && !occurrenceModelProvided){
                 yForecast[] <- yForecast * forecast(oesModel, h=h)$mean;
+            }
+            else if(occurrenceModel && occurrenceModelProvided){
+                yForecast[] <- yForecast * pForecast;
             }
         }
         else{
@@ -2131,6 +2136,12 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         modelReturned$timeElapsed <- Sys.time()-startTime;
         modelReturned$y <- yInSample;
         modelReturned$holdout <- yHoldout;
+        if(any(yNAValues)){
+            modelReturned$y[yNAValues[1:obsInSample]] <- NA;
+            if(length(yNAValues)==obsAll){
+                modelReturned$holdout[yNAValues[-c(1:obsInSample)]] <- NA;
+            }
+        }
 
         class(modelReturned) <- c("mes","smooth");
     }
@@ -3363,12 +3374,13 @@ plot.mes.predict <- function(x, ...){
 
 # Work in progress...
 #' @param nsim Number of iterations to do in case of \code{interval="simulated"}.
+#' @param occurrence The vector of occurrence variable (values in [0,1]).
 #' @rdname forecast.smooth
 #' @importFrom stats rnorm rlogis rt rlnorm qnorm qlogis qt qlnorm
 #' @importFrom statmod rinvgauss qinvgauss
 #' @importFrom greybox rlaplace rs ralaplace qlaplace qs qalaplace
 #' @export
-forecast.mes <- function(object, h=10, newxreg=NULL,
+forecast.mes <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                          interval=c("none", "simulated", "approximate", "semiparametric", "nonparametric", "confidence"),
                          level=0.95, side=c("both","upper","lower"), cumulative=FALSE, nsim=10000, ...){
 
@@ -3489,7 +3501,31 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
     }
     else{
         occurrenceModel <- FALSE;
-        pForecast <- rep(1, h);
+        # If this was provided occurrence, then use provided values
+        if(!is.null(object$occurrence) && !is.null(object$occurrence$occurrence) &&
+           (object$occurrence$occurrence=="provided")){
+            if(!is.null(occurrence) && is.numeric(occurrence)){
+                pForecast <- occurrence;
+            }
+            else{
+                pForecast <- object$occurrence$forecast;
+            }
+            # Make sure that the values are of the correct length
+            if(h<length(pForecast)){
+                pForecast <- pForecast[1:h];
+            }
+            else if(h>length(pForecast)){
+                pForecast <- c(pForecast,
+                               rep(tail(pForecast,1),
+                                   h-length(pForecast)));
+            }
+            else{
+                pForecast <- pForecast;
+            }
+        }
+        else{
+            pForecast <- rep(1, h);
+        }
     }
 
     # Cumulative forecasts have only one observation

@@ -45,8 +45,12 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     # Substitute NAs with zeroes.
     ####!!! This will be changed after the introduction of missing data !!!####
     if(any(is.na(y))){
-        warning("Data contains NAs. These observations will be substituted by zeroes.",call.=FALSE);
+        warning("Data contains NAs. The occurrence model will be used in order to treat these values.",call.=FALSE);
+        yNAValues <- is.na(y);
         y[is.na(y)] <- 0;
+    }
+    else{
+        yNAValues <- !is.na(y);
     }
 
     # Define obs, the number of observations of in-sample
@@ -511,18 +515,12 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
         oesModel <- NULL;
     }
     pFitted <- matrix(1, obsInSample, 1);
+    pForecast <- rep(NA,h);
 
     if(is.numeric(occurrence)){
         # If it is data, then it should correspond to the in-sample.
-        if(any(occurrence!=1) && (length(occurrence)!=obsInSample)){
-            warning(paste0("Length of the occurrences variable is ",length(occurrence),
-                           " when it should be ",obsInSample,".\n",
-                           "Switching to occurrence='fixed'."),call.=FALSE);
-            occurrence <- "fixed";
-        }
-        else if(all(occurrence==1)){
+        if(all(occurrence==1)){
             occurrence <- "none";
-            occurrenceModelProvided <- FALSE;
         }
         else{
             if(any(occurrence<0,occurrence>1)){
@@ -532,9 +530,27 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
             }
 
             # "p" stand for "provided", meaning that we have been provided the values of p
+            pFitted[] <- occurrence[1:obsInSample];
+            # Create forecasted values for occurrence
+            if(h>0){
+                if(length(occurrence)>obsInSample){
+                    pForecast <- occurrence[-c(1:obsInSample)];
+                }
+                else{
+                    pForecast <- rep(tail(occurrence,1),h);
+                }
+                if(length(pForecast)>h){
+                    pForecast <- pForecast[1:h];
+                }
+                else if(length(pForecast)<h){
+                    pForecast <- c(pForecast,rep(tail(pForecast,1),h-length(pForecast)));
+                }
+            }
+            else{
+                pForecast <- NA;
+            }
             occurrence <- "provided";
-            pFitted[] <- occurrence;
-            occurrenceModelProvided <- FALSE;
+            oesModel <- list(fitted=pFitted,forecast=pForecast,occurrence="provided");
         }
     }
 
@@ -549,14 +565,32 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
         occurrenceModelProvided <- FALSE;
     }
 
-    # This variable just flags, whether we have the occurence in the model or not
-    if(occurrence=="none"){
+
+    # If there were NAs and the occurrence was not specified, do something with it
+    # In all the other cases, NAs will be sorted out by the model
+    if(any(yNAValues) && (occurrence=="none")){
+        occurrence[] <- "provided";
+        pFitted[] <- otLogical*1;
+        pForecast[] <- 1;
         occurrenceModel <- FALSE;
-        otLogical <- rep(TRUE,obsInSample);
+        oesModel <- list(fitted=pFitted,forecast=pForecast,occurrence="provided");
     }
     else{
-        occurrenceModel <- TRUE;
+        if(occurrence=="none"){
+            occurrenceModel <- FALSE;
+            otLogical <- rep(TRUE,obsInSample);
+        }
+        else if(occurrence=="provided"){
+            occurrenceModel <- FALSE;
+        }
+        else{
+            occurrenceModel <- TRUE;
+        }
     }
+
+    ot <- matrix(otLogical*1,ncol=1);
+    obsNonzero <- sum(ot);
+    obsZero <- obsInSample - obsNonzero;
 
     # Check if multiplicative models can be fitted
     allowMultiplicative <- !((any(yInSample<=0) && !occurrenceModel) || (occurrenceModel && any(yInSample<0)));
@@ -578,10 +612,6 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     if(any(model==c("PPP","FFF"))){
         model <- "ZZZ";
     }
-
-    ot <- matrix(otLogical*1,ncol=1);
-    obsNonzero <- sum(ot);
-    obsZero <- obsInSample - obsNonzero;
 
     # Update the number of parameters
     if(occurrenceModelProvided){
@@ -834,6 +864,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     assign("y",y,ParentEnvironment);
     assign("yHoldout",yHoldout,ParentEnvironment);
     assign("yInSample",yInSample,ParentEnvironment);
+    assign("yNAValues",yNAValues,ParentEnvironment);
     # The rename of the variable is needed for the hessian to work
     assign("horizon",h,ParentEnvironment);
     assign("h",h,ParentEnvironment);
@@ -882,6 +913,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     assign("occurrenceModelProvided",occurrenceModelProvided,ParentEnvironment);
     assign("occurrence",occurrence,ParentEnvironment);
     assign("pFitted",pFitted,ParentEnvironment);
+    assign("pForecast",pForecast,ParentEnvironment);
     assign("ot",ot,ParentEnvironment);
     assign("otLogical",otLogical,ParentEnvironment);
 
