@@ -140,7 +140,7 @@ List mesFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &
         }
 
         ////// Backwards run
-        if(backcast && j<nIterations){
+        if(backcast && j<(nIterations-1)){
             // Fill in the tail of the series - this is needed for backcasting
             for (int i=obs+lagsModelMax; i<obsall; i=i+1) {
                 lagrows = i * nComponents - (lagsInternal + lagsModifier) + nComponents - 1;
