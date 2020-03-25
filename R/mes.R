@@ -254,7 +254,7 @@
 #' ourModel <- mes(rnorm(100,100,10), model=c("ANN","AAN","MNN","CCC"), lags=c(5,10))
 #'
 #' @importFrom forecast forecast
-#' @importFrom greybox dlaplace dalaplace ds stepwise alm
+#' @importFrom greybox dlaplace dalaplace ds stepwise alm is.occurrence
 #' @importFrom stats dnorm dlogis dt dlnorm frequency
 #' @importFrom statmod dinvgauss
 #' @importFrom nloptr nloptr
@@ -270,7 +270,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 occurrence=c("none","auto","fixed","general","odds-ratio","inverse-odds-ratio","direct"),
                 ic=c("AICc","AIC","BIC","BICc"), bounds=c("usual","admissible","none"),
                 xreg=NULL, xregDo=c("use","select"), xregInitial=NULL, xregPersistence=0,
-                silent=TRUE, fast=FALSE, ...){
+                silent=TRUE, ...){
     # Copyright (C) 2019 - Inf  Ivan Svetunkov
     #
     # Parameters that were moved to forecast() and predict() functions:
@@ -568,7 +568,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
 
         # Fill in the initials for xreg
         if(xregExist){
-            if(Etype=="A" || xregInitialsProvided){
+            if(Etype=="A" || xregInitialsProvided || is.null(xregModel[[2]])){
                 matVt[componentsNumber+1:xregNumber,1:lagsModelMax] <- xregModel[[1]]$xregInitial;
             }
             else{
@@ -1129,7 +1129,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                           initialType, initialValue,
                           xregExist, xregInitialsProvided, xregInitialsEstimate,
                           xregPersistence, xregPersistenceEstimate,
-                          xregModel, xregData, xregNumber, xregNames,
+                          xregModel, xregData, xregNumber, xregNames, xregDo,
                           ot, otLogical, occurrenceModel, pFitted,
                           bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate){
 
@@ -1231,11 +1231,59 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                     ,nobs=obsInSample,df=nParamEstimated,class="logLik");
 
         #### If we do variables selection, do it here, then reestimate the model. ####
-        # if(xregDo=="select"){
-        #     # Reset the xreg variables and do stepwise.
-        # }
+        if(xregDo=="select"){
+            # Fill in the matrices
+            mesElements <- filler(B,
+                                  Ttype, Stype, componentsNumber, lagsModel, lagsModelMax,
+                                  mesCreated$matVt, mesCreated$matWt, mesCreated$matF, mesCreated$vecG,
+                                  persistenceEstimate, phiEstimate, initialType,
+                                  xregInitialsEstimate, xregPersistenceEstimate, xregNumber);
 
-        return(list(B=B, CFValue=CFValue, nParamEstimated=nParamEstimated, logLikMESValue=logLikMESValue));
+            # Fit the model to the data
+            mesFitted <- mesFitterWrap(mesElements$matVt, mesElements$matWt, mesElements$matF, mesElements$vecG,
+                                       lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal,
+                                       yInSample, ot, initialType=="backcasting");
+
+            # Extract the errors and amend them to correspond to the distribution
+            errors <- mesFitted$errors+switch(Etype,"A"=0,"M"=1);
+
+            # Call the xregSelector providing the original matrix with the data
+            if(Etype=="A"){
+                xregModel[[1]] <- xregSelector(errors=errors, xregData=xregDataOriginal, ic=ic,
+                                               df=length(B)+1, distribution=distributionNew, occurrence=oesModel);
+                xregNumber <- length(xregModel[[1]]$xregInitial);
+                xregNames <- names(xregModel[[1]]$xregInitial);
+            }
+            else{
+                xregModel[[2]] <- xregSelector(errors=errors, xregData=xregDataOriginal, ic=ic,
+                                               df=length(B)+1, distribution=distributionNew, occurrence=oesModel);
+                xregNumber <- length(xregModel[[2]]$xregInitial);
+                xregNames <- names(xregModel[[2]]$xregInitial);
+            }
+
+            # If there are some variables, then do the proper reestimation and return the new values
+            if(xregNumber>0){
+                xregExist[] <- TRUE;
+                xregInitialsEstimate[] <- TRUE;
+                xregPersistenceEstimate[] <- TRUE;
+                xregData <- xregDataOriginal[,xregNames,drop=FALSE];
+
+                return(estimator(Etype, Ttype, Stype, lags,
+                                 obsStates, obsInSample,
+                                 yInSample, persistence, persistenceEstimate, phi, phiEstimate,
+                                 initialType, initialValue,
+                                 xregExist, xregInitialsProvided, xregInitialsEstimate,
+                                 xregPersistence, xregPersistenceEstimate,
+                                 xregModel, xregData, xregNumber, xregNames, xregDo="use",
+                                 ot, otLogical, occurrenceModel, pFitted,
+                                 bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate));
+
+            }
+        }
+
+        return(list(B=B, CFValue=CFValue, nParamEstimated=nParamEstimated, logLikMESValue=logLikMESValue,
+                    xregExist=xregExist, xregData=xregData, xregNumber=xregNumber, xregNames=xregNames, xregModel=xregModel,
+                    xregInitialsEstimate=xregInitialsEstimate, xregPersistenceEstimate=xregPersistenceEstimate));
     }
 
 
@@ -1374,7 +1422,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                           initialType, initialValue,
                                           xregExist, xregInitialsProvided, xregInitialsEstimate,
                                           xregPersistence, xregPersistenceEstimate,
-                                          xregModel, xregData, xregNumber, xregNames,
+                                          xregModel, xregData, xregNumber, xregNames, xregDo,
                                           ot, otLogical, occurrenceModel, pFitted,
                                           bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
                 results[[i]]$IC <- ICFunction(results[[i]]$logLikMESValue);
@@ -1492,7 +1540,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                       initialType, initialValue,
                                       xregExist, xregInitialsProvided, xregInitialsEstimate,
                                       xregPersistence, xregPersistenceEstimate,
-                                      xregModel, xregData, xregNumber, xregNames,
+                                      xregModel, xregData, xregNumber, xregNames, xregDo,
                                       ot, otLogical, occurrenceModel, pFitted,
                                       bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
             results[[j]]$IC <- ICFunction(results[[j]]$logLikMESValue);
@@ -1525,9 +1573,12 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         return(list(results=results,icSelection=icSelection));
     }
 
-    ##### !!!! This function will use residuals in order to determine the needed xreg !!!! #####
-    # xregSelector <- function(listToReturn){
-    # }
+    ##### Function uses residuals in order to determine the needed xreg #####
+    xregSelector <- function(errors, xregData, ic, df, distribution, occurrence){
+        stepwiseModel <- stepwise(cbind(as.data.frame(errors),xregData[1:obsInSample,,drop=FALSE]), ic=ic, df=df,
+                                  distribution=distribution, occurrence=occurrence);
+        return(list(xregInitial=coef(stepwiseModel)[-1],other=stepwiseModel$other));
+    }
 
     ##### Function prepares all the matrices and vectors for return #####
     preparator <- function(B, Etype, Ttype, Stype,
@@ -1714,7 +1765,8 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         xregPersistence <- 0;
         xregPersistenceProvided <- FALSE;
         xregPersistenceEstimate[] <- FALSE;
-        xregModel <- NULL;
+        xregModel[[1]] <- NULL;
+        xregModel[[2]] <- NULL;
         xregData <- NULL;
         xregNumber[] <- 0;
         xregNames <- NULL;
@@ -1729,7 +1781,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                  initialType, initialValue,
                                  xregExist, xregInitialsProvided, xregInitialsEstimate,
                                  xregPersistence, xregPersistenceEstimate,
-                                 xregModel, xregData, xregNumber, xregNames,
+                                 xregModel, xregData, xregNumber, xregNames, xregDo,
                                  ot, otLogical, occurrenceModel, pFitted,
                                  bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
         list2env(mesEstimated, environment());
@@ -2222,7 +2274,7 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
             yName <- "Studentised";
         }
 
-        if(is.oes(x$occurrence)){
+        if(is.occurrence(x$occurrence)){
             ellipsis$x <- ellipsis$x[actuals(x$occurrence)!=0];
             ellipsis$y <- ellipsis$y[actuals(x$occurrence)!=0];
         }
@@ -2327,7 +2379,7 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
             ellipsis$y <- as.vector(residuals(x))^2;
         }
 
-        if(is.oes(x$occurrence)){
+        if(is.occurrence(x$occurrence)){
             ellipsis$x <- ellipsis$x[ellipsis$y!=0];
             ellipsis$y <- ellipsis$y[ellipsis$y!=0];
         }
@@ -2375,7 +2427,7 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
         ellipsis <- list(...);
 
         ellipsis$y <- residuals(x);
-        if(is.oes(x$occurrence)){
+        if(is.occurrence(x$occurrence)){
             ellipsis$y <- ellipsis$y[actuals(x$occurrence)!=0];
         }
 
@@ -2592,7 +2644,7 @@ print.mes <- function(x, digits=4, ...){
     cat(paste0("Time elapsed: ",round(as.numeric(x$timeElapsed,units="secs"),2)," seconds"));
     cat(paste0("\nModel estimated: ",x$model));
 
-    if(is.oes(x$occurrence)){
+    if(is.occurrence(x$occurrence)){
         occurrence <- switch(x$occurrence$occurrence,
                              "f"=,
                              "fixed"="Fixed probability",
@@ -2620,7 +2672,7 @@ print.mes <- function(x, digits=4, ...){
                       # "dbcnorm" = paste0("Box-Cox Normal with lambda=",round(x$other$lambda,2)),
                       "dinvgauss" = "Inverse Gaussian"
     );
-    if(is.oes(x$occurrence)){
+    if(is.occurrence(x$occurrence)){
         distrib <- paste0("Mixture of Bernoulli and ", distrib);
     }
     cat(paste0("\nDistribution assumed in the model: ", distrib));
@@ -2782,7 +2834,7 @@ summary.mes <- function(object, level=0.95, ...){
     ourReturn <- list(timeElapsed=object$timeElapsed, model=object$model);
 
     occurrence <- NULL;
-    if(is.oes(object$occurrence)){
+    if(is.occurrence(object$occurrence)){
         occurrence <- switch(object$occurrence$occurrence,
                              "f"=,
                              "fixed"="Fixed probability",
@@ -2979,7 +3031,7 @@ rmultistep.mes <- function(object, h=10, ...){
     Stype <- substr(model,nchar(model),nchar(model));
 
     # Function returns the matrix with multi-step errors
-    if(is.oes(object$occurrence)){
+    if(is.occurrence(object$occurrence)){
         ot <- matrix(actuals(object$occurrence),obsInSample,1);
     }
     else{
@@ -3001,7 +3053,7 @@ rstandard.mes <- function(model, ...){
     df <- obs - nparam(model);
     errors <- residuals(model);
     # If this is an occurrence model, then only modify the non-zero obs
-    if(is.oes(model$occurrence)){
+    if(is.occurrence(model$occurrence)){
         residsToGo <- which(actuals(model$occurrence)!=0);
     }
     else{
@@ -3032,7 +3084,7 @@ rstudent.mes <- function(model, ...){
     df <- obs - nparam(model) - 1;
     rstudentised <- errors <- residuals(model);
     # If this is an occurrence model, then only modify the non-zero obs
-    if(is.alm(model$occurrence)){
+    if(is.occurrence(model$occurrence)){
         residsToGo <- which(actuals(model$occurrence)!=0);
     }
     else{
@@ -3426,9 +3478,14 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
     # }
 
     # If this is a mixture model, produce forecasts for the occurrence
-    if(!is.null(object$occurrence)){
+    if(is.occurrence(object$occurrence)){
         occurrenceModel <- TRUE;
-        pForecast <- forecast(object$occurrence,h=h)$mean;
+        if(is.alm(object$occurrence)){
+            pForecast <- forecast(object$occurrence,h=h,newdata=newxreg)$mean;
+        }
+        else{
+            pForecast <- forecast(object$occurrence,h=h,newxreg=newxreg)$mean;
+        }
     }
     else{
         occurrenceModel <- FALSE;
@@ -3502,10 +3559,11 @@ forecast.mes <- function(object, h=10, newxreg=NULL,
         if(Etype=="A" && any(object$distribution==c("dlnorm","dinvgauss","dls","dllaplace"))){
             EtypeModified[] <- "M";
         }
-        matOt <- matrix(rbinom(h*nsim, 1, pForecast), h, nsim);
-        matG <- matrix(vecG, componentsNumber+xregNumber, nsim);
 
-        ySimulated <- mesSimulatorwrap(arrVt, matErrors, matOt, array(matF,c(dim(matF),nsim)), matWt, matG,
+        # States, Errors, Ot, Transition, Measurement, Persistence
+        ySimulated <- mesSimulatorwrap(arrVt, matErrors, matrix(rbinom(h*nsim, 1, pForecast), h, nsim),
+                                       array(matF,c(dim(matF),nsim)), matWt,
+                                       matrix(vecG, componentsNumber+xregNumber, nsim),
                                        EtypeModified, Ttype, Stype, lagsModelAll,
                                        componentsNumberSeasonal, componentsNumber)$matrixYt;
 
@@ -3909,7 +3967,7 @@ pointLik.mes <- function(object, ...){
     distribution <- object$distribution;
     yInSample <- actuals(object);
     obsInSample <- nobs(object);
-    if(is.oes(object$occurrence)){
+    if(is.occurrence(object$occurrence)){
         otLogical <- yInSample!=0;
         yFitted <- fitted(object) / fitted(object$occurrence);
     }
@@ -3961,7 +4019,7 @@ pointLik.mes <- function(object, ...){
                                                          dispersion=scale/yFitted[otLogical], log=TRUE))
 
     # If this is a mixture model, take the respective probabilities into account (differential entropy)
-    if(is.oes(object$occurrence)){
+    if(is.occurrence(object$occurrence)){
         likValues[!otLogical] <- -switch(distribution,
                                          "dnorm" =,
                                          "dlnorm" = (log(sqrt(2*pi)*scale)+0.5),

@@ -13,7 +13,7 @@ mes(y, model = "ZZZ", lags = c(frequency(y)), distribution = c("default",
   "inverse-odds-ratio", "direct"), ic = c("AICc", "AIC", "BIC", "BICc"),
   bounds = c("usual", "admissible", "none"), xreg = NULL,
   xregDo = c("use", "select"), xregInitial = NULL, xregPersistence = 0,
-  silent = TRUE, fast = FALSE, ...)
+  silent = TRUE, ...)
 }
 \arguments{
 \item{y}{Vector, containing data needed to be forecasted. If a matrix is

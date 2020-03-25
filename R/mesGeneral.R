@@ -493,7 +493,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
                                                    1);
 
     #### Occurrence variable ####
-    if(is.oes(occurrence)){
+    if(is.occurrence(occurrence)){
         oesModel <- occurrence;
         occurrence <- oesModel$occurrence;
         occurrenceModelProvided <- TRUE;
@@ -603,7 +603,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     xregDo <- match.arg(xregDo,c("use","select"));
     xregExist <- !is.null(xreg);
     if(!xregExist){
-        xregDo <- "use";
+        xregDo[] <- "use";
     }
     else{
         if(xregDo=="select"){
@@ -647,7 +647,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
             }
             # Extract names and form a proper matrix for the regression
             xregNames <- c("y",colnames(xreg));
-            xregData <- cbind(yInSample,xreg[1:obsInSample,]);
+            xregData <- cbind(yInSample,xreg[1:obsInSample,,drop=FALSE]);
             colnames(xregData) <- xregNames;
 
             if(Etype!="Z"){
@@ -675,10 +675,11 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
 
             # Write down the number and names of parameters
             xregNumber <- ncol(testModel$data)-1;
-            xregNames <- colnames(testModel$data)[-1];
-            xregData <- testModel$data[,-1];
+            xregData <- testModel$data[,-1,drop=FALSE];
+            xregNames <- xregNames[-1];
+            colnames(xregData) <- xregNames;
             if(nrow(xreg)>obsInSample){
-                xregData <- as.matrix(model.frame(~.,data=xreg))[,xregNames];
+                xregData <- as.matrix(model.frame(~.,data=xreg))[,xregNames,drop=FALSE];
             }
         }
         else{
@@ -726,6 +727,10 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
             xregPersistenceEstimate <- TRUE;
         }
         lagsModelAll <- matrix(c(lagsModel,rep(1,xregNumber)),ncol=1);
+        # If there's only one explanatory variable, then there's nothing to select
+        if(xregNumber==1){
+            xregDo[] <- "use";
+        }
     }
     else{
         xregInitialsProvided <- FALSE;
