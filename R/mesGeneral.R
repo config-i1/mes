@@ -50,7 +50,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
         y[is.na(y)] <- 0;
     }
     else{
-        yNAValues <- !is.na(y);
+        yNAValues <- is.na(y);
     }
 
     # Define obs, the number of observations of in-sample
@@ -706,8 +706,9 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
             # Write down the number and names of parameters
             xregNumber <- ncol(testModel$data)-1;
             xregData <- testModel$data[,-1,drop=FALSE];
-            xregNames <- xregNames[-1];
-            colnames(xregData) <- xregNames;
+            xregNames <- names(coef(testModel))[-1];
+            # xregNames <- xregNames[-1];
+            # colnames(xregData) <- xregNames;
             if(nrow(xreg)>obsInSample){
                 xregData <- as.matrix(model.frame(~.,data=xreg))[,xregNames,drop=FALSE];
             }
