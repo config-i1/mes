@@ -42,12 +42,11 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
         y <- as.ts(y);
     }
 
-    # Substitute NAs with zeroes.
-    ####!!! This will be changed after the introduction of missing data !!!####
+    # Substitute NAs with mean values.
     if(any(is.na(y))){
-        warning("Data contains NAs. The occurrence model will be used in order to treat these values.",call.=FALSE);
+        warning("Data contains NAs. The values will be ignored during the model construction.",call.=FALSE);
         yNAValues <- is.na(y);
-        y[is.na(y)] <- 0;
+        y[yNAValues] <- na.interp(y)[yNAValues];
     }
     else{
         yNAValues <- is.na(y);
@@ -573,7 +572,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
         pFitted[] <- otLogical*1;
         pForecast[] <- 1;
         occurrenceModel <- FALSE;
-        oesModel <- list(fitted=pFitted,forecast=pForecast,occurrence="provided");
+        oesModel <- structure(list(fitted=pFitted,forecast=pForecast,occurrence="provided"),class="occurrence");
     }
     else{
         if(occurrence=="none"){
@@ -616,6 +615,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     # Update the number of parameters
     if(occurrenceModelProvided){
         parametersNumber[2,3] <- nparam(oesModel);
+        pForecast <- c(forecast(oesModel, h=h)$mean);
     }
 
     #### Information Criteria ####
@@ -669,10 +669,10 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
                 }
                 # Return the estimated model based on the provided xreg
                 if(Etype=="M" && any(distribution==c("dnorm","dlogis","dlaplace","dt","ds","dalaplace"))){
-                    return(alm(log(y)~.,xregData,distribution=distribution));
+                    return(alm(log(y)~.,xregData,distribution=distribution,subset=otLogical));
                 }
                 else{
-                    return(alm(y~.,xregData,distribution=distribution));
+                    return(alm(y~.,xregData,distribution=distribution,subset=otLogical));
                 }
             }
             # Extract names and form a proper matrix for the regression
@@ -707,8 +707,6 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
             xregNumber <- ncol(testModel$data)-1;
             xregData <- testModel$data[,-1,drop=FALSE];
             xregNames <- names(coef(testModel))[-1];
-            # xregNames <- xregNames[-1];
-            # colnames(xregData) <- xregNames;
             if(nrow(xreg)>obsInSample){
                 xregData <- as.matrix(model.frame(~.,data=xreg))[,xregNames,drop=FALSE];
             }

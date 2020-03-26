@@ -253,7 +253,7 @@
 #' # Model combination using a specified pool
 #' ourModel <- mes(rnorm(100,100,10), model=c("ANN","AAN","MNN","CCC"), lags=c(5,10))
 #'
-#' @importFrom forecast forecast
+#' @importFrom forecast forecast na.interp
 #' @importFrom greybox dlaplace dalaplace ds stepwise alm is.occurrence
 #' @importFrom stats dnorm dlogis dt dlnorm frequency
 #' @importFrom statmod dinvgauss
@@ -532,7 +532,8 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 # For mixed models use a different set of initials
                 else if(Etype=="M" && Stype=="A"){
                     for(i in 1:componentsNumberSeasonal){
-                        matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <- log(yDecomposition$seasonal[[i]])*min(y);
+                        matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+
+                                  1:lagsModel[i+j-1]] <- log(yDecomposition$seasonal[[i]])*min(yInSample[otLogical]);
                     }
                 }
             }
@@ -665,11 +666,21 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                     }
                 }
                 else{
-                    B[j:componentsNumber] <- c(0.1,0.005,rep(0.11,componentsNumberSeasonal))[j:componentsNumber];
+                    if(Ttype!="N"){
+                        B[j:componentsNumber] <- c(0.1,0.05,rep(0.11,componentsNumberSeasonal))[j:componentsNumber];
+                    }
+                    else{
+                        B[j:componentsNumber] <- c(0.1,rep(0.2,componentsNumberSeasonal))[j:componentsNumber];
+                    }
                 }
             }
             else{
-                B[j:componentsNumber] <- c(0.1,0.05,rep(0.11,componentsNumberSeasonal))[j:componentsNumber];
+                if(Ttype!="N"){
+                    B[j:componentsNumber] <- c(0.1,0.05,rep(0.11,componentsNumberSeasonal))[j:componentsNumber];
+                }
+                else{
+                    B[j:componentsNumber] <- c(0.1,rep(0.2,componentsNumberSeasonal))[j:componentsNumber];
+                }
             }
             Bl[j:componentsNumber] <- rep(-5, componentsNumber);
             Bu[j:componentsNumber] <- rep(5, componentsNumber);
@@ -903,7 +914,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                                              dispersion=scale/mesFitted$yFitted[otLogical], log=TRUE)));
 
                 # Differential entropy for the logLik of occurrence model
-                if(occurrenceModel){
+                if(occurrenceModel || any(!otLogical)){
                     CFValue <- CFValue + switch(distribution,
                                                 "dnorm" =,
                                                 "dlnorm" = obsZero*(log(sqrt(2*pi)*scale)+0.5),
@@ -1643,7 +1654,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
 
             # Amend forecasts, multiplying by probability
             if(occurrenceModel && !occurrenceModelProvided){
-                yForecast[] <- yForecast * forecast(oesModel, h=h)$mean;
+                yForecast[] <- yForecast * c(forecast(oesModel, h=h)$mean);
             }
             else if(occurrenceModel && occurrenceModelProvided){
                 yForecast[] <- yForecast * pForecast;
@@ -1675,7 +1686,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             initialValue <- vector("numeric", sum(lagsModel));
             j <- 0;
             for(i in 1:length(lagsModel)){
-                initialValue[j+1:lagsModel[i]] <- matVt[i,1:lagsModel[i]];
+                initialValue[j+1:lagsModel[i]] <- tail(matVt[i,1:lagsModelMax],lagsModel[i]);
                 j <- j + lagsModel[i];
             }
         }
@@ -2730,7 +2741,7 @@ print.mes <- function(x, digits=4, ...){
         cat("\nInformation criteria are unavailable for the chosen loss & distribution.\n");
     }
 
-    if(!is.null(x$holdout) && length(x$forecast)>0){
+    if(!is.null(x$holdout) && length(x$forecast)>0 && length(x$holdout)>0){
         cat("\nForecast errors:\n");
         if(is.null(x$occurrence)){
             cat(paste(paste0("ME: ",round(x$accuracy["ME"],3)),
