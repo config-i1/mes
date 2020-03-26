@@ -572,7 +572,8 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
         pFitted[] <- otLogical*1;
         pForecast[] <- 1;
         occurrenceModel <- FALSE;
-        oesModel <- structure(list(fitted=pFitted,forecast=pForecast,occurrence="provided"),class="occurrence");
+        oesModel <- structure(list(y=matrix(otLogical*1,ncol=1),fitted=pFitted,forecast=pForecast,
+                                   occurrence="provided"),class="occurrence");
     }
     else{
         if(occurrence=="none"){
@@ -581,6 +582,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
         }
         else if(occurrence=="provided"){
             occurrenceModel <- FALSE;
+            oesModel$y <- matrix(otLogical*1,ncol=1);
         }
         else{
             occurrenceModel <- TRUE;

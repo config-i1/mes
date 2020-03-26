@@ -1587,7 +1587,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     ##### Function uses residuals in order to determine the needed xreg #####
     xregSelector <- function(errors, xregData, ic, df, distribution, occurrence){
         stepwiseModel <- stepwise(cbind(as.data.frame(errors),xregData[1:obsInSample,,drop=FALSE]), ic=ic, df=df,
-                                  distribution=distribution, occurrence=occurrence);
+                                  distribution=distribution, occurrence=occurrence, silent=TRUE);
         return(list(xregInitial=coef(stepwiseModel)[-1],other=stepwiseModel$other));
     }
 
@@ -2152,6 +2152,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             if(length(yNAValues)==obsAll){
                 modelReturned$holdout[yNAValues[-c(1:obsInSample)]] <- NA;
             }
+            modelReturned$residuals[yNAValues[1:obsInSample]] <- NA;
         }
 
         class(modelReturned) <- c("mes","smooth");
@@ -2204,6 +2205,13 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             modelReturned$models[[i]]$timeElapsed <- Sys.time()-startTime;
             parametersNumberOverall[1,1] <- parametersNumber[1,1] + parametersNumber[1,1] * mesSelected$icWeights[i];
             modelReturned$models[[i]]$y <- yInSample;
+            if(any(yNAValues)){
+                modelReturned$models[[i]]$y[yNAValues[1:obsInSample]] <- NA;
+                if(length(yNAValues)==obsAll){
+                    modelReturned$models[[i]]$holdout[yNAValues[-c(1:obsInSample)]] <- NA;
+                }
+                modelReturned$models[[i]]$residuals[yNAValues[1:obsInSample]] <- NA;
+            }
 
             class(modelReturned$models[[i]]) <- c("mes","smooth");
         }
@@ -2307,8 +2315,14 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
             ellipsis$y <- ellipsis$y[!is.na(ellipsis$y)];
         }
 
+        # Main, labs etc
         if(!any(names(ellipsis)=="main")){
-            ellipsis$main <- paste0(yName," Residuals vs Fitted");
+            if(any(x$distribution==c("dinvgauss","dlnorm","dllaplace","dls"))){
+                ellipsis$main <- paste0("log(",yName," Residuals) vs Fitted");
+            }
+            else{
+                ellipsis$main <- paste0(yName," Residuals vs Fitted");
+            }
         }
 
         if(!any(names(ellipsis)=="xlab")){
@@ -2338,8 +2352,14 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
                                                 dispersion=x$scale * nobs(x) / (nobs(x)-nparam(x))),
                           "dlnorm"=qlnorm(c((1-level)/2, (1+level)/2), 0, 1),
                           qnorm(c((1-level)/2, (1+level)/2), 0, 1));
+        # Analyse stuff in logarithms if the error is multiplicative
+        if(any(x$distribution==c("dinvgauss","dlnorm","dllaplace","dls"))){
+            ellipsis$y[] <- log(ellipsis$y);
+            zValues <- log(zValues);
+        }
         outliers <- which(ellipsis$y >zValues[2] | ellipsis$y <zValues[1]);
         # cat(paste0(round(length(outliers)/length(ellipsis$y),3)*100,"% of values are outside the bounds\n"));
+
 
         if(!any(names(ellipsis)=="ylim")){
             ellipsis$ylim <- range(c(ellipsis$y,zValues), na.rm=TRUE);
@@ -2358,12 +2378,7 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
         xRange[2] <- xRange[2] + sd(ellipsis$x, na.rm=TRUE);
 
         do.call(plot,ellipsis);
-        if(any(x$distribution==c("dlnorm","dinvgauss"))){
-            abline(h=1, col="grey", lty=2);
-        }
-        else{
-            abline(h=0, col="grey", lty=2);
-        }
+        abline(h=0, col="grey", lty=2);
         polygon(c(xRange,rev(xRange)),c(zValues[1],zValues[1],zValues[2],zValues[2]),
                 col="lightgrey", border=NA, density=10);
         abline(h=zValues, col="red", lty=2);
@@ -2372,7 +2387,7 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
             text(ellipsis$x[outliers], ellipsis$y[outliers], labels=outliers, pos=4);
         }
         if(lowess){
-            lines(lowess(ellipsis$x, ellipsis$y), col="red");
+            lines(lowess(ellipsis$x[!is.na(ellipsis$y)], ellipsis$y[!is.na(ellipsis$y)]), col="red");
         }
 
         if(legend){
@@ -2394,11 +2409,15 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
         ellipsis <- list(...);
 
         ellipsis$x <- as.vector(fitted(x));
+        ellipsis$y <- as.vector(residuals(x));
+        if(any(x$distribution==c("dinvgauss","dlnorm","dllaplace","dls"))){
+            ellipsis$y[] <- log(ellipsis$y);
+        }
         if(type=="abs"){
-            ellipsis$y <- abs(as.vector(residuals(x)));
+            ellipsis$y[] <- abs(ellipsis$y);
         }
         else{
-            ellipsis$y <- as.vector(residuals(x))^2;
+            ellipsis$y[] <- as.vector(ellipsis$y)^2;
         }
 
         if(is.occurrence(x$occurrence)){
@@ -2413,10 +2432,20 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
 
         if(!any(names(ellipsis)=="main")){
             if(type=="abs"){
-                ellipsis$main <- "|Residuals| vs Fitted";
+                if(any(x$distribution==c("dinvgauss","dlnorm","dllaplace","dls"))){
+                    ellipsis$main <- "|log(Residuals)| vs Fitted";
+                }
+                else{
+                    ellipsis$main <- "|Residuals| vs Fitted";
+                }
             }
             else{
-                ellipsis$main <- "Residuals^2 vs Fitted";
+                if(any(x$distribution==c("dinvgauss","dlnorm","dllaplace","dls"))){
+                    ellipsis$main <- "log(Residuals)^2 vs Fitted";
+                }
+                else{
+                    ellipsis$main <- "Residuals^2 vs Fitted";
+                }
             }
         }
 
@@ -2433,14 +2462,9 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
         }
 
         do.call(plot,ellipsis);
-        if(any(x$distribution==c("dlnorm","dinvgauss"))){
-            abline(h=1, col="grey", lty=2);
-        }
-        else{
-            abline(h=0, col="grey", lty=2);
-        }
+        abline(h=0, col="grey", lty=2);
         if(lowess){
-            lines(lowess(ellipsis$x, ellipsis$y), col="red");
+            lines(lowess(ellipsis$x[!is.na(ellipsis$y)], ellipsis$y[!is.na(ellipsis$y)]), col="red");
         }
     }
 
@@ -3075,12 +3099,14 @@ rstandard.mes <- function(model, ...){
     df <- obs - nparam(model);
     errors <- residuals(model);
     # If this is an occurrence model, then only modify the non-zero obs
+    # Also, if there are NAs in actuals, consider them as occurrence
     if(is.occurrence(model$occurrence)){
-        residsToGo <- which(actuals(model$occurrence)!=0);
+        residsToGo <- which(actuals(model$occurrence)!=0 & !is.na(actuals(model)));
     }
     else{
         residsToGo <- c(1:obs);
     }
+
     if(any(model$distribution==c("dt","dnorm"))){
         return((errors - mean(errors[residsToGo])) / sqrt(model$scale^2 * obs / df));
     }
@@ -3106,8 +3132,9 @@ rstudent.mes <- function(model, ...){
     df <- obs - nparam(model) - 1;
     rstudentised <- errors <- residuals(model);
     # If this is an occurrence model, then only modify the non-zero obs
+    # Also, if there are NAs in actuals, consider them as occurrence
     if(is.occurrence(model$occurrence)){
-        residsToGo <- which(actuals(model$occurrence)!=0);
+        residsToGo <- which(actuals(model$occurrence)!=0 & !is.na(actuals(model)));
     }
     else{
         residsToGo <- c(1:obs);
