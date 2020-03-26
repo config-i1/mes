@@ -33,6 +33,8 @@
 #' \item \link[stats]{dt} - T-distribution,
 #' \item \link[greybox]{ds} - S-distribution,
 #' \item \link[stats]{dlnorm} - Log normal distribution,
+#' \item dllaplace - Log Laplace distribution,
+#' \item ds - Log S distribution,
 # \item \link[greybox]{dbcnorm} - Box-Cox normal distribution,
 #' \item \link[statmod]{dinvgauss} - Inverse Gaussian distribution,
 #' }
@@ -98,7 +100,8 @@
 #' @param distribution what density function to assume for the error term. The full
 #' name of the distribution should be provided, starting with the letter "d" -
 #' "density". The names align with the names of distribution functions in R.
-#' For example, see \link[stats]{dnorm}.
+#' For example, see \link[stats]{dnorm}. For detailed explanation of available
+#' distributions, see vignette in greybox package: \code{vignette("greybox","alm")}.
 #' @param loss The type of Loss Function used in optimization. \code{loss} can
 #' be:
 #' \itemize{
@@ -263,7 +266,7 @@
 #' @export mes
 mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
-                               "dlnorm","dinvgauss"),
+                               "dlnorm","dllaplace","dls","dinvgauss"),
                 loss=c("likelihood","MSE","MAE","HAM","LASSO","RIDGE","MSEh","TMSE","GTMSE","MSCE"),
                 h=0, holdout=FALSE,
                 persistence=NULL, phi=NULL, initial=c("optimal","backcasting"),
@@ -808,6 +811,12 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                         "dlnorm"=switch(Etype,
                                         "A"=sqrt(sum(log(1+errors/yFitted)^2)/obsInSample),
                                         "M"=sqrt(sum(log(1+errors)^2)/obsInSample)),
+                        "dllaplace"=switch(Etype,
+                                        "A"=sum(abs(log(1+errors/yFitted))/obsInSample),
+                                        "M"=sum(abs(log(1+errors))/obsInSample)),
+                        "dls"=switch(Etype,
+                                        "A"=sum(sqrt(abs(log(1+errors/yFitted)))/obsInSample),
+                                        "M"=sum(sqrt(abs(log(1+errors)))/obsInSample)),
                         "dinvgauss"=switch(Etype,
                                            "A"=sum((errors/yFitted)^2/(1+errors/yFitted))/obsInSample,
                                            "M"=sum((errors)^2/(1+errors))/obsInSample),
@@ -914,6 +923,10 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                                                         scale=scale*mesFitted$yFitted[otLogical], alpha=lambda, log=TRUE)),
                                        "dlnorm"=dlnorm(x=yInSample[otLogical], meanlog=log(mesFitted$yFitted[otLogical]),
                                                        sdlog=scale, log=TRUE),
+                                       "dllaplace"=dlaplace(q=log(yInSample[otLogical]), mu=log(mesFitted$yFitted[otLogical]),
+                                                            scale=scale, log=TRUE)-log(yInSample[otLogical]),
+                                       "dls"=ds(q=log(yInSample[otLogical]), mu=log(mesFitted$yFitted[otLogical]),
+                                                scale=scale, log=TRUE)-log(yInSample[otLogical]),
                                        "dinvgauss"=dinvgauss(x=yInSample[otLogical], mean=mesFitted$yFitted[otLogical],
                                                              dispersion=scale/mesFitted$yFitted[otLogical], log=TRUE)));
 
@@ -924,11 +937,13 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                                 "dlnorm" = obsZero*(log(sqrt(2*pi)*scale)+0.5),
                                                 "dlogis" = obsZero*2,
                                                 "dlaplace" =,
+                                                "dllaplace" =,
                                                 "dalaplace" = obsZero*(1 + log(2*scale)),
                                                 "dt" = obsZero*((scale+1)/2 *
                                                                     (digamma((scale+1)/2)-digamma(scale/2)) +
                                                                     log(sqrt(scale) * beta(scale/2,0.5))),
-                                                "ds" = obsZero*(2 + 2*log(2*scale)),
+                                                "ds" =,
+                                                "dls" = obsZero*(2 + 2*log(2*scale)),
                                                 "dinvgauss" = 0.5*(obsZero*(log(pi/2)+1+suppressWarnings(log(scale)))-
                                                                        sum(log(mesFitted$yFitted[!otLogical]))));
                                                 # "dinvgauss" = obsZero*(0.5*(log(pi/2)+1+suppressWarnings(log(scale)))));
@@ -1057,8 +1072,8 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
             else{
                 distributionNew <- switch(loss,
                                           "MSE"=switch(Etype,"A"="dnorm","M"="dlnorm"),
-                                          "MAE"="dlaplace",
-                                          "HAM"="ds",
+                                          "MAE"=switch(Etype,"A"="dlaplace","M"="dllaplace"),
+                                          "HAM"=switch(Etype,"A"="ds","M"="dls"),
                                           distribution);
                 logLikReturn <- -CF(B,
                                     Etype, Ttype, Stype, yInSample,
@@ -1180,7 +1195,11 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                                                 "MAEh"=, "MACE"=, "MAE"="dlaplace",
                                                 "HAMh"=, "CHAM"=, "HAM"="ds",
                                                 "MSEh"=, "MSCE"=, "MSE"=, "GPL"=, "likelihood"=, "dnorm"),
-                                      "M"="dinvgauss");
+                                     "M"=switch(loss,
+                                                "MAEh"=, "MACE"=, "MAE"="dllaplace",
+                                                "HAMh"=, "CHAM"=, "HAM"="dls",
+                                                "MSEh"=, "MSCE"=, "MSE"=, "GPL"="dlnorm",
+                                                "likelihood"=, "dinvgauss"));
         }
         else{
             distributionNew <- distribution;
@@ -1710,10 +1729,6 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         }
 
         scale <- scaler(distribution, Etype, errors[otLogical], yFitted[otLogical], obsInSample, lambda);
-        # If this is artificial distribution, then use the loss function value as scale
-        if(any(distribution==c("dllaplace","dls"))){
-            scale[] <- CFValue;
-        }
         yFitted <- ts(yFitted, start=start(y), frequency=frequency(y));
 
         return(list(model=NA, timeElapsed=NA,
@@ -1998,10 +2013,17 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     #### Use the provided model ####
     else if(modelDo=="use"){
         # If the distribution is default, change it according to the error term
-        if(loss=="likelihood" && distribution=="default"){
+        if(distribution=="default"){
             distributionNew <- switch(Etype,
-                                      "A"="dnorm",
-                                      "M"="dinvgauss");
+                                      "A"=switch(loss,
+                                                 "MAEh"=, "MACE"=, "MAE"="dlaplace",
+                                                 "HAMh"=, "CHAM"=, "HAM"="ds",
+                                                 "MSEh"=, "MSCE"=, "MSE"=, "GPL"=, "likelihood"=, "dnorm"),
+                                      "M"=switch(loss,
+                                                 "MAEh"=, "MACE"=, "MAE"="dllaplace",
+                                                 "HAMh"=, "CHAM"=, "HAM"="dls",
+                                                 "MSEh"=, "MSCE"=, "MSE"=, "GPL"="dlnorm",
+                                                 "likelihood"=, "dinvgauss"));
         }
         else{
             distributionNew <- distribution;
@@ -2361,20 +2383,25 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
         }
 
         zValues <- switch(x$distribution,
-                          "dlaplace"=qlaplace(c((1-level)/2, (1+level)/2), 0, 1),
+                          "dlaplace"=,
+                          "dllaplace"=qlaplace(c((1-level)/2, (1+level)/2), 0, 1),
                           "dalaplace"=qalaplace(c((1-level)/2, (1+level)/2), 0, 1, x$lambda),
                           "dlogis"=qlogis(c((1-level)/2, (1+level)/2), 0, 1),
                           "dt"=qt(c((1-level)/2, (1+level)/2), nobs(x)-nparam(x)),
-                          "ds"=qs(c((1-level)/2, (1+level)/2), 0, 1),
+                          "ds"=,
+                          "dls"=qs(c((1-level)/2, (1+level)/2), 0, 1),
                           # In the next one, the scale is debiased, taking n-k into account
                           "dinvgauss"=qinvgauss(c((1-level)/2, (1+level)/2), mean=1,
                                                 dispersion=x$scale * nobs(x) / (nobs(x)-nparam(x))),
                           "dlnorm"=qlnorm(c((1-level)/2, (1+level)/2), 0, 1),
                           qnorm(c((1-level)/2, (1+level)/2), 0, 1));
         # Analyse stuff in logarithms if the error is multiplicative
-        if(any(x$distribution==c("dinvgauss","dlnorm","dllaplace","dls"))){
+        if(any(x$distribution==c("dinvgauss","dlnorm"))){
             ellipsis$y[] <- log(ellipsis$y);
             zValues <- log(zValues);
+        }
+        else if(any(x$distribution==c("dllaplace","dls"))){
+            ellipsis$y[] <- log(ellipsis$y);
         }
         outliers <- which(ellipsis$y >zValues[2] | ellipsis$y <zValues[1]);
         # cat(paste0(round(length(outliers)/length(ellipsis$y),3)*100,"% of values are outside the bounds\n"));
@@ -2505,7 +2532,7 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
 
         if(any(x$distribution=="dnorm")){
             if(!any(names(ellipsis)=="main")){
-                ellipsis$main <- "QQ plot of normal distribution";
+                ellipsis$main <- "QQ plot of Normal distribution";
             }
 
             do.call(qqnorm, ellipsis);
@@ -2513,7 +2540,7 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
         }
         else if(any(x$distribution=="dlnorm")){
             if(!any(names(ellipsis)=="main")){
-                ellipsis$main <- "QQ plot of log normal distribution";
+                ellipsis$main <- "QQ plot of Log Normal distribution";
             }
             ellipsis$x <- qlnorm(ppoints(500), meanlog=0, sdlog=x$scale);
 
@@ -2528,6 +2555,15 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
 
             do.call(qqplot, ellipsis);
             qqline(ellipsis$y, distribution=function(p) qlaplace(p, mu=0, scale=x$scale));
+        }
+        else if(x$distribution=="dllaplace"){
+            if(!any(names(ellipsis)=="main")){
+                ellipsis$main <- "QQ-plot of Log Laplace distribution";
+            }
+            ellipsis$x <- exp(qlaplace(ppoints(500), mu=0, scale=x$scale));
+
+            do.call(qqplot, ellipsis);
+            qqline(ellipsis$y, distribution=function(p) exp(qlaplace(p, mu=0, scale=x$scale)));
         }
         else if(x$distribution=="dalaplace"){
             if(!any(names(ellipsis)=="main")){
@@ -2555,6 +2591,15 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
 
             do.call(qqplot, ellipsis);
             qqline(ellipsis$y, distribution=function(p) qs(p, mu=0, scale=x$scale));
+        }
+        else if(x$distribution=="dls"){
+            if(!any(names(ellipsis)=="main")){
+                ellipsis$main <- "QQ-plot of Log S distribution";
+            }
+            ellipsis$x <- exp(qs(ppoints(500), mu=0, scale=x$scale));
+
+            do.call(qqplot, ellipsis);
+            qqline(ellipsis$y, distribution=function(p) exp(qs(p, mu=0, scale=x$scale)));
         }
         else if(x$distribution=="dt"){
             # Standardise residuals
@@ -2944,8 +2989,8 @@ summary.mes <- function(object, level=0.95, ...){
 
     if(object$loss=="likelihood" ||
        (any(object$loss==c("MSE","MSEh","MSCE")) & any(object$distribution==c("dnorm","dlnorm"))) ||
-       (any(object$loss==c("MAE","MAEh","MACE")) & object$distribution=="dlaplace") ||
-       (any(object$loss==c("HAM","HAMh","CHAM")) & object$distribution=="ds")){
+       (any(object$loss==c("MAE","MAEh","MACE")) & any(object$distribution==c("dlaplace","dllaplace"))) ||
+       (any(object$loss==c("HAM","HAMh","CHAM")) & any(object$distribution==c("ds","dls")))){
         ICs <- c(AIC(object),AICc(object),BIC(object),BICc(object));
         names(ICs) <- c("AIC","AICc","BIC","BICc");
         ourReturn$ICs <- ICs;
@@ -2983,6 +3028,8 @@ print.summary.mes <- function(x, ...){
                       "dt" = paste0("Student t with df=",round(x$lambda, digits)),
                       "ds" = "S",
                       "dlnorm" = "Log Normal",
+                      "dllaplace" = "Log Laplace",
+                      "dls" = "Log S",
                       # "dbcnorm" = paste0("Box-Cox Normal with lambda=",round(x$other$lambda,2)),
                       "dinvgauss" = "Inverse Gaussian"
     );
@@ -3010,8 +3057,8 @@ print.summary.mes <- function(x, ...){
 
     if(x$loss=="likelihood" ||
        (any(x$loss==c("MSE","MSEh","MSCE")) & any(x$distribution==c("dnorm","dlnorm"))) ||
-       (any(x$loss==c("MAE","MAEh","MACE")) & x$distribution=="dlaplace") ||
-       (any(x$loss==c("HAM","HAMh","CHAM")) & x$distribution=="ds")){
+       (any(x$loss==c("MAE","MAEh","MACE")) & any(x$distribution==c("dlaplace","dllaplace"))) ||
+       (any(x$loss==c("HAM","HAMh","CHAM")) & any(x$distribution==c("ds","dls")))){
         cat("\n");
         print(round(x$ICs,digits));
     }
@@ -3139,6 +3186,10 @@ rstandard.mes <- function(model, ...){
     else if(model$distribution=="ds"){
         return((errors - mean(errors[residsToGo])) / (model$scale * obs / df)^2);
     }
+    else if(model$distribution=="dls"){
+        errors[] <- log(errors);
+        return(exp((errors - mean(errors[residsToGo])) / (model$scale * obs / df)^2));
+    }
     else if(model$distribution=="dinvgauss"){
         return(errors / mean(errors[residsToGo]));
     }
@@ -3177,10 +3228,22 @@ rstudent.mes <- function(model, ...){
             rstudentised[i] <- errors[i] / (sum(sqrt(abs(errors[-i])),na.rm=TRUE) / (2*df))^2;
         }
     }
+    else if(model$distribution=="dls"){
+        errors[] <- log(errors) - mean(log(errors));
+        for(i in residsToGo){
+            rstudentised[i] <- exp(errors[i] / (sum(sqrt(abs(errors[-i])),na.rm=TRUE) / (2*df))^2);
+        }
+    }
     else if(model$distribution=="dlaplace"){
         errors[] <- errors - mean(errors);
         for(i in residsToGo){
             rstudentised[i] <- errors[i] / (sum(abs(errors[-i]),na.rm=TRUE) / df);
+        }
+    }
+    else if(model$distribution=="dllaplace"){
+        errors[] <- log(errors) - mean(log(errors));
+        for(i in residsToGo){
+            rstudentised[i] <- exp(errors[i] / (sum(abs(errors[-i]),na.rm=TRUE) / df));
         }
     }
     else if(model$distribution=="dalaplace"){
@@ -4113,8 +4176,8 @@ pointLik.mes <- function(object, ...){
                                                    sdlog=scale, log=TRUE),
                                    "dllaplace"=dlaplace(q=log(yInSample[otLogical]), mu=log(yFitted[otLogical]),
                                                         scale=scale, log=TRUE),
-                                   "dllaplace"=dlaplace(q=log(yInSample[otLogical]), mu=log(yFitted[otLogical]),
-                                                        scale=scale, log=TRUE),
+                                   "dls"=ds(q=log(yInSample[otLogical]), mu=log(yFitted[otLogical]),
+                                            scale=scale, log=TRUE),
                                    "dinvgauss"=dinvgauss(x=yInSample[otLogical], mean=yFitted[otLogical],
                                                          dispersion=scale/yFitted[otLogical], log=TRUE))
 
@@ -4125,10 +4188,12 @@ pointLik.mes <- function(object, ...){
                                          "dlnorm" = (log(sqrt(2*pi)*scale)+0.5),
                                          "dlogis" = 2,
                                          "dlaplace" =,
+                                         "dllaplace" =,
                                          "dalaplace" = (1 + log(2*scale)),
                                          "dt" = ((scale+1)/2 * (digamma((scale+1)/2)-digamma(scale/2)) +
                                                      log(sqrt(scale) * beta(scale/2,0.5))),
-                                         "ds" = (2 + 2*log(2*scale)),
+                                         "ds" =,
+                                         "dls" = (2 + 2*log(2*scale)),
                                          "dinvgauss" = (0.5*(log(pi/2)+1+log(scale))));
 
         likValues[] <- likValues + pointLik(object$occurrence);

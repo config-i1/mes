@@ -1,6 +1,6 @@
 parametersChecker <- function(y, model, lags, persistence, phi, initial,
                               distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
-                                             "dlnorm","dinvgauss"),
+                                             "dlnorm","dllaplace","dls","dinvgauss"),
                               loss, h, holdout,occurrence,
                               ic=c("AICc","AIC","BIC","BICc"), bounds=c("traditional","admissible","none"),
                               xreg, xregDo, xregInitial, xregPersistence, silent, modelDo, ParentEnvironment,
@@ -665,6 +665,14 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
                     distribution <- switch(Etype,
                                            "A"="dnorm",
                                            "M"="dlnorm");
+                }
+                else if(distribution=="dllaplace"){
+                    distribution <- "dlaplace";
+                    Etype <- "M";
+                }
+                else if(distribution=="dls"){
+                    distribution <- "ds";
+                    Etype <- "M";
                 }
                 # Return the estimated model based on the provided xreg
                 if(Etype=="M" && any(distribution==c("dnorm","dlogis","dlaplace","dt","ds","dalaplace"))){

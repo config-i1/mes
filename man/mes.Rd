@@ -5,9 +5,9 @@
 \title{Mixed Exponential Smoothing}
 \usage{
 mes(y, model = "ZZZ", lags = c(frequency(y)), distribution = c("default",
-  "dnorm", "dlogis", "dlaplace", "dt", "ds", "dalaplace", "dlnorm",
-  "dinvgauss"), loss = c("likelihood", "MSE", "MAE", "HAM", "LASSO", "RIDGE",
-  "MSEh", "TMSE", "GTMSE", "MSCE"), h = 0, holdout = FALSE,
+  "dnorm", "dlogis", "dlaplace", "dt", "ds", "dalaplace", "dlnorm", "dllaplace",
+  "dls", "dinvgauss"), loss = c("likelihood", "MSE", "MAE", "HAM", "LASSO",
+  "RIDGE", "MSEh", "TMSE", "GTMSE", "MSCE"), h = 0, holdout = FALSE,
   persistence = NULL, phi = NULL, initial = c("optimal", "backcasting"),
   occurrence = c("none", "auto", "fixed", "general", "odds-ratio",
   "inverse-odds-ratio", "direct"), ic = c("AICc", "AIC", "BIC", "BICc"),
@@ -67,7 +67,8 @@ to setup the appropriate time series structure.}
 \item{distribution}{what density function to assume for the error term. The full
 name of the distribution should be provided, starting with the letter "d" -
 "density". The names align with the names of distribution functions in R.
-For example, see \link[stats]{dnorm}.}
+For example, see \link[stats]{dnorm}. For detailed explanation of available
+distributions, see vignette in greybox package: \code{vignette("greybox","alm")}.}
 
 \item{loss}{The type of Loss Function used in optimization. \code{loss} can
 be:
@@ -258,6 +259,8 @@ Inverse Gaussian is used for the Multiplicative error models.
 \item \link[stats]{dt} - T-distribution,
 \item \link[greybox]{ds} - S-distribution,
 \item \link[stats]{dlnorm} - Log normal distribution,
+\item dllaplace - Log Laplace distribution,
+\item ds - Log S distribution,
 \item \link[statmod]{dinvgauss} - Inverse Gaussian distribution,
 }
 
