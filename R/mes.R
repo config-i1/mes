@@ -519,6 +519,10 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                         # trend
                         matVt[j,1:lagsModelMax] <- yDecomposition$initial[2];
                     }
+                    # This is a failsafe for multiplicative trend models, so that the thing does not explode
+                    if(Ttype=="M" && matVt[j,1:lagsModelMax]>1.1){
+                        matVt[j,1:lagsModelMax] <- 1;
+                    }
                     j <- j+1;
                 }
                 #### Seasonal components
@@ -1942,6 +1946,10 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         icBest <- min(icSelection);
         mesSelected$icWeights  <- (exp(-0.5*(icSelection-icBest)) /
                                        sum(exp(-0.5*(icSelection-icBest))));
+
+        # This is a failsafe mechanism, just to make sure that the ridiculous models don't impact forecasts
+        mesSelected$icWeights[mesSelected$icWeights<1e-5] <- 0
+        mesSelected$icWeights <- mesSelected$icWeights/sum(mesSelected$icWeights);
 
         for(i in 1:length(mesSelected$results)){
             # Take the parameters of the best model
