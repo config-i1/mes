@@ -499,16 +499,13 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     if(is.occurrence(occurrence)){
         oesModel <- occurrence;
         occurrence <- oesModel$occurrence;
-        occurrenceModelProvided <- TRUE;
+        if(oesModel$occurrence=="provided"){
+            occurrenceModelProvided <- FALSE;
+        }
+        else{
+            occurrenceModelProvided <- TRUE;
+        }
     }
-    # else if(is.list(occurrence)){
-    #     warning(paste0("occurrence is not of the class oes. ",
-    #                    "We will try to extract the type of model, but cannot promise anything."),
-    #             call.=FALSE);
-    #     oesModel <- modelType(occurrence);
-    #     occurrence <- occurrence$occurrence;
-    #     occurrenceModelProvided <- FALSE;
-    # }
     else{
         occurrenceModelProvided <- FALSE;
         oesModel <- NULL;
@@ -528,7 +525,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
                 occurrence[] <- (occurrence!=0)*1;
             }
 
-            # "p" stand for "provided", meaning that we have been provided the values of p
+            # "provided", meaning that we have been provided the values of p
             pFitted[] <- occurrence[1:obsInSample];
             # Create forecasted values for occurrence
             if(h>0){
@@ -572,7 +569,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
         pFitted[] <- otLogical*1;
         pForecast[] <- 1;
         occurrenceModel <- FALSE;
-        oesModel <- structure(list(y=matrix(otLogical*1,ncol=1),fitted=pFitted,forecast=pForecast,
+        oesModel <- structure(list(y=matrix((!yNAValues)*1,ncol=1),fitted=pFitted,forecast=pForecast,
                                    occurrence="provided"),class="occurrence");
     }
     else{

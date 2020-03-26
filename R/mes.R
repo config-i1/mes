@@ -2237,10 +2237,21 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
         modelReturned$holdout <- yHoldout;
         modelReturned$y <- yInSample;
         modelReturned$fitted <- ts(yFittedCombined,start=start(y), frequency=frequency(y));
+        modelReturned$residuals <- yInSample - yFittedCombined;
+        if(any(yNAValues)){
+            modelReturned$y[yNAValues[1:obsInSample]] <- NA;
+            if(length(yNAValues)==obsAll){
+                modelReturned$holdout[yNAValues[-c(1:obsInSample)]] <- NA;
+            }
+            modelReturned$residuals[yNAValues[1:obsInSample]] <- NA;
+        }
         modelReturned$forecast <- ts(yForecastCombined,start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
         parametersNumberOverall[1,4] <- sum(parametersNumberOverall[1,1:3]);
         modelReturned$nParam <- parametersNumberOverall;
         modelReturned$ICw <- mesSelected$icWeights;
+        # These two are needed just to make basic methods work
+        modelReturned$distribution <- distribution;
+        modelReturned$scale <- sqrt(mean(modelReturned$residuals^2,na.rm=TRUE));
         class(modelReturned) <- c("mesCombined","mes","smooth");
     }
     modelReturned$ICs <- icSelection;
@@ -2765,7 +2776,8 @@ print.mes <- function(x, digits=4, ...){
         cat("\nInformation criteria are unavailable for the chosen loss & distribution.\n");
     }
 
-    if(!is.null(x$holdout) && length(x$forecast)>0 && length(x$holdout)>0){
+    # If there are accuracy measures, print them out
+    if(!is.null(x$accuracy)){
         cat("\nForecast errors:\n");
         if(is.null(x$occurrence)){
             cat(paste(paste0("ME: ",round(x$accuracy["ME"],3)),
@@ -2804,7 +2816,7 @@ print.mesCombined <- function(x, digits=4, ...){
     cat("\nAverage number of estimated parameters: "); cat(round(nparam(x),digits=digits));
     cat("\nAverage number of degrees of freedom: "); cat(round(nobs(x)-nparam(x),digits=digits));
 
-    if(!is.null(x$holdout) && length(x$forecast)>0){
+    if(!is.null(x$accuracy)){
         cat("\n\nForecast errors:\n");
         if(is.null(x$occurrence)){
             cat(paste(paste0("ME: ",round(x$accuracy["ME"],3)),
@@ -2934,6 +2946,11 @@ summary.mes <- function(object, level=0.95, ...){
 }
 
 #' @export
+summary.mesCombined <- function(object, ...){
+    return(print.mesCombined(object, ...));
+}
+
+#' @export
 print.summary.mes <- function(x, ...){
     ellipsis <- list(...);
     if(!any(names(ellipsis)=="digits")){
@@ -2997,7 +3014,7 @@ print.summary.mes <- function(x, ...){
 
 #' @export
 vcov.mes <- function(object, ...){
-    modelReturn <- mes(actuals(object), h=length(object$forecast), model=object, FI=TRUE);
+    modelReturn <- suppressWarnings(mes(actuals(object), h=length(object$forecast), model=object, FI=TRUE));
     vcovMatrix <- try(chol2inv(chol(modelReturn$FI)), silent=TRUE);
     if(inherits(vcovMatrix,"try-error")){
         vcovMatrix <- try(solve(modelReturn$FI, diag(ncol(modelReturn$FI)), tol=1e-20), silent=TRUE);
@@ -3016,18 +3033,19 @@ vcov.mes <- function(object, ...){
 #' @export
 residuals.mes <- function(object, ...){
     return(switch(object$distribution,
-                  "dnorm"=,
-                  "dlogis"=,
-                  "dlaplace"=,
-                  "dt"=,
-                  "ds"=,
-                  "dalaplace"=object$residuals,
                   "dlnorm"=,
                   "dllaplace"=,
                   "dls"=,
                   "dinvgauss"=switch(errorType(object),
                                      "A"=1+object$residuals/fitted(object),
-                                     "M"=1+object$residuals)));
+                                     "M"=1+object$residuals),
+                  "dnorm"=,
+                  "dlogis"=,
+                  "dlaplace"=,
+                  "dt"=,
+                  "ds"=,
+                  "dalaplace"=,
+                  object$residuals));
 }
 
 #' Multiple steps ahead forecast errors
@@ -3142,46 +3160,46 @@ rstudent.mes <- function(model, ...){
     if(any(model$distribution==c("dt","dnorm"))){
         errors[] <- errors - mean(errors);
         for(i in residsToGo){
-            rstudentised[i] <- errors[i] / sqrt(sum(errors[-i]^2) / df);
+            rstudentised[i] <- errors[i] / sqrt(sum(errors[-i]^2,na.rm=TRUE) / df);
         }
     }
     else if(model$distribution=="ds"){
         errors[] <- errors - mean(errors);
         for(i in residsToGo){
-            rstudentised[i] <- errors[i] / (sum(sqrt(abs(errors[-i]))) / (2*df))^2;
+            rstudentised[i] <- errors[i] / (sum(sqrt(abs(errors[-i])),na.rm=TRUE) / (2*df))^2;
         }
     }
     else if(model$distribution=="dlaplace"){
         errors[] <- errors - mean(errors);
         for(i in residsToGo){
-            rstudentised[i] <- errors[i] / (sum(abs(errors[-i])) / df);
+            rstudentised[i] <- errors[i] / (sum(abs(errors[-i]),na.rm=TRUE) / df);
         }
     }
     else if(model$distribution=="dalaplace"){
         for(i in residsToGo){
-            rstudentised[i] <- errors[i] / (sum(errors[-i] * (model$lambda - (errors[-i]<=0)*1)) / df);
+            rstudentised[i] <- errors[i] / (sum(errors[-i] * (model$lambda - (errors[-i]<=0)*1),na.rm=TRUE) / df);
         }
     }
     else if(model$distribution=="dlogis"){
         errors[] <- errors - mean(errors);
         for(i in residsToGo){
-            rstudentised[i] <- errors[i] / (sqrt(sum(errors[-i]^2) / df) * sqrt(3) / pi);
+            rstudentised[i] <- errors[i] / (sqrt(sum(errors[-i]^2,na.rm=TRUE) / df) * sqrt(3) / pi);
         }
     }
     else if(model$distribution=="dlnorm"){
         errors[] <- log(errors) - mean(log(errors));
         for(i in residsToGo){
-            rstudentised[i] <- exp(errors[i] / sqrt(sum(errors[-i]^2) / df));
+            rstudentised[i] <- exp(errors[i] / sqrt(sum(errors[-i]^2,na.rm=TRUE) / df));
         }
     }
     else if(model$distribution=="dinvgauss"){
         for(i in residsToGo){
-            rstudentised[i] <- errors[i] / mean(errors[residsToGo][-i]);
+            rstudentised[i] <- errors[i] / mean(errors[residsToGo][-i],na.rm=TRUE);
         }
     }
     else{
         for(i in residsToGo){
-            rstudentised[i] <- errors[i] / sqrt(sum(errors[-i]^2) / df);
+            rstudentised[i] <- errors[i] / sqrt(sum(errors[-i]^2,na.rm=TRUE) / df);
         }
     }
     return(rstudentised);
