@@ -787,7 +787,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
             maxeval <- 1000;
         }
         else{
-            maxeval <- 100;
+            maxeval <- 200;
         }
     }
     else{
