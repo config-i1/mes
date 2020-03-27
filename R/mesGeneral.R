@@ -783,7 +783,12 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     #### Process ellipsis ####
     # Parameters for the optimiser
     if(is.null(ellipsis$maxeval)){
-        maxeval <- 100;
+        if(lagsModelMax>12){
+            maxeval <- 1000;
+        }
+        else{
+            maxeval <- 100;
+        }
     }
     else{
         maxeval <- ellipsis$maxeval;
