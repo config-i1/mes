@@ -274,7 +274,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 occurrence=c("none","auto","fixed","general","odds-ratio","inverse-odds-ratio","direct"),
                 ic=c("AICc","AIC","BIC","BICc"), bounds=c("usual","admissible","none"),
                 xreg=NULL, xregDo=c("use","select"), xregInitial=NULL, xregPersistence=0,
-                silent=TRUE, ...){
+                silent=TRUE, orders=NULL, ...){
     # Copyright (C) 2019 - Inf  Ivan Svetunkov
     #
     # Parameters that were moved to forecast() and predict() functions:
@@ -2293,7 +2293,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     }
 
     if(!silent){
-        plot(modelReturned, 1);
+        plot(modelReturned, 7);
     }
 
     return(modelReturned);
@@ -2323,13 +2323,63 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
         on.exit(devAskNewPage(oask));
     }
 
-    # 1. Basic plot over time
+    # 1. Fitted vs Actuals values
     plot1 <- function(x, ...){
-        yActuals <- actuals(x);
-        if(!is.null(x$holdout)){
-            yActuals <- ts(c(yActuals,x$holdout),start=start(yActuals),frequency=frequency(yActuals));
+        ellipsis <- list(...);
+
+        # Get the actuals and the fitted values
+        ellipsis$y <- c(actuals(x));
+        if(is.occurrence(x)){
+            if(any(x$distribution==c("plogis","pnorm"))){
+                ellipsis$y <- (ellipsis$y!=0)*1;
+            }
         }
-        graphmaker(yActuals, x$forecast, fitted(x), main=x$model, legend=legend, parReset=FALSE, ...);
+        ellipsis$x <- c(fitted(x));
+
+        # If this is a mixture model, remove zeroes
+        if(is.occurrence(x$occurrence)){
+            ellipsis$x <- ellipsis$x[ellipsis$y!=0];
+            ellipsis$y <- ellipsis$y[ellipsis$y!=0];
+        }
+
+        # Remove NAs
+        if(any(is.na(ellipsis$x))){
+            ellipsis$y <- ellipsis$y[!is.na(ellipsis$x)];
+            ellipsis$x <- ellipsis$x[!is.na(ellipsis$x)];
+        }
+        if(any(is.na(ellipsis$y))){
+            ellipsis$x <- ellipsis$x[!is.na(ellipsis$y)];
+            ellipsis$y <- ellipsis$y[!is.na(ellipsis$y)];
+        }
+
+        # Title
+        if(!any(names(ellipsis)=="main")){
+            ellipsis$main <- "Actuals vs Fitted";
+        }
+        # If type and ylab are not provided, set them...
+        if(!any(names(ellipsis)=="type")){
+            ellipsis$type <- "p";
+        }
+        if(!any(names(ellipsis)=="ylab")){
+            ellipsis$ylab <- "Actuals";
+        }
+        if(!any(names(ellipsis)=="xlab")){
+            ellipsis$xlab <- "Fitted";
+        }
+        # xlim and ylim
+        if(!any(names(ellipsis)=="xlim")){
+            ellipsis$xlim <- range(c(ellipsis$x,ellipsis$y));
+        }
+        if(!any(names(ellipsis)=="ylim")){
+            ellipsis$ylim <- range(c(ellipsis$x,ellipsis$y));
+        }
+
+        # Start plotting
+        do.call(plot,ellipsis);
+        abline(a=0,b=1,col="grey",lwd=2,lty=2)
+        if(lowess){
+            lines(lowess(ellipsis$x, ellipsis$y), col="red");
+        }
     }
 
     # 2 and 3: Standardised  / studentised residuals vs Fitted
@@ -2626,8 +2676,17 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
         }
     }
 
-    # 7 and 8. ACF and PACF
-    plot5 <- function(x, type="acf", ...){
+    # 7. Basic plot over time
+    plot5 <- function(x, ...){
+        yActuals <- actuals(x);
+        if(!is.null(x$holdout)){
+            yActuals <- ts(c(yActuals,x$holdout),start=start(yActuals),frequency=frequency(yActuals));
+        }
+        graphmaker(yActuals, x$forecast, fitted(x), main=x$model, legend=legend, parReset=FALSE, ...);
+    }
+
+    # 8 and 9. ACF and PACF
+    plot6 <- function(x, type="acf", ...){
         ellipsis <- list(...);
 
         if(!any(names(ellipsis)=="main")){
@@ -2670,8 +2729,8 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
         abline(h=qnorm(c((1-level)/2, (1+level)/2),0,sqrt(1/nobs(x))), col="red", lty=2);
     }
 
-    # 9. Plot of states
-    plot6 <- function(x, ...){
+    # 10. Plot of states
+    plot7 <- function(x, ...){
         parDefault <- par(no.readonly = TRUE);
         if(any(unlist(gregexpr("C",x$model))==-1)){
             statesNames <- c("actuals",colnames(x$states),"residuals");
@@ -2738,15 +2797,19 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
     }
 
     if(any(which==7)){
-        plot5(x, type="acf", ...);
+        plot5(x, ...);
     }
 
     if(any(which==8)){
-        plot5(x, type="pacf", ...);
+        plot6(x, type="acf", ...);
     }
 
     if(any(which==9)){
-        plot6(x, ...);
+        plot6(x, type="pacf", ...);
+    }
+
+    if(any(which==10)){
+        plot7(x, ...);
     }
 }
 
