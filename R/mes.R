@@ -58,7 +58,7 @@
 #' the trend ("N", "A", "Ad", "M" or "Md"), and the last one is for the type of
 #' seasonality ("N", "A" or "M"). In case of several lags, the seasonal components
 #' are assumed to be the same. The model is then printed out as
-#' MES(M,Ad,M[m1],M[m2],...), where m1, m2, ... are the lags specified by the
+#' MES(M,Ad,M)[m1,m2,...], where m1, m2, ... are the lags specified by the
 #' \code{lags} parameter.
 #' There are several options for the \code{model} besides the conventional ones,
 #' which rely on information criteria:
@@ -97,6 +97,14 @@
 #' lags=c(1,1,12). If fractional numbers are provided, then it is assumed that
 #' the data is not periodic. The parameter \code{date} is then needed in order
 #' to setup the appropriate time series structure.
+#' @param orders The order of ARIMA to be included in the model. This should be passed
+#' either as a vector (in which case the non-seasonal ARIMA is assumed) or as a list of
+#' a type \code{orders=list(ar=c(p,P),i=c(d,D),ma=c(q,Q))}, in which case the \code{lags}
+#' variable is used in order to determine the seasonality m. See \link[smooth]{msarima}
+#' for details.
+#' @param formula Formula to use in case of explanatory variables. If \code{NULL},
+#' then all the variables are used as is. Only considered if \code{xreg} is not
+#' \code{NULL} and \code{xregDo="use"}.
 #' @param distribution what density function to assume for the error term. The full
 #' name of the distribution should be provided, starting with the letter "d" -
 #' "density". The names align with the names of distribution functions in R.
@@ -159,9 +167,6 @@
 #' estimation. Can be either \code{admissible} - guaranteeing the stability of the
 #' model, \code{traditional} - restricting the values with (0, 1) or \code{none} - no
 #' restrictions (potentially dangerous).
-#' @param silent Specifies, whether to provide the progress of the function or not.
-#' If \code{TRUE}, then the function will print what it does and how much it has
-#' already done.
 #' @param xreg The vector (either numeric or time series) or the matrix (or
 #' data.frame / data.table) of exogenous variables that should be included in the
 #' model. If matrix is included than columns should contain variables and rows -
@@ -177,9 +182,9 @@
 #' @param xregPersistence The persistence vector \eqn{g_X}, containing smoothing
 #' parameters for exogenous variables. If \code{NULL}, then estimated. If \code{0}
 #' then each element of the vector is set to zero. Prerequisite - non-NULL \code{xreg}.
-# @param fast if \code{TRUE}, then the function won't check whether
-#' the provided vectors are correct and will use them directly in the model
-#' construction.
+#' @param silent Specifies, whether to provide the progress of the function or not.
+#' If \code{TRUE}, then the function will print what it does and how much it has
+#' already done.
 #' @param ...  Other non-documented parameters. For example \code{FI=TRUE} will
 #' make the function also produce Fisher Information matrix, which then can be
 #' used to calculated variances of smoothing parameters and initial states of
@@ -265,7 +270,7 @@
 #' @importFrom pracma hessian
 #' @useDynLib mes
 #' @export mes
-mes <- function(y, model="ZZZ", lags=c(frequency(y)),
+mes <- function(y, model="ZZZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0),ma=c(0)), formula=NULL,
                 distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
                                "dlnorm","dllaplace","dls","dinvgauss"),
                 loss=c("likelihood","MSE","MAE","HAM","LASSO","RIDGE","MSEh","TMSE","GTMSE","MSCE"),
@@ -274,7 +279,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
                 occurrence=c("none","auto","fixed","general","odds-ratio","inverse-odds-ratio","direct"),
                 ic=c("AICc","AIC","BIC","BICc"), bounds=c("usual","admissible","none"),
                 xreg=NULL, xregDo=c("use","select"), xregInitial=NULL, xregPersistence=0,
-                silent=TRUE, orders=NULL, ...){
+                silent=TRUE, ...){
     # Copyright (C) 2019 - Inf  Ivan Svetunkov
     #
     # Parameters that were moved to forecast() and predict() functions:
@@ -409,7 +414,8 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)),
     }
 
     #### Check the parameters of the function and create variables based on them ####
-    parametersChecker(y, model, lags, persistence, phi, initial,
+    parametersChecker(y, model, lags, formula, orders,
+                      persistence, phi, initial,
                       distribution, loss, h, holdout, occurrence, ic, bounds,
                       xreg, xregDo, xregInitial, xregPersistence,
                       silent, modelDo, ParentEnvironment=environment(), ellipsis, fast=FALSE);
@@ -3350,6 +3356,10 @@ predict.mes <- function(object, newxreg=NULL, interval=c("none", "confidence", "
 
     # Check if newxreg is provided
     if(!is.null(newxreg)){
+        # If this is not a matrix / data.frame, then convert to one
+        if(!is.data.frame(newxreg) && !is.matrix(newxreg)){
+            newxreg <- as.data.frame(newxreg);
+        }
         h <- nrow(newxreg);
         # If the newxreg is provided, then just do forecasts for that part
         if(any(interval==c("none","prediction"))){
@@ -3633,6 +3643,11 @@ forecast.mes <- function(object, h=10, newxreg=NULL, occurrence=NULL,
             }
         }
         else{
+            # If this is not a matrix / data.frame, then convert to one
+            if(!is.data.frame(newxreg) && !is.matrix(newxreg)){
+                newxreg <- as.data.frame(newxreg);
+                colnames(newxreg) <- "xreg";
+            }
             if(nrow(newxreg)<h){
                 warning(paste0("The newxreg has ",nrow(newxreg)," observations, while ",h," are needed. ",
                                "Using the last available values as future ones."),
@@ -3650,13 +3665,19 @@ forecast.mes <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                 xreg <- newxreg;
             }
             xregNames <- colnames(object$xreg);
-            # Expand the variables and use only those that are in the model
-            newxreg <- as.matrix(model.frame(~.,data=xreg))[,xregNames];
+
+            if(is.data.frame(xreg)){
+                # Expand the variables and use only those that are in the model
+                newxreg <- as.matrix(model.matrix(~.-1,data=xreg))[,xregNames];
+            }
+            else{
+                newxreg <- xreg[,xregNames];
+            }
             rm(xreg);
         }
 
         componentsNumber[] <- componentsNumber - xregNumber;
-        matWt[,componentsNumber+c(1:xregNumber)] <- newxreg[1:h,];
+        matWt[,componentsNumber+c(1:xregNumber)] <- newxreg;
         vecG <- matrix(c(object$persistence,object$xregPersistence), ncol=1);
     }
     else{

@@ -4,10 +4,11 @@
 \alias{mes}
 \title{Mixed Exponential Smoothing}
 \usage{
-mes(y, model = "ZZZ", lags = c(frequency(y)), distribution = c("default",
-  "dnorm", "dlogis", "dlaplace", "dt", "ds", "dalaplace", "dlnorm", "dllaplace",
-  "dls", "dinvgauss"), loss = c("likelihood", "MSE", "MAE", "HAM", "LASSO",
-  "RIDGE", "MSEh", "TMSE", "GTMSE", "MSCE"), h = 0, holdout = FALSE,
+mes(y, model = "ZZZ", lags = c(frequency(y)), orders = list(ar = c(0), i =
+  c(0), ma = c(0)), formula = NULL, distribution = c("default", "dnorm",
+  "dlogis", "dlaplace", "dt", "ds", "dalaplace", "dlnorm", "dllaplace", "dls",
+  "dinvgauss"), loss = c("likelihood", "MSE", "MAE", "HAM", "LASSO", "RIDGE",
+  "MSEh", "TMSE", "GTMSE", "MSCE"), h = 0, holdout = FALSE,
   persistence = NULL, phi = NULL, initial = c("optimal", "backcasting"),
   occurrence = c("none", "auto", "fixed", "general", "odds-ratio",
   "inverse-odds-ratio", "direct"), ic = c("AICc", "AIC", "BIC", "BICc"),
@@ -25,7 +26,7 @@ the error term ("A" or "M"), the second (and sometimes the third as well) is for
 the trend ("N", "A", "Ad", "M" or "Md"), and the last one is for the type of
 seasonality ("N", "A" or "M"). In case of several lags, the seasonal components
 are assumed to be the same. The model is then printed out as
-MES(M,Ad,M[m1],M[m2],...), where m1, m2, ... are the lags specified by the
+MES(M,Ad,M)[m1,m2,...], where m1, m2, ... are the lags specified by the
 \code{lags} parameter.
 There are several options for the \code{model} besides the conventional ones,
 which rely on information criteria:
@@ -63,6 +64,16 @@ count, starting from level, so ETS(M,M,M) model for monthly data will have
 lags=c(1,1,12). If fractional numbers are provided, then it is assumed that
 the data is not periodic. The parameter \code{date} is then needed in order
 to setup the appropriate time series structure.}
+
+\item{orders}{The order of ARIMA to be included in the model. This should be passed
+either as a vector (in which case the non-seasonal ARIMA is assumed) or as a list of
+a type \code{orders=list(ar=c(p,P),i=c(d,D),ma=c(q,Q))}, in which case the \code{lags}
+variable is used in order to determine the seasonality m. See \link[smooth]{msarima}
+for details.}
+
+\item{formula}{Formula to use in case of explanatory variables. If \code{NULL},
+then all the variables are used as is. Only considered if \code{xreg} is not
+\code{NULL} and \code{xregDo="use"}.}
 
 \item{distribution}{what density function to assume for the error term. The full
 name of the distribution should be provided, starting with the letter "d" -
@@ -153,9 +164,7 @@ Ignored if \code{xreg} is NULL.}
 
 \item{xregPersistence}{The persistence vector \eqn{g_X}, containing smoothing
 parameters for exogenous variables. If \code{NULL}, then estimated. If \code{0}
-then each element of the vector is set to zero. Prerequisite - non-NULL \code{xreg}.
-the provided vectors are correct and will use them directly in the model
-construction.}
+then each element of the vector is set to zero. Prerequisite - non-NULL \code{xreg}.}
 
 \item{silent}{Specifies, whether to provide the progress of the function or not.
 If \code{TRUE}, then the function will print what it does and how much it has

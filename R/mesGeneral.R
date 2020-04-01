@@ -1,4 +1,5 @@
-parametersChecker <- function(y, model, lags, persistence, phi, initial,
+parametersChecker <- function(y, model, lags, formula, orders,
+                              persistence, phi, initial,
                               distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
                                              "dlnorm","dllaplace","dls","dinvgauss"),
                               loss, h, holdout,occurrence,
@@ -268,6 +269,61 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     # Form the lags based on the provided stuff. Get rid of ones and leave unique seasonals
     # Add one for the level
     lags <- c(1,unique(lags[lags>1]));
+
+    #### ARIMA term ####
+    if(is.list(orders)){
+        arOrders <- orders$ar;
+        iOrders <- orders$i;
+        maOrders <- orders$ma;
+    }
+    else if(is.vector(orders)){
+        arOrders <- orders[1];
+        iOrders <- orders[2];
+        maOrders <- orders[3];
+    }
+    # Do checks for arOrders, making sure that it is a reasonable value
+    if(any(arOrders>0)){
+        # Make sure that arOrders has the same length as lags
+        if(length(arOrders)>length(lags)){
+            arOrders <- arOrders[1:length(lags)];
+        }
+        else if(length(arOrders)<length(lags)){
+            arOrders <- c(arOrders,rep(0,length(lags)-length(arOrders)));
+        }
+        arRequired <- arEstimate <- TRUE;
+
+        ### Form lags for the model
+        # Define the non-zero values. This is done via the calculation of orders of polynomials
+        ariValues <- list(NA);
+        for(i in 1:length(lags)){
+            ariValues[[i]] <- c(0,min(1,arOrders[i]):arOrders[i])
+            ariValues[[i]] <- unique(ariValues[[i]] * lags[i]);
+        }
+
+        # Produce ARI polynomials
+        ariLengths <- unlist(lapply(ariValues,length));
+        ariPolynomial <- array(0,ariLengths);
+        for(i in 1:length(ariValues)){
+            if(i==1){
+                ariPolynomial <- ariPolynomial + array(ariValues[[i]], ariLengths);
+            }
+            else{
+                ariPolynomial <- ariPolynomial + array(rep(ariValues[[i]],each=prod(ariLengths[1:(i-1)])),
+                                                       ariLengths);
+            }
+        }
+
+        # What are the non-zero ARI and MA polynomials?
+        ### What are their positions in transition matrix?
+        nonZeroARI <- unique(matrix(c(ariPolynomial)[-1],ncol=1));
+        nonZeroComponents <- sort(c(nonZeroARI));
+        nonZeroARI <- cbind(nonZeroARI,which(nonZeroComponents %in% nonZeroARI)-1);
+        print(nonZeroARI)
+    }
+    else{
+        arRequired <- arEstimate <- FALSE;
+    }
+
     # If we have a trend add one more lag
     if(Ttype!="N"){
         lags <- c(1,lags);
@@ -633,6 +689,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
     xregExist <- !is.null(xreg);
     if(!xregExist){
         xregDo[] <- "use";
+        formula <- NULL;
     }
     else{
         if(xregDo=="select"){
@@ -647,6 +704,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
                         call.=FALSE);
                 xregPersistence <- NULL;
             }
+            formula <- NULL;
         }
     }
 
@@ -659,7 +717,7 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
             xregInitialsProvided <- FALSE;
             xregInitialsEstimate <- TRUE;
             # The function returns an ALM model
-            xregInitialiser <- function(Etype,distribution){
+            xregInitialiser <- function(Etype,distribution,formula,otLogical){
                 # Fix the default distribution for ALM
                 if(distribution=="default"){
                     distribution <- switch(Etype,
@@ -676,19 +734,38 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
                 }
                 # Return the estimated model based on the provided xreg
                 if(Etype=="M" && any(distribution==c("dnorm","dlogis","dlaplace","dt","ds","dalaplace"))){
-                    return(alm(log(y)~.,xregData,distribution=distribution,subset=otLogical));
+                    if(is.null(formula)){
+                        formula <- as.formula("log(y)~.");
+                    }
+                    return(alm(formula,xregData,distribution=distribution,subset=otLogical));
                 }
                 else{
-                    return(alm(y~.,xregData,distribution=distribution,subset=otLogical));
+                    if(is.null(formula)){
+                        formula <- as.formula("y~.");
+                    }
+                    return(alm(formula,xregData,distribution=distribution,subset=otLogical));
                 }
             }
             # Extract names and form a proper matrix for the regression
-            xregNames <- c("y",colnames(xreg));
+            if(!is.null(formula)){
+                formula <- as.formula(formula);
+                responseName <- all.vars(formula)[1];
+            }
+            else{
+                responseName <- "y";
+            }
+
+            # If this is not a matrix / data.frame, then convert to one
+            if(!is.data.frame(xreg) && !is.matrix(xreg)){
+                xreg <- as.data.frame(xreg);
+            }
+
+            xregNames <- c(responseName,colnames(xreg));
             xregData <- cbind(yInSample,xreg[1:obsInSample,,drop=FALSE]);
             colnames(xregData) <- xregNames;
 
             if(Etype!="Z"){
-                testModel <- xregInitialiser(Etype,distribution);
+                testModel <- xregInitialiser(Etype,distribution,formula,otLogical);
                 if(Etype=="A"){
                     xregModel[[1]]$xregInitial <- testModel$coefficients[-1];
                     xregModel[[1]]$other <- testModel$other;
@@ -701,11 +778,11 @@ parametersChecker <- function(y, model, lags, persistence, phi, initial,
             # If we are selecting the appropriate error, produce two models: for "M" and for "A"
             else{
                 # Additive model
-                testModel <- xregInitialiser("A",distribution);
+                testModel <- xregInitialiser("A",distribution,formula,otLogical);
                 xregModel[[1]]$xregInitial <- testModel$coefficients[-1];
                 xregModel[[1]]$other <- testModel$other;
                 # Multiplicative model
-                testModel[] <- xregInitialiser("M",distribution);
+                testModel[] <- xregInitialiser("M",distribution,formula,otLogical);
                 xregModel[[2]]$xregInitial <- testModel$coefficients[-1];
                 xregModel[[2]]$other <- testModel$other;
             }
