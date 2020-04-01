@@ -238,6 +238,7 @@
 #' \item \code{xreg} - the matrix of explanatory variables after all expansions and transformations,
 #' \item \code{xregInitial} - the vector of initials for the parameters of explanatory variable,
 #' \item \code{xregPersistence} - the vector of smoothing parameters for the explanatory variables,
+#' \item \code{formula} - the formula used for the explanatory variables expansion,
 #' \item \code{loss} - the type of loss function used in the estimation,
 #' \item \code{lossValue} - the value of that loss function,
 #' \item \code{logLik} - the value of the log-likelihood,
@@ -412,12 +413,14 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
         warning("A model of an unknown class was provided. Switching to 'ZZZ'.",call.=FALSE);
         model <- "ZZZ";
     }
+    # paste0() is needed in order to get rid of potential issues with names
+    responseName <- paste0(deparse(substitute(y)),collapse="");
 
     #### Check the parameters of the function and create variables based on them ####
     parametersChecker(y, model, lags, formula, orders,
                       persistence, phi, initial,
                       distribution, loss, h, holdout, occurrence, ic, bounds,
-                      xreg, xregDo, xregInitial, xregPersistence,
+                      xreg, xregDo, xregInitial, xregPersistence, responseName,
                       silent, modelDo, ParentEnvironment=environment(), ellipsis, fast=FALSE);
 
     #### The function creates the technical variables (lags etc) based on the type of the model ####
@@ -764,18 +767,34 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                 i <- i+1;
             }
             if(Stype!="N"){
-                for(k in i:componentsNumber){
-                    B[j+0:(lagsModel[k]-1)] <- matVt[k,(lagsModelMax-lagsModel[k])+1:lagsModel[k]];
-                    names(B)[j+0:(lagsModel[k]-1)] <- paste0("seasonal",k,"_",1:lagsModel[k]);
+                if(componentsNumberSeasonal>1){
+                    for(k in i:componentsNumber){
+                        B[j+0:(lagsModel[k]-1)] <- matVt[k,(lagsModelMax-lagsModel[k])+1:lagsModel[k]];
+                        names(B)[j+0:(lagsModel[k]-1)] <- paste0("seasonal",k-i+1,"_",1:lagsModel[k]);
+                        if(Stype=="A"){
+                            Bl[j+0:(lagsModel[k]-1)] <- -Inf;
+                            Bu[j+0:(lagsModel[k]-1)] <- Inf;
+                        }
+                        else{
+                            Bl[j+0:(lagsModel[k]-1)] <- 0;
+                            Bu[j+0:(lagsModel[k]-1)] <- Inf;
+                        }
+                        j <- j+lagsModel[k];
+                    }
+                }
+                else{
+                    B[j+0:(lagsModel[componentsNumber]-1)] <- matVt[componentsNumber,(lagsModelMax-lagsModel[componentsNumber])+
+                                                                        1:lagsModel[componentsNumber]];
+                    names(B)[j+0:(lagsModel[componentsNumber]-1)] <- paste0("seasonal_",1:lagsModel[componentsNumber]);
                     if(Stype=="A"){
-                        Bl[j+0:(lagsModel[k]-1)] <- -Inf;
-                        Bu[j+0:(lagsModel[k]-1)] <- Inf;
+                        Bl[j+0:(lagsModel[componentsNumber]-1)] <- -Inf;
+                        Bu[j+0:(lagsModel[componentsNumber]-1)] <- Inf;
                     }
                     else{
-                        Bl[j+0:(lagsModel[k]-1)] <- 0;
-                        Bu[j+0:(lagsModel[k]-1)] <- Inf;
+                        Bl[j+0:(lagsModel[componentsNumber]-1)] <- 0;
+                        Bu[j+0:(lagsModel[componentsNumber]-1)] <- Inf;
                     }
-                    j <- j+lagsModel[k];
+                    j <- j+lagsModel[componentsNumber];
                 }
             }
         }
@@ -1745,7 +1764,7 @@ mes <- function(y, model="ZZZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                     persistence=persistence, phi=phi, transition=matF,
                     measurement=matWt, initialType=initialType, initial=initialValue,
                     nParam=parametersNumber, occurrence=oesModel, xreg=xregData,
-                    xregInitial=xregInitial, xregPersistence=xregPersistence,
+                    xregInitial=xregInitial, xregPersistence=xregPersistence, formula=formula,
                     loss=loss, lossValue=CFValue, logLik=logLikMESValue, distribution=distribution,
                     scale=scale, lambda=lambda, B=B, lags=lagsModel, FI=FI));
     }
@@ -3012,7 +3031,7 @@ sigma.mes <- function(object, ...){
 
 #' @export
 summary.mes <- function(object, level=0.95, ...){
-    ourReturn <- list(timeElapsed=object$timeElapsed, model=object$model);
+    ourReturn <- list(model=object$model,responseName=all.vars(formula(object))[1]);
 
     occurrence <- NULL;
     if(is.occurrence(object$occurrence)){
@@ -3083,8 +3102,8 @@ print.summary.mes <- function(x, ...){
         digits <- ellipsis$digits;
     }
 
-    cat(paste0("Time elapsed: ",round(as.numeric(x$timeElapsed,units="secs"), digits)," seconds"));
-    cat(paste0("\nModel estimated: ",x$model));
+    cat(paste0("Model estimated: ",x$model));
+    cat(paste0("\nResponse variable: ", paste0(x$responseName,collapse="")));
 
     if(!is.null(x$occurrence)){
         cat(paste0("\nOccurrence model type: ",x$occurrence));
@@ -3104,9 +3123,9 @@ print.summary.mes <- function(x, ...){
                       "dinvgauss" = "Inverse Gaussian"
     );
     if(!is.null(x$occurrence)){
-        distrib <- paste0("Mixture of Bernoulli and ", distrib);
+        distrib <- paste0("\nMixture of Bernoulli and ", distrib);
     }
-    cat(paste0("\nDistribution assumed in the model: ", distrib));
+    cat(paste0("\nDistribution used in the estimation: ", distrib));
 
     if(!is.null(x$coefficients)){
         cat("\nCoefficients:\n");
@@ -3129,7 +3148,7 @@ print.summary.mes <- function(x, ...){
        (any(x$loss==c("MSE","MSEh","MSCE")) & any(x$distribution==c("dnorm","dlnorm"))) ||
        (any(x$loss==c("MAE","MAEh","MACE")) & any(x$distribution==c("dlaplace","dllaplace"))) ||
        (any(x$loss==c("HAM","HAMh","CHAM")) & any(x$distribution==c("ds","dls")))){
-        cat("\n");
+        cat("\nInformation criteria:\n");
         print(round(x$ICs,digits));
     }
     else{
@@ -3139,7 +3158,14 @@ print.summary.mes <- function(x, ...){
 
 #' @export
 vcov.mes <- function(object, ...){
-    modelReturn <- suppressWarnings(mes(actuals(object), h=length(object$forecast), model=object, FI=TRUE));
+    # If the forecast is in numbers, then use its length as a horizon
+    if(any(!is.na(object$forecast))){
+        h <- length(object$forecast)
+    }
+    else{
+        h <- 0;
+    }
+    modelReturn <- suppressWarnings(mes(actuals(object), h=h, model=object, FI=TRUE));
     vcovMatrix <- try(chol2inv(chol(modelReturn$FI)), silent=TRUE);
     if(inherits(vcovMatrix,"try-error")){
         vcovMatrix <- try(solve(modelReturn$FI, diag(ncol(modelReturn$FI)), tol=1e-20), silent=TRUE);
@@ -3359,10 +3385,11 @@ predict.mes <- function(object, newxreg=NULL, interval=c("none", "confidence", "
         # If this is not a matrix / data.frame, then convert to one
         if(!is.data.frame(newxreg) && !is.matrix(newxreg)){
             newxreg <- as.data.frame(newxreg);
+            colnames(newxreg) <- "xreg";
         }
         h <- nrow(newxreg);
         # If the newxreg is provided, then just do forecasts for that part
-        if(any(interval==c("none","prediction"))){
+        if(any(interval==c("none","prediction","confidence"))){
             if(interval==c("prediction")){
                 interval[] <- "simulated";
             }
@@ -3667,8 +3694,11 @@ forecast.mes <- function(object, h=10, newxreg=NULL, occurrence=NULL,
             xregNames <- colnames(object$xreg);
 
             if(is.data.frame(xreg)){
+                testFormula <- formula(object);
+                testFormula[[2]] <- NULL;
                 # Expand the variables and use only those that are in the model
-                newxreg <- as.matrix(model.matrix(~.-1,data=xreg))[,xregNames];
+                newxreg <- model.frame(testFormula, xreg);
+                newxreg <- model.matrix(newxreg,data=newxreg)[,xregNames];
             }
             else{
                 newxreg <- xreg[,xregNames];

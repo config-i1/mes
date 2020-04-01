@@ -1,10 +1,11 @@
-parametersChecker <- function(y, model, lags, formula, orders,
+parametersChecker <- function(y, model, lags, formulaProvided, orders,
                               persistence, phi, initial,
                               distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
                                              "dlnorm","dllaplace","dls","dinvgauss"),
                               loss, h, holdout,occurrence,
                               ic=c("AICc","AIC","BIC","BICc"), bounds=c("traditional","admissible","none"),
-                              xreg, xregDo, xregInitial, xregPersistence, silent, modelDo, ParentEnvironment,
+                              xreg, xregDo, xregInitial, xregPersistence, responseName,
+                              silent, modelDo, ParentEnvironment,
                               ellipsis, fast=FALSE){
 
     # The function checks the provided parameters of mes and/or oes
@@ -689,7 +690,7 @@ parametersChecker <- function(y, model, lags, formula, orders,
     xregExist <- !is.null(xreg);
     if(!xregExist){
         xregDo[] <- "use";
-        formula <- NULL;
+        formulaProvided <- NULL;
     }
     else{
         if(xregDo=="select"){
@@ -704,7 +705,7 @@ parametersChecker <- function(y, model, lags, formula, orders,
                         call.=FALSE);
                 xregPersistence <- NULL;
             }
-            formula <- NULL;
+            formulaProvided <- NULL;
         }
     }
 
@@ -717,7 +718,7 @@ parametersChecker <- function(y, model, lags, formula, orders,
             xregInitialsProvided <- FALSE;
             xregInitialsEstimate <- TRUE;
             # The function returns an ALM model
-            xregInitialiser <- function(Etype,distribution,formula,otLogical){
+            xregInitialiser <- function(Etype,distribution,formulaProvided,otLogical,responseName){
                 # Fix the default distribution for ALM
                 if(distribution=="default"){
                     distribution <- switch(Etype,
@@ -733,26 +734,20 @@ parametersChecker <- function(y, model, lags, formula, orders,
                     Etype <- "M";
                 }
                 # Return the estimated model based on the provided xreg
-                if(Etype=="M" && any(distribution==c("dnorm","dlogis","dlaplace","dt","ds","dalaplace"))){
-                    if(is.null(formula)){
-                        formula <- as.formula("log(y)~.");
+                if(is.null(formulaProvided)){
+                    if(Etype=="M" && any(distribution==c("dnorm","dlogis","dlaplace","dt","ds","dalaplace"))){
+                        formulaProvided <- as.formula(paste0("log(`",responseName,"`)~."));
                     }
-                    return(alm(formula,xregData,distribution=distribution,subset=otLogical));
-                }
-                else{
-                    if(is.null(formula)){
-                        formula <- as.formula("y~.");
+                    else{
+                        formulaProvided <- as.formula(paste0("`",responseName,"`~."));
                     }
-                    return(alm(formula,xregData,distribution=distribution,subset=otLogical));
                 }
+                return(do.call(alm,list(formula=formulaProvided,data=xregData,distribution=distribution,subset=otLogical)))
             }
             # Extract names and form a proper matrix for the regression
-            if(!is.null(formula)){
-                formula <- as.formula(formula);
-                responseName <- all.vars(formula)[1];
-            }
-            else{
-                responseName <- "y";
+            if(!is.null(formulaProvided)){
+                formulaProvided <- as.formula(formulaProvided);
+                responseName <- all.vars(formulaProvided)[1];
             }
 
             # If this is not a matrix / data.frame, then convert to one
@@ -765,7 +760,7 @@ parametersChecker <- function(y, model, lags, formula, orders,
             colnames(xregData) <- xregNames;
 
             if(Etype!="Z"){
-                testModel <- xregInitialiser(Etype,distribution,formula,otLogical);
+                testModel <- xregInitialiser(Etype,distribution,formulaProvided,otLogical,responseName);
                 if(Etype=="A"){
                     xregModel[[1]]$xregInitial <- testModel$coefficients[-1];
                     xregModel[[1]]$other <- testModel$other;
@@ -778,11 +773,11 @@ parametersChecker <- function(y, model, lags, formula, orders,
             # If we are selecting the appropriate error, produce two models: for "M" and for "A"
             else{
                 # Additive model
-                testModel <- xregInitialiser("A",distribution,formula,otLogical);
+                testModel <- xregInitialiser("A",distribution,formulaProvided,otLogical,responseName);
                 xregModel[[1]]$xregInitial <- testModel$coefficients[-1];
                 xregModel[[1]]$other <- testModel$other;
                 # Multiplicative model
-                testModel[] <- xregInitialiser("M",distribution,formula,otLogical);
+                testModel[] <- xregInitialiser("M",distribution,formulaProvided,otLogical,responseName);
                 xregModel[[2]]$xregInitial <- testModel$coefficients[-1];
                 xregModel[[2]]$other <- testModel$other;
             }
@@ -791,8 +786,9 @@ parametersChecker <- function(y, model, lags, formula, orders,
             xregNumber <- ncol(testModel$data)-1;
             xregData <- testModel$data[,-1,drop=FALSE];
             xregNames <- names(coef(testModel))[-1];
+            formulaProvided <- formula(testModel);
             if(nrow(xreg)>obsInSample){
-                xregData <- as.matrix(model.frame(~.,data=xreg))[,xregNames,drop=FALSE];
+                xregData <- as.matrix(model.frame(formulaProvided,data=xreg))[,xregNames,drop=FALSE];
             }
         }
         else{
@@ -805,8 +801,11 @@ parametersChecker <- function(y, model, lags, formula, orders,
             }
 
             # Write down the number and names of parameters
-            if(nrow(xreg>obsAll)){
+            if(nrow(xreg)>obsAll){
                 xregData <- xreg[1:obsAll,];
+            }
+            else if(nrow(xreg)<obsAll){
+                stop("The xreg contains less observations than the in-sample. Cannot proceed.",call.=FALSE);
             }
             else{
                 xregData <- xreg;
@@ -855,6 +854,14 @@ parametersChecker <- function(y, model, lags, formula, orders,
         xregNumber <- 0;
         xregNames <- NULL;
         lagsModelAll <- lagsModel;
+        if(is.null(formulaProvided)){
+            if(Etype=="M" && any(distribution==c("dnorm","dlogis","dlaplace","dt","ds","dalaplace"))){
+                formulaProvided <- as.formula(paste0("log(`",responseName,"`)~."));
+            }
+            else{
+                formulaProvided <- as.formula(paste0("`",responseName,"`~."));
+            }
+        }
     }
 
     #### Process ellipsis ####
@@ -1025,6 +1032,7 @@ parametersChecker <- function(y, model, lags, formula, orders,
     assign("xregPersistenceProvided",xregPersistenceProvided,ParentEnvironment);
     assign("xregPersistenceEstimate",xregPersistenceEstimate,ParentEnvironment);
     assign("xregPersistence",xregPersistence,ParentEnvironment);
+    assign("formula",formulaProvided,ParentEnvironment);
 
     # Ellipsis thingies
     assign("maxeval",maxeval,ParentEnvironment);
