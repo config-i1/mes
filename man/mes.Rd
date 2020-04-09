@@ -4,7 +4,7 @@
 \alias{mes}
 \title{Mixed Exponential Smoothing}
 \usage{
-mes(y, model = "ZZZ", lags = c(frequency(y)), orders = list(ar = c(0), i =
+mes(y, model = "ZXZ", lags = c(frequency(y)), orders = list(ar = c(0), i =
   c(0), ma = c(0)), formula = NULL, distribution = c("default", "dnorm",
   "dlogis", "dlaplace", "dt", "ds", "dalaplace", "dlnorm", "dllaplace", "dls",
   "dinvgauss"), loss = c("likelihood", "MSE", "MAE", "HAM", "LASSO", "RIDGE",
@@ -57,7 +57,11 @@ its parameters.
 Keep in mind that model selection with "Z" components uses Branch and Bound
 algorithm and may skip some models that could have slightly smaller
 information criteria. If you want to do a exhaustive search, you would need
-to list all the models to check as a vector.}
+to list all the models to check as a vector.
+
+The default value is set to \code{"ZXZ}, because the multiplicative trend is explosive
+and dangerous. It should be used only for each separate time series, not for the
+atomated predictions for big datasets.}
 
 \item{lags}{Defines lags for the corresponding components. All components
 count, starting from level, so ETS(M,M,M) model for monthly data will have
