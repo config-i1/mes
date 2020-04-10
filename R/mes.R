@@ -91,9 +91,9 @@
 #' information criteria. If you want to do a exhaustive search, you would need
 #' to list all the models to check as a vector.
 #'
-#' The default value is set to \code{"ZXZ}, because the multiplicative trend is explosive
+#' The default value is set to \code{"ZXZ"}, because the multiplicative trend is explosive
 #' and dangerous. It should be used only for each separate time series, not for the
-#' atomated predictions for big datasets.
+#' atomated predictions for big  datasets.
 #'
 #' @param lags Defines lags for the corresponding components. All components
 #' count, starting from level, so ETS(M,M,M) model for monthly data will have
