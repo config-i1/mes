@@ -610,7 +610,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     occurrence <- match.arg(occurrence[1],c("none","auto","fixed","general","odds-ratio",
                                             "inverse-odds-ratio","direct","provided"));
 
-    otLogical <- (yInSample!=0);
+    otLogical <- yInSample!=0;
 
     # If the data is not occurrence, let's assume that the parameter was switched unintentionally.
     if(all(otLogical) & all(occurrence!=c("none","provided"))){
@@ -618,15 +618,15 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         occurrenceModelProvided <- FALSE;
     }
 
-
     # If there were NAs and the occurrence was not specified, do something with it
     # In all the other cases, NAs will be sorted out by the model
     if(any(yNAValues) && (occurrence=="none")){
+        otLogical <- (!yNAValues)[1:obsInSample];
         occurrence[] <- "provided";
         pFitted[] <- otLogical*1;
         pForecast[] <- 1;
         occurrenceModel <- FALSE;
-        oesModel <- structure(list(y=matrix((!yNAValues)*1,ncol=1),fitted=pFitted,forecast=pForecast,
+        oesModel <- structure(list(y=matrix((otLogical)*1,ncol=1),fitted=pFitted,forecast=pForecast,
                                    occurrence="provided"),class="occurrence");
     }
     else{
@@ -640,6 +640,11 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         }
         else{
             occurrenceModel <- TRUE;
+        }
+
+        # Include NAs in the zeroes, so that we avoid weird cases
+        if(any(yNAValues)){
+            otLogical <- !(!otLogical | yNAValues[1:obsInSample]);
         }
     }
 
@@ -787,6 +792,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             xregData <- testModel$data[,-1,drop=FALSE];
             xregNames <- names(coef(testModel))[-1];
             formulaProvided <- formula(testModel);
+            formulaProvided[[2]] <- NULL;
+
             if(nrow(xreg)>obsInSample){
                 xregData <- as.matrix(model.frame(formulaProvided,data=xreg))[,xregNames,drop=FALSE];
             }
