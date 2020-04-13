@@ -2953,7 +2953,9 @@ print.mes <- function(x, digits=4, ...){
                              "d"=,
                              "direct"="Direct",
                              "g"=,
-                             "general"="General");
+                             "general"="General",
+                             "p"=,
+                             "provided"="Provided by user");
         cat(paste0("\nOccurrence model type: ",occurrence));
     }
 
