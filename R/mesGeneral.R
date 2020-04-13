@@ -792,11 +792,24 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             xregData <- testModel$data[,-1,drop=FALSE];
             xregNames <- names(coef(testModel))[-1];
             formulaProvided <- formula(testModel);
+            responseName <- formulaProvided[[2]];
+            # This is needed in order to succesfully expand the data
             formulaProvided[[2]] <- NULL;
 
-            if(nrow(xreg)>obsInSample){
-                xregData <- as.matrix(model.frame(formulaProvided,data=xreg))[,xregNames,drop=FALSE];
+            # If there are more xreg values than the obsInsample, redo stuff and use them
+            obsXreg <- nrow(xreg);
+            if(obsXreg>obsInSample && obsXreg>=obsAll){
+                xregData <- as.matrix(model.frame(formulaProvided,data=as.data.frame(xreg)))[1:obsAll,xregNames,drop=FALSE];
             }
+            else if(obsXreg>obsInSample && obsXreg<obsAll){
+                warning(paste0("The xreg has ",obsXreg," observations, while ",obsAll," are needed. ",
+                               "Using the last available values as future ones."),
+                        call.=FALSE);
+                newnRows <- obsAll-obsXreg;
+                xregData <- as.matrix(model.frame(formulaProvided,data=as.data.frame(xreg)))[,xregNames,drop=FALSE];
+                xregData <- rbind(xregData,matrix(rep(tail(xregData,1),each=newnRows),newnRows,xregNumber));
+            }
+            formulaProvided[[2]] <- responseName;
         }
         else{
             xregInitialsProvided <- TRUE;
