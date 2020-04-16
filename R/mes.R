@@ -849,6 +849,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                         "dinvgauss"=switch(Etype,
                                            "A"=sum((errors/yFitted)^2/(1+errors/yFitted))/obsInSample,
                                            "M"=sum((errors)^2/(1+errors))/obsInSample),
+                                           # "M"=mean((errors)^2/(1+errors))),
                         );
         return(scale);
     }
@@ -956,6 +957,10 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                                                             scale=scale, log=TRUE)-log(yInSample[otLogical]),
                                        "dls"=ds(q=log(yInSample[otLogical]), mu=log(mesFitted$yFitted[otLogical]),
                                                 scale=scale, log=TRUE)-log(yInSample[otLogical]),
+                                       # "dinvgauss"=dinvgauss(x=1+mesFitted$errors, mean=1,
+                                       #                       dispersion=scale, log=TRUE)));
+                                       # "dinvgauss"=dinvgauss(x=yInSampleNew, mean=mesFitted$yFitted,
+                                       #                       dispersion=scale/mesFitted$yFitted, log=TRUE)));
                                        "dinvgauss"=dinvgauss(x=yInSample[otLogical], mean=mesFitted$yFitted[otLogical],
                                                              dispersion=scale/mesFitted$yFitted[otLogical], log=TRUE)));
 
@@ -973,9 +978,10 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                                                                     log(sqrt(scale) * beta(scale/2,0.5))),
                                                 "ds" =,
                                                 "dls" = obsZero*(2 + 2*log(2*scale)),
+                                                # "dinvgauss" = obsZero*(0.5*(log(pi/2)+1+suppressWarnings(log(scale)))));
+                                                # "dinvgauss" =0);
                                                 "dinvgauss" = 0.5*(obsZero*(log(pi/2)+1+suppressWarnings(log(scale)))-
                                                                        sum(log(mesFitted$yFitted[!otLogical]))));
-                                                # "dinvgauss" = obsZero*(0.5*(log(pi/2)+1+suppressWarnings(log(scale)))));
                 }
             }
             else if(loss=="MSE"){
@@ -1690,7 +1696,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
 
         # Produce forecasts if the horizon is non-zero
         if(horizon>0){
-            yForecast <- ts(rep(NA, horizon), start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
+            yForecast <- ts(rep(NA, horizon), start=yForecastStart, frequency=dataFreq);
             yForecast[] <- mesForecasterWrap(matVt[,obsInSample+(1:lagsModelMax),drop=FALSE], tail(matWt,horizon), matF,
                                              lagsModelAll, Etype, Ttype, Stype,
                                              componentsNumber, componentsNumberSeasonal, horizon);
@@ -1713,7 +1719,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
             }
         }
         else{
-            yForecast <- ts(NA, start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
+            yForecast <- ts(NA, start=yForecastStart, frequency=dataFreq);
         }
 
         # If the distribution is default, change it according to the error term
@@ -1758,12 +1764,12 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
         }
 
         scale <- scaler(distribution, Etype, errors[otLogical], yFitted[otLogical], obsInSample, lambda);
-        yFitted <- ts(yFitted, start=start(y), frequency=frequency(y));
+        yFitted <- ts(yFitted, start=dataStart, frequency=dataFreq);
 
         return(list(model=NA, timeElapsed=NA,
-                    y=NA, holdout=NA, fitted=yFitted, residuals=ts(errors, start=start(y), frequency=frequency(y)),
+                    y=NA, holdout=NA, fitted=yFitted, residuals=ts(errors, start=dataStart, frequency=dataFreq),
                     forecast=yForecast, states=ts(t(matVt), start=(time(y)[1] - deltat(y)*lagsModelMax),
-                                                  frequency=frequency(y)),
+                                                  frequency=dataFreq),
                     persistence=persistence, phi=phi, transition=matF,
                     measurement=matWt, initialType=initialType, initial=initialValue,
                     nParam=parametersNumber, occurrence=oesModel, xreg=xregData,
@@ -1774,7 +1780,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
 
     #### Deal with occurrence model ####
     if(occurrenceModel && !occurrenceModelProvided){
-        oesModel <- suppressWarnings(oes(yInSample, model=model, occurrence=occurrence, ic=ic, h=horizon,
+        oesModel <- suppressWarnings(oes(ot, model=model, occurrence=occurrence, ic=ic, h=horizon,
                                          holdout=FALSE, bounds="usual", xreg=xreg, xregDo=xregDo, silent=TRUE));
         pFitted[] <- fitted(oesModel);
         parametersNumber[1,3] <- nparam(oesModel);
@@ -2170,9 +2176,9 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
     }
 
     # Transform everything into ts
-    yInSample <- ts(yInSample,start=start(y), frequency=frequency(y));
+    yInSample <- ts(yInSample,start=dataStart, frequency=dataFreq);
     if(holdout){
-        yHoldout <- ts(yHoldout, start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
+        yHoldout <- ts(yHoldout, start=yForecastStart, frequency=dataFreq);
     }
 
     #### Prepare the return if we didn't combine anything ####
@@ -2295,7 +2301,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
         modelReturned$timeElapsed <- Sys.time()-startTime;
         modelReturned$holdout <- yHoldout;
         modelReturned$y <- yInSample;
-        modelReturned$fitted <- ts(yFittedCombined,start=start(y), frequency=frequency(y));
+        modelReturned$fitted <- ts(yFittedCombined,start=dataStart, frequency=dataFreq);
         modelReturned$residuals <- yInSample - yFittedCombined;
         if(any(yNAValues)){
             modelReturned$y[yNAValues[1:obsInSample]] <- NA;
@@ -2304,7 +2310,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
             }
             modelReturned$residuals[yNAValues[1:obsInSample]] <- NA;
         }
-        modelReturned$forecast <- ts(yForecastCombined,start=time(y)[obsInSample]+deltat(y), frequency=frequency(y));
+        modelReturned$forecast <- ts(yForecastCombined,start=yForecastStart, frequency=dataFreq);
         parametersNumberOverall[1,4] <- sum(parametersNumberOverall[1,1:3]);
         modelReturned$nParam <- parametersNumberOverall;
         modelReturned$ICw <- mesSelected$icWeights;
@@ -3111,7 +3117,7 @@ coef.mes <- function(object, ...){
 #' @importFrom stats sigma
 #' @export
 sigma.mes <- function(object, ...){
-    df <- (nobs(object)-nparam(object));
+    df <- (nobs(object, all=FALSE)-nparam(object));
     # If the sample is too small, then use biased estimator
     if(df<=0){
         df[] <- nparam(object);
@@ -3281,7 +3287,24 @@ vcov.mes <- function(object, ...){
     return(vcovMatrix);
 }
 
-#### Residuals functions ####
+#### Residuals and actuals functions ####
+
+#' @importFrom greybox actuals
+#' @export
+actuals.mes <- function(object, all=TRUE, ...){
+    if(all){
+        return(object$y);
+    }
+    else{
+        return(object$y[object$y!=0]);
+    }
+}
+
+#' @export
+nobs.mes <- function(object, ...){
+    return(length(actuals(object, ...)));
+}
+
 #' @export
 residuals.mes <- function(object, ...){
     return(switch(object$distribution,
