@@ -57,9 +57,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     # Define obs, the number of observations of in-sample
     obsAll <- length(y) + (1 - holdout)*h;
     obsInSample <- length(y) - holdout*h;
-    # dataFreq <- frequency(y);
-    # dataStart <- start(y);
-    # yForecastStart <- time(y)[obsInSample]+deltat(y);
+    dataFreq <- frequency(y);
+    dataStart <- start(y);
+    yForecastStart <- time(y)[obsInSample]+deltat(y);
     yInSample <- matrix(y[1:obsInSample],ncol=1);
     if(holdout){
         yHoldout <- y[-c(1:obsInSample)];
@@ -648,7 +648,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         }
     }
 
-    ot <- matrix(otLogical*1,ncol=1);
+    ot <- ts(matrix(otLogical*1,ncol=1), start=dataStart, frequency=dataFreq);
     obsNonzero <- sum(ot);
     obsZero <- obsInSample - obsNonzero;
 
@@ -980,6 +980,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("yHoldout",yHoldout,ParentEnvironment);
     assign("yInSample",yInSample,ParentEnvironment);
     assign("yNAValues",yNAValues,ParentEnvironment);
+    assign("dataFreq",dataFreq,ParentEnvironment);
+    assign("dataStart",dataStart,ParentEnvironment);
+    assign("yForecastStart",yForecastStart,ParentEnvironment);
     # The rename of the variable is needed for the hessian to work
     assign("horizon",h,ParentEnvironment);
     assign("h",h,ParentEnvironment);
