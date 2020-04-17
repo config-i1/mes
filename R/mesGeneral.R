@@ -22,9 +22,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         y <- ts(c(y$x,y$xx),start=start(y$x),frequency=frequency(y$x));
     }
 
-    if(!is.numeric(y)){
-        stop("The provided data is not numeric! Can't construct any model!", call.=FALSE);
-    }
+    # If this is something like matrix
     if(!is.null(ncol(y)) && ncol(y)>1){
         # If we deal with data.table, the syntax is different.
         # We don't want to import from data.table, so just use inherits()
@@ -36,6 +34,10 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             xreg <- y[,-1];
             y <- y[,1];
         }
+    }
+
+    if(!is.numeric(y)){
+        stop("The provided data is not numeric! Can't construct any model!", call.=FALSE);
     }
 
     ####!!! This is a temporary solution !!!####
@@ -883,6 +885,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             }
         }
     }
+    # Remove xreg if it was provided, just to preserve some memory
+    rm(xreg);
 
     #### Process ellipsis ####
     # Parameters for the optimiser
