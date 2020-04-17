@@ -809,7 +809,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                 xregData <- as.matrix(model.frame(formulaProvided,data=as.data.frame(xreg)))[,xregNames,drop=FALSE];
                 xregData <- rbind(xregData,matrix(rep(tail(xregData,1),each=newnRows),newnRows,xregNumber));
             }
-            formulaProvided[[2]] <- responseName;
+            formulaProvided <- formula(testModel);
         }
         else{
             xregInitialsProvided <- TRUE;
