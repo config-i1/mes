@@ -425,6 +425,8 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                       distribution, loss, h, holdout, occurrence, ic, bounds,
                       xreg, xregDo, xregInitial, xregPersistence, responseName,
                       silent, modelDo, ParentEnvironment=environment(), ellipsis, fast=FALSE);
+    # Remove xreg if it was provided, just to preserve some memory
+    rm(xreg);
 
     #### The function creates the technical variables (lags etc) based on the type of the model ####
     architector <- function(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType){
@@ -1781,7 +1783,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
     #### Deal with occurrence model ####
     if(occurrenceModel && !occurrenceModelProvided){
         oesModel <- suppressWarnings(oes(ot, model=model, occurrence=occurrence, ic=ic, h=horizon,
-                                         holdout=FALSE, bounds="usual", xreg=xreg, xregDo=xregDo, silent=TRUE));
+                                         holdout=FALSE, bounds="usual", xreg=xregData, xregDo=xregDo, silent=TRUE));
         pFitted[] <- fitted(oesModel);
         parametersNumber[1,3] <- nparam(oesModel);
         # print(oesModel)
