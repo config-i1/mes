@@ -1262,7 +1262,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                                        lambda=lambda, lambdaEstimate=lambdaEstimate));
 
         if(is.infinite(res$objective) || res$objective==1e+300){
-            # If the optimisation didn't work, give it another try with zero initials
+            # If the optimisation didn't work, give it another try with zero initials for smoothing parameters
             B[1:componentsNumber] <- 0;
             res <- suppressWarnings(nloptr(B, CF, lb=lb, ub=ub,
                                            opts=list(algorithm=algorithm, xtol_rel=xtol_rel, maxeval=maxeval,
@@ -3806,7 +3806,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                                "Using the last available values as future ones."),
                         call.=FALSE);
                 newnRows <- h-nrow(newxreg);
-                xreg <- rbind(newxreg,matrix(rep(tail(newxreg,1),each=newnRows),newnRows,xregNumber));
+                xreg <- rbind(newxreg,matrix(rep(tail(newxreg,1),each=newnRows),newnRows,ncol(newxreg)));
             }
             else if(nrow(newxreg)>h){
                 warning(paste0("The newxreg has ",nrow(newxreg)," observations, while only ",h," are needed. ",
