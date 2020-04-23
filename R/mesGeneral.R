@@ -10,9 +10,11 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
 
     # The function checks the provided parameters of mes and/or oes
     ##### data #####
-    if(any(is.mes.sim(y))){
+    # If this is simulated, extract the actuals
+    if(is.mes.sim(y) || is.smooth.sim(y)){
         y <- y$data;
     }
+    # If this is Mdata, use all the available stuff
     else if(inherits(y,"Mdata")){
         h <- y$h;
         holdout <- TRUE;
@@ -22,28 +24,41 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         y <- ts(c(y$x,y$xx),start=start(y$x),frequency=frequency(y$x));
     }
 
-    # If this is something like matrix
-    if(!is.null(ncol(y)) && ncol(y)>1){
-        # If we deal with data.table, the syntax is different.
-        # We don't want to import from data.table, so just use inherits()
-        if(inherits(y,"data.table")){
-            xreg <- y[,-1];
+    # Extract index from the object in order to use it later
+    ### tsibble has its own index function, so shit happens becaus of it...
+    if(inherits(y,"tbl_ts")){S
+        yIndex <- y[[1]];
+        if(any(duplicated(yIndex))){
+            warning(paste0("You have duplicated time stamps in the variable ",responseName,
+                           ". We will refactor this."),call.=FALSE);
+            yIndex <- yIndex[1] + c(1:length(y[[1]])) * diff(yIndex)[1];
+        }
+    }
+    else{
+        yIndex <- zoo::index(y);
+    }
+    yClasses <- class(y);
+
+    # If this is something like a matrix
+    if(!is.null(ncol(y))){
+        # If we deal with data.table / tibble / data.frame, the syntax is different.
+        # We don't want to import specific classes, so just use inherits()
+        if(inherits(y,"tbl_ts")){
+            # With tsibble we cannot extract explanatory variables easily...
+            y <- y$value;
+        }
+        else if(inherits(y,"data.table") || inherits(y,"tbl") || inherits(y,"data.frame")){
+            if(ncol(y)>1){
+                xreg <- y[,-1];
+            }
             y <- y[[1]];
         }
         else{
-            xreg <- y[,-1];
+            if(ncol(y)>1){
+                xreg <- y[,-1];
+            }
             y <- y[,1];
         }
-    }
-
-    if(!is.numeric(y)){
-        stop("The provided data is not numeric! Can't construct any model!", call.=FALSE);
-    }
-
-    ####!!! This is a temporary solution !!!####
-    # If this is xts, get rid of it
-    if(inherits(y,"xts")){
-        y <- as.ts(y);
     }
 
     # Substitute NAs with mean values.
@@ -59,15 +74,29 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     # Define obs, the number of observations of in-sample
     obsAll <- length(y) + (1 - holdout)*h;
     obsInSample <- length(y) - holdout*h;
-    dataFreq <- frequency(y);
-    dataStart <- start(y);
-    yForecastStart <- time(y)[obsInSample]+deltat(y);
+
+    # If this is just a numeric variable, use ts class
+    if(all(yClasses=="integer") || all(yClasses=="data.frame") || all(yClasses=="matrix")){
+        yClasses <- "ts";
+    }
+    yFrequency <- frequency(y);
+    yStart <- yIndex[1];
     yInSample <- matrix(y[1:obsInSample],ncol=1);
     if(holdout){
+        yForecastStart <- yIndex[obsInSample+1];
         yHoldout <- y[-c(1:obsInSample)];
+        yForecastIndex <- yIndex[-c(1:obsInSample)];
+        yInSampleIndex <- yIndex[c(1:obsInSample)];
     }
     else{
+        yForecastStart <- yIndex[obsInSample]+diff(yIndex)[1];
+        yInSampleIndex <- yIndex;
+        yForecastIndex <- yIndex[obsInSample]+diff(yIndex)[1]*c(1:max(h,1));
         yHoldout <- NULL;
+    }
+
+    if(!is.numeric(yInSample)){
+        stop("The provided data is not numeric! Can't construct any model!", call.=FALSE);
     }
 
     # Number of parameters to estimate / provided
@@ -650,7 +679,12 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         }
     }
 
-    ot <- ts(matrix(otLogical*1,ncol=1), start=dataStart, frequency=dataFreq);
+    if(any(yClasses=="ts")){
+        ot <- ts(matrix(otLogical*1,ncol=1), start=yStart, frequency=yFrequency);
+    }
+    else{
+        ot <- ts(matrix(otLogical*1,ncol=1), start=c(0,0), frequency=lagsModelMax);
+    }
     obsNonzero <- sum(ot);
     obsZero <- obsInSample - obsNonzero;
 
@@ -798,12 +832,13 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             # This is needed in order to succesfully expand the data
             formulaProvided[[2]] <- NULL;
 
-            # If there are more xreg values than the obsInsample, redo stuff and use them
             obsXreg <- nrow(xreg);
-            if(obsXreg>obsInSample && obsXreg>=obsAll){
+            # If there are more xreg values than the obsAll, redo stuff and use them
+            if(obsXreg>=obsAll){
                 xregData <- as.matrix(model.frame(formulaProvided,data=as.data.frame(xreg)))[1:obsAll,xregNames,drop=FALSE];
             }
-            else if(obsXreg>obsInSample && obsXreg<obsAll){
+            # If there are less xreg observations than obsAll, use Naive
+            else{
                 warning(paste0("The xreg has ",obsXreg," observations, while ",obsAll," are needed. ",
                                "Using the last available values as future ones."),
                         call.=FALSE);
@@ -984,8 +1019,13 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("yHoldout",yHoldout,ParentEnvironment);
     assign("yInSample",yInSample,ParentEnvironment);
     assign("yNAValues",yNAValues,ParentEnvironment);
-    assign("dataFreq",dataFreq,ParentEnvironment);
-    assign("dataStart",dataStart,ParentEnvironment);
+    # Index and all related structure variables
+    assign("yClasses",yClasses,ParentEnvironment);
+    assign("yIndex",yIndex,ParentEnvironment);
+    assign("yInSampleIndex",yInSampleIndex,ParentEnvironment);
+    assign("yForecastIndex",yForecastIndex,ParentEnvironment);
+    assign("yFrequency",yFrequency,ParentEnvironment);
+    assign("yStart",yStart,ParentEnvironment);
     assign("yForecastStart",yForecastStart,ParentEnvironment);
     # The rename of the variable is needed for the hessian to work
     assign("horizon",h,ParentEnvironment);

@@ -272,6 +272,7 @@
 #' @importFrom statmod dinvgauss
 #' @importFrom nloptr nloptr
 #' @importFrom pracma hessian
+#' @importFrom zoo zoo index
 #' @useDynLib mes
 #' @export mes
 mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0),ma=c(0)), formula=NULL,
@@ -1685,8 +1686,17 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                                    lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal,
                                    yInSample, ot, initialType=="backcasting");
 
-        errors <- mesFitted$errors;
-        yFitted <- mesFitted$yFitted;
+        if(any(yClasses=="ts")){
+            yFitted <- ts(rep(NA,obsInSample), start=yStart, frequency=yFrequency);
+            errors <- ts(rep(NA,obsInSample), start=yStart, frequency=yFrequency);
+        }
+        else{
+            yFitted <- zoo(rep(NA,obsInSample), order.by=yInSampleIndex);
+            errors <- zoo(rep(NA,obsInSample), order.by=yInSampleIndex);
+        }
+
+        errors[] <- mesFitted$errors;
+        yFitted[] <- mesFitted$yFitted;
         if(occurrenceModel){
             yFitted[] <- yFitted * pFitted;
         }
@@ -1698,7 +1708,12 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
 
         # Produce forecasts if the horizon is non-zero
         if(horizon>0){
-            yForecast <- ts(rep(NA, horizon), start=yForecastStart, frequency=dataFreq);
+            if(any(yClasses=="ts")){
+                yForecast <- ts(rep(NA, horizon), start=yForecastStart, frequency=yFrequency);
+            }
+            else{
+                yForecast <- zoo(rep(NA, horizon), order.by=yForecastIndex);
+            }
             yForecast[] <- mesForecasterWrap(matVt[,obsInSample+(1:lagsModelMax),drop=FALSE], tail(matWt,horizon), matF,
                                              lagsModelAll, Etype, Ttype, Stype,
                                              componentsNumber, componentsNumberSeasonal, horizon);
@@ -1721,7 +1736,12 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
             }
         }
         else{
-            yForecast <- ts(NA, start=yForecastStart, frequency=dataFreq);
+            if(any(yClasses=="ts")){
+                yForecast <- ts(NA, start=yForecastStart, frequency=yFrequency);
+            }
+            else{
+                yForecast <- zoo(rep(NA, horizon), order.by=yForecastIndex);
+            }
         }
 
         # If the distribution is default, change it according to the error term
@@ -1766,12 +1786,19 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
         }
 
         scale <- scaler(distribution, Etype, errors[otLogical], yFitted[otLogical], obsInSample, lambda);
-        yFitted <- ts(yFitted, start=dataStart, frequency=dataFreq);
+        # Amend the class of state matrix
+        if(any(yClasses=="ts")){
+            matVt <- ts(t(matVt), start=(time(y)[1]-deltat(y)*lagsModelMax), frequency=yFrequency);
+        }
+        else{
+            yStatesIndex <- yInSampleIndex[1] - lagsModelMax*diff(yInSampleIndex)[1] + c(1:lagsModelMax-1)*diff(yInSampleIndex)[1];
+            yStatesIndex <- c(yStatesIndex, yInSampleIndex);
+            matVt <- zoo(t(matVt), order.by=yStatesIndex);
+        }
 
         return(list(model=NA, timeElapsed=NA,
-                    y=NA, holdout=NA, fitted=yFitted, residuals=ts(errors, start=dataStart, frequency=dataFreq),
-                    forecast=yForecast, states=ts(t(matVt), start=(time(y)[1] - deltat(y)*lagsModelMax),
-                                                  frequency=dataFreq),
+                    y=NA, holdout=NA, fitted=yFitted, residuals=errors,
+                    forecast=yForecast, states=matVt,
                     persistence=persistence, phi=phi, transition=matF,
                     measurement=matWt, initialType=initialType, initial=initialValue,
                     nParam=parametersNumber, occurrence=oesModel, xreg=xregData,
@@ -2177,10 +2204,18 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
         }
     }
 
-    # Transform everything into ts
-    yInSample <- ts(yInSample,start=dataStart, frequency=dataFreq);
-    if(holdout){
-        yHoldout <- ts(yHoldout, start=yForecastStart, frequency=dataFreq);
+    # Transform everything into appropriate classes
+    if(any(yClasses=="ts")){
+        yInSample <- ts(yInSample,start=yStart, frequency=yFrequency);
+        if(holdout){
+            yHoldout <- ts(yHoldout, start=yForecastStart, frequency=yFrequency);
+        }
+    }
+    else{
+        yInSample <- zoo(yInSample, order.by=yInSampleIndex);
+        if(holdout){
+            yHoldout <- zoo(yHoldout, order.by=yForecastIndex);
+        }
     }
 
     #### Prepare the return if we didn't combine anything ####
@@ -2303,7 +2338,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
         modelReturned$timeElapsed <- Sys.time()-startTime;
         modelReturned$holdout <- yHoldout;
         modelReturned$y <- yInSample;
-        modelReturned$fitted <- ts(yFittedCombined,start=dataStart, frequency=dataFreq);
+        modelReturned$fitted <- ts(yFittedCombined,start=yStart, frequency=yFrequency);
         modelReturned$residuals <- yInSample - yFittedCombined;
         if(any(yNAValues)){
             modelReturned$y[yNAValues[1:obsInSample]] <- NA;
@@ -2312,7 +2347,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
             }
             modelReturned$residuals[yNAValues[1:obsInSample]] <- NA;
         }
-        modelReturned$forecast <- ts(yForecastCombined,start=yForecastStart, frequency=dataFreq);
+        modelReturned$forecast <- ts(yForecastCombined,start=yForecastStart, frequency=yFrequency);
         parametersNumberOverall[1,4] <- sum(parametersNumberOverall[1,1:3]);
         modelReturned$nParam <- parametersNumberOverall;
         modelReturned$ICw <- mesSelected$icWeights;
@@ -2364,13 +2399,13 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
         ellipsis <- list(...);
 
         # Get the actuals and the fitted values
-        ellipsis$y <- c(actuals(x));
+        ellipsis$y <- as.vector(actuals(x));
         if(is.occurrence(x)){
             if(any(x$distribution==c("plogis","pnorm"))){
                 ellipsis$y <- (ellipsis$y!=0)*1;
             }
         }
-        ellipsis$x <- c(fitted(x));
+        ellipsis$x <- as.vector(fitted(x));
 
         # If this is a mixture model, remove zeroes
         if(is.occurrence(x$occurrence)){
@@ -2874,7 +2909,7 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
                         ellipsis$main <- paste0("States of ",x$model,", part ",i);
                     }
                     ellipsis$x <- x$states[,(1+(i-1)*10):min(i*10,ncol(x$states))];
-                    do.call(plot.ts, ellipsis);
+                    do.call(plot, ellipsis);
                 }
             }
             else{
@@ -2885,7 +2920,7 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
                     ellipsis$main <- paste0("States of ",x$model);
                 }
                 ellipsis$x <- x$states;
-                do.call(plot.ts, ellipsis);
+                do.call(plot, ellipsis);
             }
         }
         else{

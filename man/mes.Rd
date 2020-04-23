@@ -4,8 +4,8 @@
 \alias{mes}
 \title{Mixed Exponential Smoothing}
 \usage{
-mes(y, model = "ZXZ", lags = c(frequency(y)), orders = list(ar = c(0), i =
-  c(0), ma = c(0)), formula = NULL, distribution = c("default", "dnorm",
+mes(y, model = "ZXZ", lags = c(frequency(y)), orders = list(ar = c(0), i
+  = c(0), ma = c(0)), formula = NULL, distribution = c("default", "dnorm",
   "dlogis", "dlaplace", "dt", "ds", "dalaplace", "dlnorm", "dllaplace", "dls",
   "dinvgauss"), loss = c("likelihood", "MSE", "MAE", "HAM", "LASSO", "RIDGE",
   "MSEh", "TMSE", "GTMSE", "MSCE"), h = 0, holdout = FALSE,
