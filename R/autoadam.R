@@ -30,7 +30,7 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)),
             cat(paste0(distribution[i],", "));
         }
         selectedModels[[i]] <- adam(y=y, model=model, lags=lags,
-                                   distribution=distribution[i],
+                                   distribution=distribution[i], loss="likelihood",
                                    h=h, holdout=holdout,
                                    persistence=persistence, phi=phi, initial=initial,
                                    occurrence=occurrence, ic=ic, bounds=bounds,
@@ -54,6 +54,8 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)),
         plot(selectedModels[[which.min(ICValues)]],7);
     }
     selectedModels[[which.min(ICValues)]]$timeElapsed <- Sys.time()-startTime;
+    # names(ICValues) <- sapply(selectedModels, modelType);
+    # selectedModels[[which.min(ICValues)]]$ICValues <- ICValues;
 
     return(selectedModels[[which.min(ICValues)]]);
 }
