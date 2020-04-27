@@ -37,7 +37,7 @@ the error term ("A" or "M"), the second (and sometimes the third as well) is for
 the trend ("N", "A", "Ad", "M" or "Md"), and the last one is for the type of
 seasonality ("N", "A" or "M"). In case of several lags, the seasonal components
 are assumed to be the same. The model is then printed out as
-ADAM(M,Ad,M)[m1,m2,...], where m1, m2, ... are the lags specified by the
+ETS(M,Ad,M)[m1,m2,...], where m1, m2, ... are the lags specified by the
 \code{lags} parameter.
 There are several options for the \code{model} besides the conventional ones,
 which rely on information criteria:

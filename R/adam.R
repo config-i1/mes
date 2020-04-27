@@ -61,7 +61,7 @@
 #' the trend ("N", "A", "Ad", "M" or "Md"), and the last one is for the type of
 #' seasonality ("N", "A" or "M"). In case of several lags, the seasonal components
 #' are assumed to be the same. The model is then printed out as
-#' ADAM(M,Ad,M)[m1,m2,...], where m1, m2, ... are the lags specified by the
+#' ETS(M,Ad,M)[m1,m2,...], where m1, m2, ... are the lags specified by the
 #' \code{lags} parameter.
 #' There are several options for the \code{model} besides the conventional ones,
 #' which rely on information criteria:
@@ -2236,10 +2236,10 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
 
         # Prepare the name of the model
         if(xregExist){
-            modelName <- "ADAMX";
+            modelName <- "ETSX";
         }
         else{
-            modelName <- "ADAM";
+            modelName <- "ETS";
         }
         modelName <- paste0(modelName,"(",model,")");
         if(all(occurrence!=c("n","none"))){
@@ -2295,10 +2295,10 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
 
             # Prepare the name of the model
             if(xregExist){
-                modelName <- "ADAMX";
+                modelName <- "ETSX";
             }
             else{
-                modelName <- "ADAM";
+                modelName <- "ETS";
             }
             modelName <- paste0(modelName,"(",model,")");
             if(all(occurrence!=c("n","none"))){
@@ -2326,10 +2326,10 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
         model[] <- modelOriginal;
         # Prepare the name of the model
         if(xregExist){
-            modelName <- "ADAMX";
+            modelName <- "ETSX";
         }
         else{
-            modelName <- "ADAM";
+            modelName <- "ETS";
         }
         modelName <- paste0(modelName,"(",model,")");
         if(all(occurrence!=c("n","none"))){
@@ -3588,7 +3588,7 @@ predict.adam <- function(object, newxreg=NULL, interval=c("none", "confidence", 
     # Extract variance and amend it in case of confidence interval
     s2 <- sigma(object)^2;
     if(interval=="confidence"){
-        warning(paste0("Note that the ADAM assumes that the initial level is known, ",
+        warning(paste0("Note that the ETS assumes that the initial level is known, ",
                        "so the confidence interval depends on smoothing parameters only."),
                 call.=FALSE);
         s2 <- s2 * object$measurement[1:obsInSample,1:length(object$persistence),drop=FALSE] %*% object$persistence;
@@ -3797,7 +3797,7 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
         interval <- "approximate";
     }
     else if(interval=="confidence"){
-        warning(paste0("Note that the ADAM assumes that the initial level is known, ",
+        warning(paste0("Note that the ETS assumes that the initial level is known, ",
                        "so the confidence interval depends on smoothing parameters only."),
                 call.=FALSE);
     }
