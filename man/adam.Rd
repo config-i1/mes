@@ -252,10 +252,10 @@ in columns,
 }
 \description{
 Function constructs an advanced Single Source of Error model, based on ETS
-taxonomy.
+taxonomy and ARIMA elements
 }
 \details{
-Function estimates ETS in a form of the Single Source of Error state space
+Function estimates ADAM in a form of the Single Source of Error state space
 model of the following type:
 
 \deqn{y_{t} = o_t (w(v_{t-l}) + h(x_t, a_{t-1}) + r(v_{t-l}) \epsilon_{t})}

@@ -1,9 +1,9 @@
 #' ADAM is Dynamic Adaptive Model
 #'
 #' Function constructs an advanced Single Source of Error model, based on ETS
-#' taxonomy.
+#' taxonomy and ARIMA elements
 #'
-#' Function estimates ETS in a form of the Single Source of Error state space
+#' Function estimates ADAM in a form of the Single Source of Error state space
 #' model of the following type:
 #'
 #' \deqn{y_{t} = o_t (w(v_{t-l}) + h(x_t, a_{t-1}) + r(v_{t-l}) \epsilon_{t})}
@@ -276,8 +276,8 @@
 #' @importFrom nloptr nloptr
 #' @importFrom pracma hessian
 #' @importFrom zoo zoo index
+#' @useDynLib mes
 #' @rdname adam
-#' @useDynLib adam
 #' @export adam
 adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0),ma=c(0)), formula=NULL,
                  distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
@@ -2236,10 +2236,10 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
 
         # Prepare the name of the model
         if(xregExist){
-            modelName <- "ETSX";
+            modelName <- "ADAMX";
         }
         else{
-            modelName <- "ETS";
+            modelName <- "ADAM";
         }
         modelName <- paste0(modelName,"(",model,")");
         if(all(occurrence!=c("n","none"))){
@@ -2295,10 +2295,10 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
 
             # Prepare the name of the model
             if(xregExist){
-                modelName <- "ETSX";
+                modelName <- "ADAMX";
             }
             else{
-                modelName <- "ETS";
+                modelName <- "ADAM";
             }
             modelName <- paste0(modelName,"(",model,")");
             if(all(occurrence!=c("n","none"))){
@@ -2326,10 +2326,10 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
         model[] <- modelOriginal;
         # Prepare the name of the model
         if(xregExist){
-            modelName <- "ETSX";
+            modelName <- "ADAMX";
         }
         else{
-            modelName <- "ETS";
+            modelName <- "ADAM";
         }
         modelName <- paste0(modelName,"(",model,")");
         if(all(occurrence!=c("n","none"))){
@@ -3588,7 +3588,7 @@ predict.adam <- function(object, newxreg=NULL, interval=c("none", "confidence", 
     # Extract variance and amend it in case of confidence interval
     s2 <- sigma(object)^2;
     if(interval=="confidence"){
-        warning(paste0("Note that the ETS assumes that the initial level is known, ",
+        warning(paste0("Note that the ADAM assumes that the initial level is known, ",
                        "so the confidence interval depends on smoothing parameters only."),
                 call.=FALSE);
         s2 <- s2 * object$measurement[1:obsInSample,1:length(object$persistence),drop=FALSE] %*% object$persistence;
@@ -3797,7 +3797,7 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
         interval <- "approximate";
     }
     else if(interval=="confidence"){
-        warning(paste0("Note that the ETS assumes that the initial level is known, ",
+        warning(paste0("Note that the ADAM assumes that the initial level is known, ",
                        "so the confidence interval depends on smoothing parameters only."),
                 call.=FALSE);
     }
