@@ -2185,7 +2185,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                 xregPersistenceEstimateFI <- FALSE;
             }
 
-            FI <- hessian(logLikMES, B, Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
+            FI <- -hessian(logLikMES, B, Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
                           ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, pFitted=pFitted, obsInSample=obsInSample,
                           componentsNumber=componentsNumber, lagsModel=lagsModel, lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
                           matVt=matVt, matWt=matWt, matF=matF, vecG=vecG,
