@@ -5,19 +5,19 @@ matrixPowerWrap <- function(matA, power) {
     .Call('_mes_matrixPowerWrap', PACKAGE = 'mes', matA, power)
 }
 
-mesFitterWrap <- function(matVt, matWt, matF, vecG, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, yInSample, ot, backcasting) {
-    .Call('_mes_mesFitterWrap', PACKAGE = 'mes', matVt, matWt, matF, vecG, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, yInSample, ot, backcasting)
+adamFitterWrap <- function(matVt, matWt, matF, vecG, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, yInSample, ot, backcasting) {
+    .Call('_mes_adamFitterWrap', PACKAGE = 'mes', matVt, matWt, matF, vecG, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, yInSample, ot, backcasting)
 }
 
-mesForecasterWrap <- function(matVt, matWt, matF, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, h) {
-    .Call('_mes_mesForecasterWrap', PACKAGE = 'mes', matVt, matWt, matF, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, h)
+adamForecasterWrap <- function(matVt, matWt, matF, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, h) {
+    .Call('_mes_adamForecasterWrap', PACKAGE = 'mes', matVt, matWt, matF, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, h)
 }
 
-mesErrorerWrap <- function(matVt, matWt, matF, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, h, yInSample, ot) {
-    .Call('_mes_mesErrorerWrap', PACKAGE = 'mes', matVt, matWt, matF, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, h, yInSample, ot)
+adamErrorerWrap <- function(matVt, matWt, matF, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, h, yInSample, ot) {
+    .Call('_mes_adamErrorerWrap', PACKAGE = 'mes', matVt, matWt, matF, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, h, yInSample, ot)
 }
 
-mesSimulatorwrap <- function(arrVt, matErrors, matOt, matF, matWt, matG, Etype, Ttype, Stype, lagsModelAll, componentsNumberSeasonal, componentsNumber) {
-    .Call('_mes_mesSimulatorwrap', PACKAGE = 'mes', arrVt, matErrors, matOt, matF, matWt, matG, Etype, Ttype, Stype, lagsModelAll, componentsNumberSeasonal, componentsNumber)
+adamSimulatorwrap <- function(arrVt, matErrors, matOt, matF, matWt, matG, Etype, Ttype, Stype, lagsModelAll, componentsNumberSeasonal, componentsNumber) {
+    .Call('_mes_adamSimulatorwrap', PACKAGE = 'mes', arrVt, matErrors, matOt, matF, matWt, matG, Etype, Ttype, Stype, lagsModelAll, componentsNumberSeasonal, componentsNumber)
 }
 

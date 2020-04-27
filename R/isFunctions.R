@@ -1,11 +1,11 @@
-#' MES classes checkers
+#' ADAM classes checkers
 #'
 #' Functions to check if an object is of the specified class
 #'
 #' The list of functions includes:
 #' \itemize{
-#' \item \code{is.mes()} tests if the object was produced by a \link[mes]{mes} function
-#' \item \code{is.mes.sim()} tests if the object was produced by \link[mes]{sim.mes} function;
+#' \item \code{is.adam()} tests if the object was produced by a \link[adam]{adam} function
+#' \item \code{is.adam.sim()} tests if the object was produced by \link[adam]{sim.adam} function;
 #' }
 #'
 #' @param x The object to check.
@@ -19,12 +19,12 @@
 #'
 #' @rdname isFunctions
 #' @export
-is.mes <- function(x){
-    return(inherits(x,"mes"))
+is.adam <- function(x){
+    return(inherits(x,"adam"))
 }
 
 #' @rdname isFunctions
 #' @export
-is.mes.sim <- function(x){
-    return(inherits(x,"sim.mes"))
+is.adam.sim <- function(x){
+    return(inherits(x,"sim.adam"))
 }

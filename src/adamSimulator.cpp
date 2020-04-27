@@ -1,16 +1,16 @@
 #include <RcppArmadillo.h>
 #include <iostream>
 #include <cmath>
-#include "mesGeneral.h"
+#include "adamGeneral.h"
 // [[Rcpp::depends(RcppArmadillo)]]
 
 using namespace Rcpp;
 
 // ##### Script for simulate functions
-List mesSimulator(arma::cube &arrayVt, arma::mat const &matrixErrors, arma::mat const &matrixOt,
-                 arma::cube const &arrayF, arma::mat const &matrixWt, arma::mat const &matrixG,
-                 char const &E, char const &T, char const &S, arma::uvec &lags,
-                 unsigned int const &nNonSeasonal, unsigned int const &nSeasonal) {
+List adamSimulator(arma::cube &arrayVt, arma::mat const &matrixErrors, arma::mat const &matrixOt,
+                   arma::cube const &arrayF, arma::mat const &matrixWt, arma::mat const &matrixG,
+                   char const &E, char const &T, char const &S, arma::uvec &lags,
+                   unsigned int const &nNonSeasonal, unsigned int const &nSeasonal) {
 
     unsigned int obs = matrixErrors.n_rows;
     unsigned int nSeries = matrixErrors.n_cols;
@@ -41,15 +41,15 @@ List mesSimulator(arma::cube &arrayVt, arma::mat const &matrixErrors, arma::mat 
             lagrows = j * nComponents - (lagsInternal + lagsModifier) + nComponents - 1;
             /* # Measurement equation and the error term */
             matY(j-lagsModelMax,i) = matrixOt(j-lagsModelMax,i) * (wvalue(matrixVt(lagrows), matrixWt.row(j-lagsModelMax), E, T, S,
-                                                                   nNonSeasonal, nSeasonal, nComponents) +
+                                              nNonSeasonal, nSeasonal, nComponents) +
                                                   rvalue(matrixVt(lagrows), matrixWt.row(j-lagsModelMax), E, T, S,
                                                          nNonSeasonal, nSeasonal, nComponents) *
-                                                  matrixErrors(j-lagsModelMax,i));
+                                                             matrixErrors(j-lagsModelMax,i));
 
             /* # Transition equation */
             matrixVt.col(j) = fvalue(matrixVt(lagrows), matrixF, T, S, nComponents) +
-                                     gvalue(matrixVt(lagrows), matrixF, matrixWt.row(j-lagsModelMax), E, T, S,
-                                            nNonSeasonal, nSeasonal, nComponents) % matrixG.col(i) * matrixErrors(j-lagsModelMax,i);
+            gvalue(matrixVt(lagrows), matrixF, matrixWt.row(j-lagsModelMax), E, T, S,
+                   nNonSeasonal, nSeasonal, nComponents) % matrixG.col(i) * matrixErrors(j-lagsModelMax,i);
 
             /* Failsafe for cases when unreasonable value for state vector was produced */
             if(!matrixVt.col(j).is_finite()){
@@ -76,11 +76,11 @@ List mesSimulator(arma::cube &arrayVt, arma::mat const &matrixErrors, arma::mat 
 
 /* # Wrapper for simulator */
 // [[Rcpp::export]]
-RcppExport SEXP mesSimulatorwrap(SEXP arrVt, SEXP matErrors, SEXP matOt, SEXP matF, SEXP matWt, SEXP matG,
-                                 SEXP Etype, SEXP Ttype, SEXP Stype, SEXP lagsModelAll,
-                                 SEXP componentsNumberSeasonal, SEXP componentsNumber){
+RcppExport SEXP adamSimulatorwrap(SEXP arrVt, SEXP matErrors, SEXP matOt, SEXP matF, SEXP matWt, SEXP matG,
+                                  SEXP Etype, SEXP Ttype, SEXP Stype, SEXP lagsModelAll,
+                                  SEXP componentsNumberSeasonal, SEXP componentsNumber){
 
-// ### arrvt should contain array of obs x ncomponents x nSeries elements.
+    // ### arrvt should contain array of obs x ncomponents x nSeries elements.
     NumericVector arrVt_n(arrVt);
     IntegerVector arrVt_dim = arrVt_n.attr("dim");
     arma::cube arrayVt(arrVt_n.begin(),arrVt_dim[0], arrVt_dim[1], arrVt_dim[2], false);
@@ -98,7 +98,7 @@ RcppExport SEXP mesSimulatorwrap(SEXP arrVt, SEXP matErrors, SEXP matOt, SEXP ma
     NumericMatrix matWt_n(matWt);
     arma::mat matrixWt(matWt_n.begin(), matWt_n.nrow(), matWt_n.ncol(), false);
 
-// ### matG should contain persistence vectors in each column
+    // ### matG should contain persistence vectors in each column
     NumericMatrix matG_n(matG);
     arma::mat matrixG(matG_n.begin(), matG_n.nrow(), matG_n.ncol(), false);
 
@@ -112,6 +112,6 @@ RcppExport SEXP mesSimulatorwrap(SEXP arrVt, SEXP matErrors, SEXP matOt, SEXP ma
     unsigned int nSeasonal = as<int>(componentsNumberSeasonal);
     unsigned int nNonSeasonal = as<int>(componentsNumber) - nSeasonal;
 
-    return wrap(mesSimulator(arrayVt, matrixErrors, matrixOt, arrayF, matrixWt, matrixG,
-                             E, T, S, lags, nNonSeasonal, nSeasonal));
+    return wrap(adamSimulator(arrayVt, matrixErrors, matrixOt, arrayF, matrixWt, matrixG,
+                              E, T, S, lags, nNonSeasonal, nSeasonal));
 }

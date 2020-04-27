@@ -1,4 +1,4 @@
-mesVarAnal <- function(lagsModel, h, measurement, transition, persistence, s2){
+adamVarAnal <- function(lagsModel, h, measurement, transition, persistence, s2){
     #### The function returns variances for the multiplicative error ETS models
     # Prepare the necessary parameters
     lagsUnique <- unique(lagsModel);

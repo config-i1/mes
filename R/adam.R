@@ -1,4 +1,4 @@
-#' Mixed Exponential Smoothing
+#' ADAM is Dynamic Adaptive Model
 #'
 #' Function constructs an advanced Single Source of Error model, based on ETS
 #' taxonomy.
@@ -40,7 +40,10 @@
 #' }
 #'
 #' For some more information about the model and its implementation, see the
-#' vignette: \code{vignette("mes","mes")}.
+#' vignette: \code{vignette("adam","smooth")}.
+#'
+#' The function \code{auto.adam()} tries out models with the specified
+#' distributions and returns the one with the most suitable one.
 #'
 #' @template ssAuthor
 #' @template ssKeywords
@@ -58,7 +61,7 @@
 #' the trend ("N", "A", "Ad", "M" or "Md"), and the last one is for the type of
 #' seasonality ("N", "A" or "M"). In case of several lags, the seasonal components
 #' are assumed to be the same. The model is then printed out as
-#' MES(M,Ad,M)[m1,m2,...], where m1, m2, ... are the lags specified by the
+#' ADAM(M,Ad,M)[m1,m2,...], where m1, m2, ... are the lags specified by the
 #' \code{lags} parameter.
 #' There are several options for the \code{model} besides the conventional ones,
 #' which rely on information criteria:
@@ -83,7 +86,7 @@
 #' estimate only two models and select the best of them.
 #' }
 #'
-#' Also, \code{model} can accept a previously estimated mes model and use all
+#' Also, \code{model} can accept a previously estimated adam and use all
 #' its parameters.
 #'
 #' Keep in mind that model selection with "Z" components uses Branch and Bound
@@ -218,7 +221,7 @@
 #' Finally, the parameter \code{lambda} for LASSO / RIDGE, Asymmetric Laplace and df
 #' of Student's distribution can be provided here as well.
 #'
-#' @return Object of class "mes" is returned. It contains the list of the
+#' @return Object of class "adam" is returned. It contains the list of the
 #' following values:
 #' \itemize{
 #' \item \code{model} - the name of the constructed model,
@@ -257,14 +260,14 @@
 #' @examples
 #'
 #' # Model selection using a specified pool of models
-#' ourModel <- mes(rnorm(100,100,10), model=c("ANN","ANA","AAA"), lags=c(5,10))
+#' ourModel <- adam(rnorm(100,100,10), model=c("ANN","ANA","AAA"), lags=c(5,10))
 #'
 #' summary(ourModel)
 #' forecast(ourModel)
 #' plot(forecast(ourModel))
 #'
 #' # Model combination using a specified pool
-#' ourModel <- mes(rnorm(100,100,10), model=c("ANN","AAN","MNN","CCC"), lags=c(5,10))
+#' ourModel <- adam(rnorm(100,100,10), model=c("ANN","AAN","MNN","CCC"), lags=c(5,10))
 #'
 #' @importFrom forecast forecast na.interp
 #' @importFrom greybox dlaplace dalaplace ds stepwise alm is.occurrence
@@ -273,18 +276,19 @@
 #' @importFrom nloptr nloptr
 #' @importFrom pracma hessian
 #' @importFrom zoo zoo index
-#' @useDynLib mes
-#' @export mes
-mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0),ma=c(0)), formula=NULL,
-                distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
-                               "dlnorm","dllaplace","dls","dinvgauss"),
-                loss=c("likelihood","MSE","MAE","HAM","LASSO","RIDGE","MSEh","TMSE","GTMSE","MSCE"),
-                h=0, holdout=FALSE,
-                persistence=NULL, phi=NULL, initial=c("optimal","backcasting"),
-                occurrence=c("none","auto","fixed","general","odds-ratio","inverse-odds-ratio","direct"),
-                ic=c("AICc","AIC","BIC","BICc"), bounds=c("usual","admissible","none"),
-                xreg=NULL, xregDo=c("use","select"), xregInitial=NULL, xregPersistence=0,
-                silent=TRUE, ...){
+#' @rdname adam
+#' @useDynLib adam
+#' @export adam
+adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0),ma=c(0)), formula=NULL,
+                 distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
+                                "dlnorm","dllaplace","dls","dinvgauss"),
+                 loss=c("likelihood","MSE","MAE","HAM","LASSO","RIDGE","MSEh","TMSE","GTMSE","MSCE"),
+                 h=0, holdout=FALSE,
+                 persistence=NULL, phi=NULL, initial=c("optimal","backcasting"),
+                 occurrence=c("none","auto","fixed","general","odds-ratio","inverse-odds-ratio","direct"),
+                 ic=c("AICc","AIC","BIC","BICc"), bounds=c("usual","admissible","none"),
+                 xreg=NULL, xregDo=c("use","select"), xregInitial=NULL, xregPersistence=0,
+                 silent=TRUE, ...){
     # Copyright (C) 2019 - Inf  Ivan Svetunkov
     #
     # Parameters that were moved to forecast() and predict() functions:
@@ -296,9 +300,9 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
 
     ellipsis <- list(...);
     # If a previous model is provided as a model, write down the variables
-    if(is.mes(model) || is.mes.sim(model)){
+    if(is.adam(model) || is.adam.sim(model)){
         # If this is the simulated data, extract the parameters
-        # if(is.mes.sim(model) & !is.null(dim(model$data))){
+        # if(is.adam.sim(model) & !is.null(dim(model$data))){
         #     warning("The provided model has several submodels. Choosing a random one.",call.=FALSE);
         #     i <- round(runif(1,1:length(model$persistence)));
         #     persistence <- model$persistence[,i];
@@ -333,7 +337,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
         lambda <- model$lambda;
         ellipsis$B <- model$B;
         CFValue <- model$lossValue;
-        logLikMESValue <- logLik(model);
+        logLikADAMValue <- logLik(model);
         if(is.null(xreg)){
             xreg <- model$xreg;
         }
@@ -844,16 +848,16 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                                         "A"=sqrt(sum(log(1+errors/yFitted)^2)/obsInSample),
                                         "M"=sqrt(sum(log(1+errors)^2)/obsInSample)),
                         "dllaplace"=switch(Etype,
-                                        "A"=sum(abs(log(1+errors/yFitted))/obsInSample),
-                                        "M"=sum(abs(log(1+errors))/obsInSample)),
+                                           "A"=sum(abs(log(1+errors/yFitted))/obsInSample),
+                                           "M"=sum(abs(log(1+errors))/obsInSample)),
                         "dls"=switch(Etype,
-                                        "A"=sum(sqrt(abs(log(1+errors/yFitted)))/obsInSample),
-                                        "M"=sum(sqrt(abs(log(1+errors)))/obsInSample)),
+                                     "A"=sum(sqrt(abs(log(1+errors/yFitted)))/obsInSample),
+                                     "M"=sum(sqrt(abs(log(1+errors)))/obsInSample)),
                         "dinvgauss"=switch(Etype,
                                            "A"=sum((errors/yFitted)^2/(1+errors/yFitted))/obsInSample,
                                            "M"=sum((errors)^2/(1+errors))/obsInSample),
-                                           # "M"=mean((errors)^2/(1+errors))),
-                        );
+                        # "M"=mean((errors)^2/(1+errors))),
+        );
         return(scale);
     }
 
@@ -869,11 +873,11 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                    bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate){
 
         # Fill in the matrices
-        mesElements <- filler(B,
-                              Ttype, Stype, componentsNumber, lagsModel, lagsModelMax,
-                              matVt, matWt, matF, vecG,
-                              persistenceEstimate, phiEstimate, initialType,
-                              xregInitialsEstimate, xregPersistenceEstimate, xregNumber);
+        adamElements <- filler(B,
+                               Ttype, Stype, componentsNumber, lagsModel, lagsModelMax,
+                               matVt, matWt, matF, vecG,
+                               persistenceEstimate, phiEstimate, initialType,
+                               xregInitialsEstimate, xregPersistenceEstimate, xregNumber);
 
         # If we estimate lambda, take it from the B vector
         if(lambdaEstimate){
@@ -882,30 +886,30 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
 
         # Check the bounds, classical restrictions
         if(bounds=="usual"){
-            if(any(mesElements$vecG>1) || any(mesElements$vecG<0)){
+            if(any(adamElements$vecG>1) || any(adamElements$vecG<0)){
                 return(1E+300);
             }
             if(Ttype!="N"){
-                if((mesElements$vecG[2]>mesElements$vecG[1])){
+                if((adamElements$vecG[2]>adamElements$vecG[1])){
                     return(1E+300);
                 }
-                if(Stype!="N" && any(mesElements$vecG[-c(1,2)]>(1-mesElements$vecG[1]))){
+                if(Stype!="N" && any(adamElements$vecG[-c(1,2)]>(1-adamElements$vecG[1]))){
                     return(1E+300);
                 }
             }
             else{
-                if(Stype!="N" && any(mesElements$vecG[-1]>(1-mesElements$vecG[1]))){
+                if(Stype!="N" && any(adamElements$vecG[-1]>(1-adamElements$vecG[1]))){
                     return(1E+300);
                 }
             }
             # This is the restriction on the damping parameter
-            if(phiEstimate && (mesElements$matF[2,2]>1 || mesElements$matF[2,2]<0)){
+            if(phiEstimate && (adamElements$matF[2,2]>1 || adamElements$matF[2,2]<0)){
                 return(1E+300);
             }
         }
         else if(bounds=="admissible"){
             # We check the condition only for the last row of matWt
-            eigenValues <- eigen(mesElements$matF - mesElements$vecG %*% mesElements$matWt[obsInSample,],
+            eigenValues <- eigen(adamElements$matF - adamElements$vecG %*% adamElements$matWt[obsInSample,],
                                  only.values=TRUE)$values;
             if(any(abs(eigenValues)>1+1E-50)){
                 return(abs(eigenValues)*1E+100);
@@ -913,59 +917,59 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
         }
 
         # Produce fitted values and errors
-        mesFitted <- mesFitterWrap(mesElements$matVt, mesElements$matWt, mesElements$matF, mesElements$vecG,
-                                   lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal,
-                                   yInSample, ot, initialType=="backcasting");
+        adamFitted <- adamFitterWrap(adamElements$matVt, adamElements$matWt, adamElements$matF, adamElements$vecG,
+                                     lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal,
+                                     yInSample, ot, initialType=="backcasting");
 
         if(!multisteps){
             if(loss=="likelihood"){
                 # Scale for different functions
-                scale <- scaler(distribution, Etype, mesFitted$errors[otLogical],
-                                mesFitted$yFitted[otLogical], obsInSample, lambda);
+                scale <- scaler(distribution, Etype, adamFitted$errors[otLogical],
+                                adamFitted$yFitted[otLogical], obsInSample, lambda);
 
                 # Calculate the likelihood
                 CFValue <- -sum(switch(distribution,
                                        "dnorm"=switch(Etype,
-                                                      "A"=dnorm(x=yInSample[otLogical], mean=mesFitted$yFitted[otLogical],
+                                                      "A"=dnorm(x=yInSample[otLogical], mean=adamFitted$yFitted[otLogical],
                                                                 sd=scale, log=TRUE),
-                                                      "M"=dnorm(x=yInSample[otLogical], mean=mesFitted$yFitted[otLogical],
-                                                                sd=scale*mesFitted$yFitted[otLogical], log=TRUE)),
+                                                      "M"=dnorm(x=yInSample[otLogical], mean=adamFitted$yFitted[otLogical],
+                                                                sd=scale*adamFitted$yFitted[otLogical], log=TRUE)),
                                        "dlogis"=switch(Etype,
-                                                       "A"=dlogis(x=yInSample[otLogical], location=mesFitted$yFitted[otLogical],
+                                                       "A"=dlogis(x=yInSample[otLogical], location=adamFitted$yFitted[otLogical],
                                                                   scale=scale, log=TRUE),
-                                                       "M"=dlogis(x=yInSample[otLogical], location=mesFitted$yFitted[otLogical],
-                                                                  scale=scale*mesFitted$yFitted[otLogical], log=TRUE)),
+                                                       "M"=dlogis(x=yInSample[otLogical], location=adamFitted$yFitted[otLogical],
+                                                                  scale=scale*adamFitted$yFitted[otLogical], log=TRUE)),
                                        "dlaplace"=switch(Etype,
-                                                         "A"=dlaplace(q=yInSample[otLogical], mu=mesFitted$yFitted[otLogical],
+                                                         "A"=dlaplace(q=yInSample[otLogical], mu=adamFitted$yFitted[otLogical],
                                                                       scale=scale, log=TRUE),
-                                                         "M"=dlaplace(q=yInSample[otLogical], mu=mesFitted$yFitted[otLogical],
-                                                                      scale=scale*mesFitted$yFitted[otLogical], log=TRUE)),
+                                                         "M"=dlaplace(q=yInSample[otLogical], mu=adamFitted$yFitted[otLogical],
+                                                                      scale=scale*adamFitted$yFitted[otLogical], log=TRUE)),
                                        "dt"=switch(Etype,
-                                                   "A"=dt(mesFitted$errors[otLogical], df=abs(lambda), log=TRUE),
-                                                   "M"=dt(mesFitted$errors[otLogical]*mesFitted$yFitted[otLogical],
+                                                   "A"=dt(adamFitted$errors[otLogical], df=abs(lambda), log=TRUE),
+                                                   "M"=dt(adamFitted$errors[otLogical]*adamFitted$yFitted[otLogical],
                                                           df=abs(lambda), log=TRUE)),
                                        "ds"=switch(Etype,
-                                                   "A"=ds(q=yInSample[otLogical],mu=mesFitted$yFitted[otLogical],
+                                                   "A"=ds(q=yInSample[otLogical],mu=adamFitted$yFitted[otLogical],
                                                           scale=scale, log=TRUE),
-                                                   "M"=ds(q=yInSample[otLogical],mu=mesFitted$yFitted[otLogical],
-                                                          scale=scale*sqrt(mesFitted$yFitted[otLogical]), log=TRUE)),
+                                                   "M"=ds(q=yInSample[otLogical],mu=adamFitted$yFitted[otLogical],
+                                                          scale=scale*sqrt(adamFitted$yFitted[otLogical]), log=TRUE)),
                                        "dalaplace"=switch(Etype,
-                                                          "A"=dalaplace(q=yInSample[otLogical], mu=mesFitted$yFitted[otLogical],
+                                                          "A"=dalaplace(q=yInSample[otLogical], mu=adamFitted$yFitted[otLogical],
                                                                         scale=scale, alpha=lambda, log=TRUE),
-                                                          "M"=dalaplace(q=yInSample[otLogical], mu=mesFitted$yFitted[otLogical],
-                                                                        scale=scale*mesFitted$yFitted[otLogical], alpha=lambda, log=TRUE)),
-                                       "dlnorm"=dlnorm(x=yInSample[otLogical], meanlog=log(mesFitted$yFitted[otLogical]),
+                                                          "M"=dalaplace(q=yInSample[otLogical], mu=adamFitted$yFitted[otLogical],
+                                                                        scale=scale*adamFitted$yFitted[otLogical], alpha=lambda, log=TRUE)),
+                                       "dlnorm"=dlnorm(x=yInSample[otLogical], meanlog=log(adamFitted$yFitted[otLogical]),
                                                        sdlog=scale, log=TRUE),
-                                       "dllaplace"=dlaplace(q=log(yInSample[otLogical]), mu=log(mesFitted$yFitted[otLogical]),
+                                       "dllaplace"=dlaplace(q=log(yInSample[otLogical]), mu=log(adamFitted$yFitted[otLogical]),
                                                             scale=scale, log=TRUE)-log(yInSample[otLogical]),
-                                       "dls"=ds(q=log(yInSample[otLogical]), mu=log(mesFitted$yFitted[otLogical]),
+                                       "dls"=ds(q=log(yInSample[otLogical]), mu=log(adamFitted$yFitted[otLogical]),
                                                 scale=scale, log=TRUE)-log(yInSample[otLogical]),
-                                       # "dinvgauss"=dinvgauss(x=1+mesFitted$errors, mean=1,
+                                       # "dinvgauss"=dinvgauss(x=1+adamFitted$errors, mean=1,
                                        #                       dispersion=scale, log=TRUE)));
-                                       # "dinvgauss"=dinvgauss(x=yInSampleNew, mean=mesFitted$yFitted,
-                                       #                       dispersion=scale/mesFitted$yFitted, log=TRUE)));
-                                       "dinvgauss"=dinvgauss(x=yInSample[otLogical], mean=mesFitted$yFitted[otLogical],
-                                                             dispersion=scale/mesFitted$yFitted[otLogical], log=TRUE)));
+                                       # "dinvgauss"=dinvgauss(x=yInSampleNew, mean=adamFitted$yFitted,
+                                       #                       dispersion=scale/adamFitted$yFitted, log=TRUE)));
+                                       "dinvgauss"=dinvgauss(x=yInSample[otLogical], mean=adamFitted$yFitted[otLogical],
+                                                             dispersion=scale/adamFitted$yFitted[otLogical], log=TRUE)));
 
                 # Differential entropy for the logLik of occurrence model
                 if(occurrenceModel || any(!otLogical)){
@@ -984,17 +988,17 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                                                 # "dinvgauss" = obsZero*(0.5*(log(pi/2)+1+suppressWarnings(log(scale)))));
                                                 # "dinvgauss" =0);
                                                 "dinvgauss" = 0.5*(obsZero*(log(pi/2)+1+suppressWarnings(log(scale)))-
-                                                                       sum(log(mesFitted$yFitted[!otLogical]))));
+                                                                       sum(log(adamFitted$yFitted[!otLogical]))));
                 }
             }
             else if(loss=="MSE"){
-                CFValue <- mean(mesFitted$errors^2);
+                CFValue <- mean(adamFitted$errors^2);
             }
             else if(loss=="MAE"){
-                CFValue <- mean(abs(mesFitted$errors));
+                CFValue <- mean(abs(adamFitted$errors));
             }
             else if(loss=="HAM"){
-                CFValue <- mean(sqrt(abs(mesFitted$errors)));
+                CFValue <- mean(sqrt(abs(adamFitted$errors)));
             }
             else if(any(loss==c("LASSO","RIDGE"))){
                 ### All of this is needed in order to normalise level, trend, seasonal and xreg parameters
@@ -1045,42 +1049,42 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
 
                 CFValue <- switch(loss,
                                   "LASSO" = switch(Etype,
-                                                   "A"=(1-lambda)* sqrt(sum(mesFitted$errors^2))/obsInSample +
+                                                   "A"=(1-lambda)* sqrt(sum(adamFitted$errors^2))/obsInSample +
                                                        lambda * sum(abs(B)),
-                                                   "M"=(1-lambda)* sqrt(sum(log(1+mesFitted$errors)^2))/obsInSample +
+                                                   "M"=(1-lambda)* sqrt(sum(log(1+adamFitted$errors)^2))/obsInSample +
                                                        lambda * sum(abs(B))),
                                   "RIDGE" = switch(Etype,
-                                                   "A"=(1-lambda)* sqrt(sum(mesFitted$errors^2)) + lambda * sqrt(sum((B)^2)),
-                                                   "M"=(1-lambda)* sqrt(sum(log(1+mesFitted$errors)^2)) + lambda * sqrt(sum((B)^2))));
+                                                   "A"=(1-lambda)* sqrt(sum(adamFitted$errors^2)) + lambda * sqrt(sum((B)^2)),
+                                                   "M"=(1-lambda)* sqrt(sum(log(1+adamFitted$errors)^2)) + lambda * sqrt(sum((B)^2))));
             }
         }
         else{
             # Call for the Rcpp function to produce a matrix of multistep errors
-            mesErrors <- mesErrorerWrap(mesFitted$matVt, mesElements$matWt, mesElements$matF,
-                                        lagsModelAll, Etype, Ttype, Stype,
-                                        componentsNumber, componentsNumberSeasonal, h,
-                                        yInSample, ot);
+            adamErrors <- adamErrorerWrap(adamFitted$matVt, adamElements$matWt, adamElements$matF,
+                                          lagsModelAll, Etype, Ttype, Stype,
+                                          componentsNumber, componentsNumberSeasonal, h,
+                                          yInSample, ot);
 
             # This is a fix for the multistep in case of Etype=="M", assuming logN
             if(Etype=="M"){
-                mesErrors[] <- log(1+mesErrors);
+                adamErrors[] <- log(1+adamErrors);
             }
 
             # Not done yet: "aMSEh","aTMSE","aGTMSE","aMSCE","aGPL"
             CFValue <- switch(loss,
-                              "MSEh"=sum(mesErrors[,h]^2)/(obsInSample-h),
-                              "TMSE"=sum(colSums(mesErrors^2)/(obsInSample-h)),
-                              "GTMSE"=sum(log(colSums(mesErrors^2)/(obsInSample-h))),
-                              "MSCE"=sum(rowSums(mesErrors)^2)/(obsInSample-h),
-                              "MAEh"=sum(abs(mesErrors[,h]))/(obsInSample-h),
-                              "TMAE"=sum(colSums(abs(mesErrors))/(obsInSample-h)),
-                              "GTMAE"=sum(log(colSums(abs(mesErrors))/(obsInSample-h))),
-                              "MACE"=sum(abs(rowSums(mesErrors)))/(obsInSample-h),
-                              "HAMh"=sum(sqrt(abs(mesErrors[,h])))/(obsInSample-h),
-                              "THAM"=sum(colSums(sqrt(abs(mesErrors)))/(obsInSample-h)),
-                              "GTHAM"=sum(log(colSums(sqrt(abs(mesErrors)))/(obsInSample-h))),
-                              "CHAM"=sum(sqrt(abs(rowSums(mesErrors))))/(obsInSample-h),
-                              "GPL"=log(det(t(mesErrors) %*% mesErrors/(obsInSample-h))),
+                              "MSEh"=sum(adamErrors[,h]^2)/(obsInSample-h),
+                              "TMSE"=sum(colSums(adamErrors^2)/(obsInSample-h)),
+                              "GTMSE"=sum(log(colSums(adamErrors^2)/(obsInSample-h))),
+                              "MSCE"=sum(rowSums(adamErrors)^2)/(obsInSample-h),
+                              "MAEh"=sum(abs(adamErrors[,h]))/(obsInSample-h),
+                              "TMAE"=sum(colSums(abs(adamErrors))/(obsInSample-h)),
+                              "GTMAE"=sum(log(colSums(abs(adamErrors))/(obsInSample-h))),
+                              "MACE"=sum(abs(rowSums(adamErrors)))/(obsInSample-h),
+                              "HAMh"=sum(sqrt(abs(adamErrors[,h])))/(obsInSample-h),
+                              "THAM"=sum(colSums(sqrt(abs(adamErrors)))/(obsInSample-h)),
+                              "GTHAM"=sum(log(colSums(sqrt(abs(adamErrors)))/(obsInSample-h))),
+                              "CHAM"=sum(sqrt(abs(rowSums(adamErrors))))/(obsInSample-h),
+                              "GPL"=log(det(t(adamErrors) %*% adamErrors/(obsInSample-h))),
                               0);
 
         }
@@ -1093,15 +1097,15 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
     }
 
     #### The function returns log-likelihood of the model ####
-    logLikMES <- function(B,
-                          Etype, Ttype, Stype, yInSample,
-                          ot, otLogical, occurrenceModel, pFitted, obsInSample,
-                          componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
-                          matVt, matWt, matF, vecG, componentsNumberSeasonal,
-                          persistenceEstimate, phiEstimate, initialType,
-                          xregExist, xregInitialsEstimate, xregPersistenceEstimate,
-                          xregNumber,
-                          bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate){
+    logLikADAM <- function(B,
+                           Etype, Ttype, Stype, yInSample,
+                           ot, otLogical, occurrenceModel, pFitted, obsInSample,
+                           componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
+                           matVt, matWt, matF, vecG, componentsNumberSeasonal,
+                           persistenceEstimate, phiEstimate, initialType,
+                           xregExist, xregInitialsEstimate, xregPersistenceEstimate,
+                           xregNumber,
+                           bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate){
 
         if(!multisteps){
             if(any(loss==c("LASSO","RIDGE"))){
@@ -1202,22 +1206,22 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                           bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate){
 
         # Create the basic variables
-        mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType);
-        list2env(mesArchitect, environment());
+        adamArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType);
+        list2env(adamArchitect, environment());
 
         # Create the matrices for the specific ETS model
-        mesCreated <- creator(Etype, Ttype, Stype,
-                              lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
-                              obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
-                              componentsNames, otLogical,
-                              yInSample, persistence, persistenceEstimate, phi,
-                              initialValue, initialType,
-                              xregExist, xregInitialsProvided, xregPersistence,
-                              xregModel, xregData, xregNumber, xregNames);
+        adamCreated <- creator(Etype, Ttype, Stype,
+                               lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
+                               obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
+                               componentsNames, otLogical,
+                               yInSample, persistence, persistenceEstimate, phi,
+                               initialValue, initialType,
+                               xregExist, xregInitialsProvided, xregPersistence,
+                               xregModel, xregData, xregNumber, xregNames);
 
         if(is.null(B) && is.null(lb) && is.null(ub)){
             BValues <- initialiser(Etype, Ttype, Stype, componentsNumberSeasonal,
-                                   componentsNumber, lagsModel, lagsModelMax, mesCreated$matVt,
+                                   componentsNumber, lagsModel, lagsModelMax, adamCreated$matVt,
                                    persistenceEstimate, phiEstimate, initialType,
                                    xregInitialsEstimate, xregPersistenceEstimate, xregNumber, lambdaEstimate);
             # Create the vector of initials for the optimisation
@@ -1229,15 +1233,15 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
         # If the distribution is default, change it according to the error term
         if(distribution=="default"){
             distributionNew <- switch(Etype,
-                                     "A"=switch(loss,
-                                                "MAEh"=, "MACE"=, "MAE"="dlaplace",
-                                                "HAMh"=, "CHAM"=, "HAM"="ds",
-                                                "MSEh"=, "MSCE"=, "MSE"=, "GPL"=, "likelihood"=, "dnorm"),
-                                     "M"=switch(loss,
-                                                "MAEh"=, "MACE"=, "MAE"="dllaplace",
-                                                "HAMh"=, "CHAM"=, "HAM"="dls",
-                                                "MSEh"=, "MSCE"=, "MSE"=, "GPL"="dlnorm",
-                                                "likelihood"=, "dinvgauss"));
+                                      "A"=switch(loss,
+                                                 "MAEh"=, "MACE"=, "MAE"="dlaplace",
+                                                 "HAMh"=, "CHAM"=, "HAM"="ds",
+                                                 "MSEh"=, "MSCE"=, "MSE"=, "GPL"=, "likelihood"=, "dnorm"),
+                                      "M"=switch(loss,
+                                                 "MAEh"=, "MACE"=, "MAE"="dllaplace",
+                                                 "HAMh"=, "CHAM"=, "HAM"="dls",
+                                                 "MSEh"=, "MSCE"=, "MSE"=, "GPL"="dlnorm",
+                                                 "likelihood"=, "dinvgauss"));
         }
         else{
             distributionNew <- distribution;
@@ -1254,7 +1258,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                                        Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
                                        ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, obsInSample=obsInSample,
                                        componentsNumber=componentsNumber, lagsModel=lagsModel, lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
-                                       matVt=mesCreated$matVt, matWt=mesCreated$matWt, matF=mesCreated$matF, vecG=mesCreated$vecG,
+                                       matVt=adamCreated$matVt, matWt=adamCreated$matWt, matF=adamCreated$matF, vecG=adamCreated$vecG,
                                        componentsNumberSeasonal=componentsNumberSeasonal,
                                        persistenceEstimate=persistenceEstimate, phiEstimate=phiEstimate, initialType=initialType,
                                        xregExist=xregExist, xregInitialsEstimate=xregInitialsEstimate,
@@ -1271,7 +1275,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                                            Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
                                            ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, obsInSample=obsInSample,
                                            componentsNumber=componentsNumber, lagsModel=lagsModel, lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
-                                           matVt=mesCreated$matVt, matWt=mesCreated$matWt, matF=mesCreated$matF, vecG=mesCreated$vecG,
+                                           matVt=adamCreated$matVt, matWt=adamCreated$matWt, matF=adamCreated$matF, vecG=adamCreated$vecG,
                                            componentsNumberSeasonal=componentsNumberSeasonal,
                                            persistenceEstimate=persistenceEstimate, phiEstimate=phiEstimate, initialType=initialType,
                                            xregExist=xregExist, xregInitialsEstimate=xregInitialsEstimate,
@@ -1291,33 +1295,33 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
         # In case of likelihood, we typically have one more parameter to estimate - scale
         nParamEstimated <- length(B) + (loss=="likelihood");
         # Return a proper logLik class
-        logLikMESValue <- structure(logLikMES(B,
-                                              Etype, Ttype, Stype, yInSample,
-                                              ot, otLogical, occurrenceModel, pFitted, obsInSample,
-                                              componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
-                                              mesCreated$matVt, mesCreated$matWt, mesCreated$matF, mesCreated$vecG, componentsNumberSeasonal,
-                                              persistenceEstimate, phiEstimate, initialType,
-                                              xregExist, xregInitialsEstimate, xregPersistenceEstimate,
-                                              xregNumber,
-                                              bounds, loss, distributionNew, horizon, multisteps, lambda, lambdaEstimate),
-                                    nobs=obsInSample,df=nParamEstimated,class="logLik");
+        logLikADAMValue <- structure(logLikADAM(B,
+                                                Etype, Ttype, Stype, yInSample,
+                                                ot, otLogical, occurrenceModel, pFitted, obsInSample,
+                                                componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
+                                                adamCreated$matVt, adamCreated$matWt, adamCreated$matF, adamCreated$vecG, componentsNumberSeasonal,
+                                                persistenceEstimate, phiEstimate, initialType,
+                                                xregExist, xregInitialsEstimate, xregPersistenceEstimate,
+                                                xregNumber,
+                                                bounds, loss, distributionNew, horizon, multisteps, lambda, lambdaEstimate),
+                                     nobs=obsInSample,df=nParamEstimated,class="logLik");
 
         #### If we do variables selection, do it here, then reestimate the model. ####
         if(xregDo=="select"){
             # Fill in the matrices
-            mesElements <- filler(B,
-                                  Ttype, Stype, componentsNumber, lagsModel, lagsModelMax,
-                                  mesCreated$matVt, mesCreated$matWt, mesCreated$matF, mesCreated$vecG,
-                                  persistenceEstimate, phiEstimate, initialType,
-                                  xregInitialsEstimate, xregPersistenceEstimate, xregNumber);
+            adamElements <- filler(B,
+                                   Ttype, Stype, componentsNumber, lagsModel, lagsModelMax,
+                                   adamCreated$matVt, adamCreated$matWt, adamCreated$matF, adamCreated$vecG,
+                                   persistenceEstimate, phiEstimate, initialType,
+                                   xregInitialsEstimate, xregPersistenceEstimate, xregNumber);
 
             # Fit the model to the data
-            mesFitted <- mesFitterWrap(mesElements$matVt, mesElements$matWt, mesElements$matF, mesElements$vecG,
-                                       lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal,
-                                       yInSample, ot, initialType=="backcasting");
+            adamFitted <- adamFitterWrap(adamElements$matVt, adamElements$matWt, adamElements$matF, adamElements$vecG,
+                                         lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal,
+                                         yInSample, ot, initialType=="backcasting");
 
             # Extract the errors and amend them to correspond to the distribution
-            errors <- mesFitted$errors+switch(Etype,"A"=0,"M"=1);
+            errors <- adamFitted$errors+switch(Etype,"A"=0,"M"=1);
 
             # Call the xregSelector providing the original matrix with the data
             if(Etype=="A"){
@@ -1353,7 +1357,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
             }
         }
 
-        return(list(B=B, CFValue=CFValue, nParamEstimated=nParamEstimated, logLikMESValue=logLikMESValue,
+        return(list(B=B, CFValue=CFValue, nParamEstimated=nParamEstimated, logLikADAMValue=logLikADAMValue,
                     xregExist=xregExist, xregData=xregData, xregNumber=xregNumber, xregNames=xregNames, xregModel=xregModel,
                     xregInitialsEstimate=xregInitialsEstimate, xregPersistenceEstimate=xregPersistenceEstimate));
     }
@@ -1451,8 +1455,8 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
             # If ZZZ, then the vector is: "ANN" "ANA" "ANM" "AAN" "AAA" "AAM"
             # Otherwise id depends on the provided restrictions
             poolSmall <- paste0(rep(poolErrorsSmall,length(poolTrendsSmall)*length(poolSeasonalsSmall)),
-                                 rep(poolTrendsSmall,each=length(poolSeasonalsSmall)),
-                                 rep(poolSeasonalsSmall,length(poolTrendsSmall)));
+                                rep(poolTrendsSmall,each=length(poolSeasonalsSmall)),
+                                rep(poolSeasonalsSmall,length(poolTrendsSmall)));
             # Align error and seasonality, if the error was not forced to be additive
             if(any(substr(poolSmall,3,3)=="M") && all(Etype!=c("A","X"))){
                 multiplicativeSeason <- (substr(poolSmall,3,3)=="M");
@@ -1497,7 +1501,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                                           xregModel, xregData, xregNumber, xregNames, xregDo,
                                           ot, otLogical, occurrenceModel, pFitted,
                                           bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
-                results[[i]]$IC <- ICFunction(results[[i]]$logLikMESValue);
+                results[[i]]$IC <- ICFunction(results[[i]]$logLikADAMValue);
                 results[[i]]$Etype <- Etype;
                 results[[i]]$Ttype <- Ttype;
                 results[[i]]$Stype <- Stype;
@@ -1615,7 +1619,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                                       xregModel, xregData, xregNumber, xregNames, xregDo,
                                       ot, otLogical, occurrenceModel, pFitted,
                                       bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
-            results[[j]]$IC <- ICFunction(results[[j]]$logLikMESValue);
+            results[[j]]$IC <- ICFunction(results[[j]]$logLikADAMValue);
             results[[j]]$Etype <- Etype;
             results[[j]]$Ttype <- Ttype;
             results[[j]]$Stype <- Stype;
@@ -1664,12 +1668,12 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                            parametersNumber, CFValue){
 
         # Fill in the matrices
-        mesElements <- filler(B,
-                              Ttype, Stype, componentsNumber, lagsModel, lagsModelMax,
-                              matVt, matWt, matF, vecG,
-                              persistenceEstimate, phiEstimate, initialType,
-                              xregInitialsEstimate, xregPersistenceEstimate, xregNumber);
-        list2env(mesElements, environment());
+        adamElements <- filler(B,
+                               Ttype, Stype, componentsNumber, lagsModel, lagsModelMax,
+                               matVt, matWt, matF, vecG,
+                               persistenceEstimate, phiEstimate, initialType,
+                               xregInitialsEstimate, xregPersistenceEstimate, xregNumber);
+        list2env(adamElements, environment());
 
         # Write down lambda
         if(lambdaEstimate){
@@ -1682,9 +1686,9 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
         }
 
         # Fit the model to the data
-        mesFitted <- mesFitterWrap(matVt, matWt, matF, vecG,
-                                   lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal,
-                                   yInSample, ot, initialType=="backcasting");
+        adamFitted <- adamFitterWrap(matVt, matWt, matF, vecG,
+                                     lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal,
+                                     yInSample, ot, initialType=="backcasting");
 
         if(any(yClasses=="ts")){
             yFitted <- ts(rep(NA,obsInSample), start=yStart, frequency=yFrequency);
@@ -1695,13 +1699,13 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
             errors <- zoo(rep(NA,obsInSample), order.by=yInSampleIndex);
         }
 
-        errors[] <- mesFitted$errors;
-        yFitted[] <- mesFitted$yFitted;
+        errors[] <- adamFitted$errors;
+        yFitted[] <- adamFitted$yFitted;
         if(occurrenceModel){
             yFitted[] <- yFitted * pFitted;
         }
 
-        matVt[] <- mesFitted$matVt;
+        matVt[] <- adamFitted$matVt;
         if(initialType=="backcasting"){
             matVt <- matVt[,1:(obsInSample+lagsModelMax), drop=FALSE];
         }
@@ -1714,9 +1718,9 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
             else{
                 yForecast <- zoo(rep(NA, horizon), order.by=yForecastIndex);
             }
-            yForecast[] <- mesForecasterWrap(matVt[,obsInSample+(1:lagsModelMax),drop=FALSE], tail(matWt,horizon), matF,
-                                             lagsModelAll, Etype, Ttype, Stype,
-                                             componentsNumber, componentsNumberSeasonal, horizon);
+            yForecast[] <- adamForecasterWrap(matVt[,obsInSample+(1:lagsModelMax),drop=FALSE], tail(matWt,horizon), matF,
+                                              lagsModelAll, Etype, Ttype, Stype,
+                                              componentsNumber, componentsNumberSeasonal, horizon);
             #### Make safety checks
             # If there are NaN values
             if(any(is.nan(yForecast))){
@@ -1803,7 +1807,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                     measurement=matWt, initialType=initialType, initial=initialValue,
                     nParam=parametersNumber, occurrence=oesModel, xreg=xregData,
                     xregInitial=xregInitial, xregPersistence=xregPersistence, formula=formula,
-                    loss=loss, lossValue=CFValue, logLik=logLikMESValue, distribution=distribution,
+                    loss=loss, lossValue=CFValue, logLik=logLikADAMValue, distribution=distribution,
                     scale=scale, lambda=lambda, B=B, lags=lagsModel, FI=FI));
     }
 
@@ -1874,34 +1878,34 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
     ##### Estimate the specified model #####
     if(modelDo=="estimate"){
         # Estimate the parameters of the demand sizes model
-        mesEstimated <- estimator(Etype, Ttype, Stype, lags,
-                                 obsStates, obsInSample,
-                                 yInSample, persistence, persistenceEstimate, phi, phiEstimate,
-                                 initialType, initialValue,
-                                 xregExist, xregInitialsProvided, xregInitialsEstimate,
-                                 xregPersistence, xregPersistenceEstimate,
-                                 xregModel, xregData, xregNumber, xregNames, xregDo,
-                                 ot, otLogical, occurrenceModel, pFitted,
-                                 bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
-        list2env(mesEstimated, environment());
+        adamEstimated <- estimator(Etype, Ttype, Stype, lags,
+                                   obsStates, obsInSample,
+                                   yInSample, persistence, persistenceEstimate, phi, phiEstimate,
+                                   initialType, initialValue,
+                                   xregExist, xregInitialsProvided, xregInitialsEstimate,
+                                   xregPersistence, xregPersistenceEstimate,
+                                   xregModel, xregData, xregNumber, xregNames, xregDo,
+                                   ot, otLogical, occurrenceModel, pFitted,
+                                   bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
+        list2env(adamEstimated, environment());
 
         #### This part is needed in order for the filler to do its job later on
         # Create the basic variables based on the estimated model
-        mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType);
-        list2env(mesArchitect, environment());
+        adamArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType);
+        list2env(adamArchitect, environment());
 
         # Create the matrices for the specific ETS model
-        mesCreated <- creator(Etype, Ttype, Stype,
-                              lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
-                              obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
-                              componentsNames, otLogical,
-                              yInSample, persistence, persistenceEstimate, phi,
-                              initialValue, initialType,
-                              xregExist, xregInitialsProvided, xregPersistence,
-                              xregModel, xregData, xregNumber, xregNames);
-        list2env(mesCreated, environment());
+        adamCreated <- creator(Etype, Ttype, Stype,
+                               lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
+                               obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
+                               componentsNames, otLogical,
+                               yInSample, persistence, persistenceEstimate, phi,
+                               initialValue, initialType,
+                               xregExist, xregInitialsProvided, xregPersistence,
+                               xregModel, xregData, xregNumber, xregNames);
+        list2env(adamCreated, environment());
 
-        icSelection <- ICFunction(mesEstimated$logLikMESValue);
+        icSelection <- ICFunction(adamEstimated$logLikADAMValue);
 
         ####!!! If the occurrence is auto, then compare this with the model with no occurrence !!!####
 
@@ -1916,36 +1920,36 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
     }
     #### Selection of the best model ####
     else if(modelDo=="select"){
-        mesSelected <-  selector(model, modelsPool, allowMultiplicative,
-                                 Etype, Ttype, Stype, damped, lags,
-                                 obsStates, obsInSample,
-                                 yInSample, persistence, persistenceEstimate, phi, phiEstimate,
-                                 initialType, initialValue,
-                                 xregExist, xregInitialsProvided, xregInitialsEstimate,
-                                 xregPersistence, xregPersistenceEstimate,
-                                 xregModel, xregData, xregNumber, xregNames,
-                                 ot, otLogical, occurrenceModel, pFitted, ICFunction,
-                                 bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
+        adamSelected <-  selector(model, modelsPool, allowMultiplicative,
+                                  Etype, Ttype, Stype, damped, lags,
+                                  obsStates, obsInSample,
+                                  yInSample, persistence, persistenceEstimate, phi, phiEstimate,
+                                  initialType, initialValue,
+                                  xregExist, xregInitialsProvided, xregInitialsEstimate,
+                                  xregPersistence, xregPersistenceEstimate,
+                                  xregModel, xregData, xregNumber, xregNames,
+                                  ot, otLogical, occurrenceModel, pFitted, ICFunction,
+                                  bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
 
-        icSelection <- mesSelected$icSelection;
+        icSelection <- adamSelected$icSelection;
         # Take the parameters of the best model
-        list2env(mesSelected$results[[which.min(icSelection)[1]]], environment());
+        list2env(adamSelected$results[[which.min(icSelection)[1]]], environment());
 
         #### This part is needed in order for the filler to do its job later on
         # Create the basic variables based on the estimated model
-        mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType);
-        list2env(mesArchitect, environment());
+        adamArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType);
+        list2env(adamArchitect, environment());
 
         # Create the matrices for the specific ETS model
-        mesCreated <- creator(Etype, Ttype, Stype,
-                              lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
-                              obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
-                              componentsNames, otLogical,
-                              yInSample, persistence, persistenceEstimate, phi,
-                              initialValue, initialType,
-                              xregExist, xregInitialsProvided, xregPersistence,
-                              xregModel, xregData, xregNumber, xregNames);
-        list2env(mesCreated, environment());
+        adamCreated <- creator(Etype, Ttype, Stype,
+                               lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
+                               obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
+                               componentsNames, otLogical,
+                               yInSample, persistence, persistenceEstimate, phi,
+                               initialValue, initialType,
+                               xregExist, xregInitialsProvided, xregPersistence,
+                               xregModel, xregData, xregNumber, xregNames);
+        list2env(adamCreated, environment());
 
         parametersNumber[1,1] <- (sum(lagsModel)*(initialType=="optimal") + phiEstimate +
                                       componentsNumber*persistenceEstimate + xregNumber*xregInitialsEstimate +
@@ -1997,11 +2001,11 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
             # If Stype is not Z, then crete specific pools
             if(Stype!="Z"){
                 poolSeasonals <- switch(Stype,
-                                     "N"="N",
-                                     "A"="A",
-                                     "X"=c("N","A"),
-                                     "M"="M",
-                                     "Y"=c("N","M"));
+                                        "N"="N",
+                                        "A"="A",
+                                        "X"=c("N","A"),
+                                        "M"="M",
+                                        "Y"=c("N","M"));
             }
 
             modelsPool <- paste0(rep(poolErrors,length(poolTrends)*length(poolSeasonals)),
@@ -2009,58 +2013,58 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                                  rep(poolSeasonals,length(poolTrends)));
         }
 
-        mesSelected <-  selector(model, modelsPool, allowMultiplicative,
-                                 Etype, Ttype, Stype, damped, lags,
-                                 obsStates, obsInSample,
-                                 yInSample, persistence, persistenceEstimate, phi, phiEstimate,
-                                 initialType, initialValue,
-                                 xregExist, xregInitialsProvided, xregInitialsEstimate,
-                                 xregPersistence, xregPersistenceEstimate,
-                                 xregModel, xregData, xregNumber, xregNames,
-                                 ot, otLogical, occurrenceModel, pFitted, ICFunction,
-                                 bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
+        adamSelected <-  selector(model, modelsPool, allowMultiplicative,
+                                  Etype, Ttype, Stype, damped, lags,
+                                  obsStates, obsInSample,
+                                  yInSample, persistence, persistenceEstimate, phi, phiEstimate,
+                                  initialType, initialValue,
+                                  xregExist, xregInitialsProvided, xregInitialsEstimate,
+                                  xregPersistence, xregPersistenceEstimate,
+                                  xregModel, xregData, xregNumber, xregNames,
+                                  ot, otLogical, occurrenceModel, pFitted, ICFunction,
+                                  bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
 
-        icSelection <- mesSelected$icSelection;
+        icSelection <- adamSelected$icSelection;
 
         icBest <- min(icSelection);
-        mesSelected$icWeights  <- (exp(-0.5*(icSelection-icBest)) /
-                                       sum(exp(-0.5*(icSelection-icBest))));
+        adamSelected$icWeights  <- (exp(-0.5*(icSelection-icBest)) /
+                                        sum(exp(-0.5*(icSelection-icBest))));
 
         # This is a failsafe mechanism, just to make sure that the ridiculous models don't impact forecasts
-        mesSelected$icWeights[mesSelected$icWeights<1e-5] <- 0
-        mesSelected$icWeights <- mesSelected$icWeights/sum(mesSelected$icWeights);
+        adamSelected$icWeights[adamSelected$icWeights<1e-5] <- 0
+        adamSelected$icWeights <- adamSelected$icWeights/sum(adamSelected$icWeights);
 
-        for(i in 1:length(mesSelected$results)){
+        for(i in 1:length(adamSelected$results)){
             # Take the parameters of the best model
-            list2env(mesSelected$results[[i]], environment());
+            list2env(adamSelected$results[[i]], environment());
 
             #### This part is needed in order for the filler to do its job later on
             # Create the basic variables based on the estimated model
-            mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType);
-            list2env(mesArchitect, environment());
+            adamArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType);
+            list2env(adamArchitect, environment());
 
-            mesSelected$results[[i]]$lagsModel <- mesArchitect$lagsModel;
-            mesSelected$results[[i]]$lagsModelAll <- mesArchitect$lagsModelAll;
-            mesSelected$results[[i]]$lagsModelMax <- mesArchitect$lagsModelMax;
-            mesSelected$results[[i]]$lagsLength <- mesArchitect$lagsLength;
-            mesSelected$results[[i]]$componentsNumber <- mesArchitect$componentsNumber;
-            mesSelected$results[[i]]$componentsNumberSeasonal <- mesArchitect$componentsNumberSeasonal;
-            mesSelected$results[[i]]$componentsNames <- mesArchitect$componentsNames;
+            adamSelected$results[[i]]$lagsModel <- adamArchitect$lagsModel;
+            adamSelected$results[[i]]$lagsModelAll <- adamArchitect$lagsModelAll;
+            adamSelected$results[[i]]$lagsModelMax <- adamArchitect$lagsModelMax;
+            adamSelected$results[[i]]$lagsLength <- adamArchitect$lagsLength;
+            adamSelected$results[[i]]$componentsNumber <- adamArchitect$componentsNumber;
+            adamSelected$results[[i]]$componentsNumberSeasonal <- adamArchitect$componentsNumberSeasonal;
+            adamSelected$results[[i]]$componentsNames <- adamArchitect$componentsNames;
 
             # Create the matrices for the specific ETS model
-            mesCreated <- creator(Etype, Ttype, Stype,
-                                  lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
-                                  obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
-                                  componentsNames, otLogical,
-                                  yInSample, persistence, persistenceEstimate, phi,
-                                  initialValue, initialType,
-                                  xregExist, xregInitialsProvided, xregPersistence,
-                                  xregModel, xregData, xregNumber, xregNames);
+            adamCreated <- creator(Etype, Ttype, Stype,
+                                   lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
+                                   obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
+                                   componentsNames, otLogical,
+                                   yInSample, persistence, persistenceEstimate, phi,
+                                   initialValue, initialType,
+                                   xregExist, xregInitialsProvided, xregPersistence,
+                                   xregModel, xregData, xregNumber, xregNames);
 
-            mesSelected$results[[i]]$matVt <- mesCreated$matVt;
-            mesSelected$results[[i]]$matWt <- mesCreated$matWt;
-            mesSelected$results[[i]]$matF <- mesCreated$matF;
-            mesSelected$results[[i]]$vecG <- mesCreated$vecG;
+            adamSelected$results[[i]]$matVt <- adamCreated$matVt;
+            adamSelected$results[[i]]$matWt <- adamCreated$matWt;
+            adamSelected$results[[i]]$matF <- adamCreated$matF;
+            adamSelected$results[[i]]$vecG <- adamCreated$vecG;
 
             parametersNumber[1,1] <- (sum(lagsModel)*(initialType=="optimal") + phiEstimate +
                                           componentsNumber*persistenceEstimate + xregNumber*xregInitialsEstimate +
@@ -2071,7 +2075,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
             parametersNumber[1,4] <- sum(parametersNumber[1,1:3]);
             parametersNumber[2,4] <- sum(parametersNumber[2,1:3]);
 
-            mesSelected$results[[i]]$parametersNumber <- parametersNumber;
+            adamSelected$results[[i]]$parametersNumber <- parametersNumber;
         }
     }
     #### Use the provided model ####
@@ -2094,24 +2098,24 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
         }
 
         # Create the basic variables
-        mesArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType);
-        list2env(mesArchitect, environment());
+        adamArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType);
+        list2env(adamArchitect, environment());
 
         # Create the matrices for the specific ETS model
-        mesCreated <- creator(Etype, Ttype, Stype,
-                              lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
-                              obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
-                              componentsNames, otLogical,
-                              yInSample, persistence, persistenceEstimate, phi,
-                              initialValue, initialType,
-                              xregExist, xregInitialsProvided, xregPersistence,
-                              xregModel, xregData, xregNumber, xregNames);
-        list2env(mesCreated, environment());
+        adamCreated <- creator(Etype, Ttype, Stype,
+                               lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
+                               obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
+                               componentsNames, otLogical,
+                               yInSample, persistence, persistenceEstimate, phi,
+                               initialValue, initialType,
+                               xregExist, xregInitialsProvided, xregPersistence,
+                               xregModel, xregData, xregNumber, xregNames);
+        list2env(adamCreated, environment());
 
         CFValue <- CF(B=0, Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
                       ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, obsInSample=obsInSample,
                       componentsNumber=componentsNumber, lagsModel=lagsModel, lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
-                      matVt=mesCreated$matVt, matWt=mesCreated$matWt, matF=mesCreated$matF, vecG=mesCreated$vecG,
+                      matVt=adamCreated$matVt, matWt=adamCreated$matWt, matF=adamCreated$matF, vecG=adamCreated$vecG,
                       componentsNumberSeasonal=componentsNumberSeasonal,
                       persistenceEstimate=persistenceEstimate, phiEstimate=phiEstimate, initialType=initialType,
                       xregExist=xregExist, xregInitialsEstimate=xregInitialsEstimate,
@@ -2120,24 +2124,24 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                       lambda=lambda, lambdaEstimate=lambdaEstimate);
 
         parametersNumber[1,1] <- parametersNumber[1,4] <- 1;
-        logLikMESValue <- structure(logLikMES(B=0,
-                                              Etype, Ttype, Stype, yInSample,
-                                              ot, otLogical, occurrenceModel, pFitted, obsInSample,
-                                              componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
-                                              mesCreated$matVt, mesCreated$matWt, mesCreated$matF, mesCreated$vecG, componentsNumberSeasonal,
-                                              persistenceEstimate, phiEstimate, initialType,
-                                              xregExist, xregInitialsEstimate, xregPersistenceEstimate,
-                                              xregNumber,
-                                              bounds, loss, distributionNew, horizon, multisteps, lambda, lambdaEstimate)
-                                    ,nobs=obsInSample,df=parametersNumber[1,4],class="logLik")
+        logLikADAMValue <- structure(logLikADAM(B=0,
+                                                Etype, Ttype, Stype, yInSample,
+                                                ot, otLogical, occurrenceModel, pFitted, obsInSample,
+                                                componentsNumber, lagsModel, lagsModelAll, lagsModelMax,
+                                                adamCreated$matVt, adamCreated$matWt, adamCreated$matF, adamCreated$vecG, componentsNumberSeasonal,
+                                                persistenceEstimate, phiEstimate, initialType,
+                                                xregExist, xregInitialsEstimate, xregPersistenceEstimate,
+                                                xregNumber,
+                                                bounds, loss, distributionNew, horizon, multisteps, lambda, lambdaEstimate)
+                                     ,nobs=obsInSample,df=parametersNumber[1,4],class="logLik")
 
-        icSelection <- ICFunction(logLikMESValue);
+        icSelection <- ICFunction(logLikADAMValue);
         # If Fisher Information is required, do that analytically
         if(FI){
             # If B is not provided, then use the standard thing
             if(is.null(B)){
                 BValues <- initialiser(Etype, Ttype, Stype, componentsNumberSeasonal,
-                                       componentsNumber, lagsModel, lagsModelMax, mesCreated$matVt,
+                                       componentsNumber, lagsModel, lagsModelMax, adamCreated$matVt,
                                        TRUE, damped, "optimal",
                                        xregExist, FALSE, xregNumber, FALSE);
                 # Create the vector of initials for the optimisation
@@ -2185,16 +2189,16 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                 xregPersistenceEstimateFI <- FALSE;
             }
 
-            FI <- -hessian(logLikMES, B, Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
-                          ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, pFitted=pFitted, obsInSample=obsInSample,
-                          componentsNumber=componentsNumber, lagsModel=lagsModel, lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
-                          matVt=matVt, matWt=matWt, matF=matF, vecG=vecG,
-                          componentsNumberSeasonal=componentsNumberSeasonal,
-                          persistenceEstimate=persistenceEstimateFI, phiEstimate=phiEstimateFI, initialType=initialTypeFI,
-                          xregExist=xregExist, xregInitialsEstimate=xregInitialsEstimateFI,
-                          xregPersistenceEstimate=xregPersistenceEstimateFI, xregNumber=xregNumber,
-                          bounds=bounds, loss=loss, distribution=distribution, horizon=horizon, multisteps=multisteps,
-                          lambda=lambda, lambdaEstimate=lambdaEstimateFI);
+            FI <- -hessian(logLikADAM, B, Etype=Etype, Ttype=Ttype, Stype=Stype, yInSample=yInSample,
+                           ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, pFitted=pFitted, obsInSample=obsInSample,
+                           componentsNumber=componentsNumber, lagsModel=lagsModel, lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
+                           matVt=matVt, matWt=matWt, matF=matF, vecG=vecG,
+                           componentsNumberSeasonal=componentsNumberSeasonal,
+                           persistenceEstimate=persistenceEstimateFI, phiEstimate=phiEstimateFI, initialType=initialTypeFI,
+                           xregExist=xregExist, xregInitialsEstimate=xregInitialsEstimateFI,
+                           xregPersistenceEstimate=xregPersistenceEstimateFI, xregNumber=xregNumber,
+                           bounds=bounds, loss=loss, distribution=distribution, horizon=horizon, multisteps=multisteps,
+                           lambda=lambda, lambdaEstimate=lambdaEstimateFI);
 
             colnames(FI) <- names(B);
             rownames(FI) <- names(B);
@@ -2257,11 +2261,11 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
             modelReturned$residuals[yNAValues[1:obsInSample]] <- NA;
         }
 
-        class(modelReturned) <- c("mes","smooth");
+        class(modelReturned) <- c("adam","smooth");
     }
     #### Return the combined model ####
     else{
-        modelReturned <- list(models=vector("list",length(mesSelected$results)));
+        modelReturned <- list(models=vector("list",length(adamSelected$results)));
         yFittedCombined <- rep(0,obsInSample);
         if(h>0){
             yForecastCombined <- rep(0,h);
@@ -2271,22 +2275,22 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
         }
         parametersNumberOverall <- parametersNumber;
 
-        for(i in 1:length(mesSelected$results)){
-            list2env(mesSelected$results[[i]], environment());
+        for(i in 1:length(adamSelected$results)){
+            list2env(adamSelected$results[[i]], environment());
             modelReturned$models[[i]] <- preparator(B, Etype, Ttype, Stype,
-                                                   lagsModel, lagsModelMax, lagsModelAll,
-                                                   componentsNumber, componentsNumberSeasonal,
-                                                   xregNumber, distribution, loss,
-                                                   persistenceEstimate, phiEstimate, lambdaEstimate, initialType,
-                                                   xregInitialsEstimate, xregPersistenceEstimate,
-                                                   matVt, matWt, matF, vecG,
-                                                   occurrenceModel, ot, oesModel,
-                                                   parametersNumber, CFValue);
+                                                    lagsModel, lagsModelMax, lagsModelAll,
+                                                    componentsNumber, componentsNumberSeasonal,
+                                                    xregNumber, distribution, loss,
+                                                    persistenceEstimate, phiEstimate, lambdaEstimate, initialType,
+                                                    xregInitialsEstimate, xregPersistenceEstimate,
+                                                    matVt, matWt, matF, vecG,
+                                                    occurrenceModel, ot, oesModel,
+                                                    parametersNumber, CFValue);
             modelReturned$models[[i]]$fitted[is.na(modelReturned$models[[i]]$fitted)] <- 0;
-            yFittedCombined[] <- yFittedCombined + modelReturned$models[[i]]$fitted * mesSelected$icWeights[i];
+            yFittedCombined[] <- yFittedCombined + modelReturned$models[[i]]$fitted * adamSelected$icWeights[i];
             if(h>0){
                 modelReturned$models[[i]]$forecast[is.na(modelReturned$models[[i]]$forecast)] <- 0;
-                yForecastCombined[] <- yForecastCombined + modelReturned$models[[i]]$forecast * mesSelected$icWeights[i];
+                yForecastCombined[] <- yForecastCombined + modelReturned$models[[i]]$forecast * adamSelected$icWeights[i];
             }
 
             # Prepare the name of the model
@@ -2305,7 +2309,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
             }
             modelReturned$models[[i]]$model <- modelName;
             modelReturned$models[[i]]$timeElapsed <- Sys.time()-startTime;
-            parametersNumberOverall[1,1] <- parametersNumber[1,1] + parametersNumber[1,1] * mesSelected$icWeights[i];
+            parametersNumberOverall[1,1] <- parametersNumber[1,1] + parametersNumber[1,1] * adamSelected$icWeights[i];
             modelReturned$models[[i]]$y <- yInSample;
             if(any(yNAValues)){
                 modelReturned$models[[i]]$y[yNAValues[1:obsInSample]] <- NA;
@@ -2315,7 +2319,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
                 modelReturned$models[[i]]$residuals[yNAValues[1:obsInSample]] <- NA;
             }
 
-            class(modelReturned$models[[i]]) <- c("mes","smooth");
+            class(modelReturned$models[[i]]) <- c("adam","smooth");
         }
 
         # Record the original name of the model.
@@ -2350,11 +2354,11 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
         modelReturned$forecast <- ts(yForecastCombined,start=yForecastStart, frequency=yFrequency);
         parametersNumberOverall[1,4] <- sum(parametersNumberOverall[1,1:3]);
         modelReturned$nParam <- parametersNumberOverall;
-        modelReturned$ICw <- mesSelected$icWeights;
+        modelReturned$ICw <- adamSelected$icWeights;
         # These two are needed just to make basic methods work
         modelReturned$distribution <- distribution;
         modelReturned$scale <- sqrt(mean(modelReturned$residuals^2,na.rm=TRUE));
-        class(modelReturned) <- c("mesCombined","mes","smooth");
+        class(modelReturned) <- c("adamCombined","adam","smooth");
     }
     modelReturned$ICs <- icSelection;
 
@@ -2372,7 +2376,7 @@ mes <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0)
 
 #### Technical methods ####
 #' @export
-lags.mes <- function(object, ...){
+lags.adam <- function(object, ...){
     if(!is.null(object$xreg)){
         return(c(object$lags,rep(1,ncol(object$xreg))));
     }
@@ -2383,9 +2387,9 @@ lags.mes <- function(object, ...){
 
 #' @rdname plot.smooth
 #' @export
-plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
-                     ask=prod(par("mfcol")) < length(which) && dev.interactive(),
-                     lowess=TRUE, ...){
+plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
+                      ask=prod(par("mfcol")) < length(which) && dev.interactive(),
+                      lowess=TRUE, ...){
     ellipsis <- list(...);
 
     # Define, whether to wait for the hit of "Enter"
@@ -2981,7 +2985,7 @@ plot.mes <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
 }
 
 #' @export
-print.mes <- function(x, digits=4, ...){
+print.adam <- function(x, digits=4, ...){
     cat(paste0("Time elapsed: ",round(as.numeric(x$timeElapsed,units="secs"),2)," seconds"));
     cat(paste0("\nModel estimated: ",x$model));
 
@@ -3053,10 +3057,10 @@ print.mes <- function(x, digits=4, ...){
        (any(x$loss==c("aMSE","aMSEh","aMSCE","aGPL")) & any(x$distribution==c("dnorm","dlnorm"))) ||
        (any(x$loss==c("MAE","MAEh","MACE")) & any(x$distribution==c("dlaplace","dllaplace"))) ||
        (any(x$loss==c("HAM","HAMh","CHAM")) & any(x$distribution==c("ds","dls")))){
-           ICs <- c(AIC(x),AICc(x),BIC(x),BICc(x));
-           names(ICs) <- c("AIC","AICc","BIC","BICc");
-           cat("\nInformation criteria:\n");
-           print(round(ICs,digits));
+        ICs <- c(AIC(x),AICc(x),BIC(x),BICc(x));
+        names(ICs) <- c("AIC","AICc","BIC","BICc");
+        cat("\nInformation criteria:\n");
+        print(round(ICs,digits));
     }
     else{
         cat("\nInformation criteria are unavailable for the chosen loss & distribution.\n");
@@ -3074,7 +3078,7 @@ print.mes <- function(x, digits=4, ...){
             cat(paste(paste0("sCE: ",round(x$accuracy["sCE"],5)*100,"%"),
                       paste0("sMAE: ",round(x$accuracy["sMAE"],5)*100,"%"),
                       paste0("sMSE: ",round(x$accuracy["sMSE"],5)*100,"%\n")
-                ,sep="; "));
+                      ,sep="; "));
             cat(paste(paste0("MASE: ",round(x$accuracy["MASE"],3)),
                       paste0("RMSSE: ",round(x$accuracy["RMSSE"],3)),
                       paste0("rMAE: ",round(x$accuracy["rMAE"],3)),
@@ -3092,7 +3096,7 @@ print.mes <- function(x, digits=4, ...){
 }
 
 #' @export
-print.mesCombined <- function(x, digits=4, ...){
+print.adamCombined <- function(x, digits=4, ...){
     cat(paste0("Time elapsed: ",round(as.numeric(x$timeElapsed,units="secs"),2)," seconds"));
     cat(paste0("\nModel estimated: ",x$model));
 
@@ -3113,7 +3117,7 @@ print.mesCombined <- function(x, digits=4, ...){
             cat(paste(paste0("sCE: ",round(x$accuracy["sCE"],5)*100,"%"),
                       paste0("sMAE: ",round(x$accuracy["sMAE"],5)*100,"%"),
                       paste0("sMSE: ",round(x$accuracy["sMSE"],5)*100,"%\n")
-                ,sep="; "));
+                      ,sep="; "));
             cat(paste(paste0("MASE: ",round(x$accuracy["MASE"],3)),
                       paste0("RMSSE: ",round(x$accuracy["RMSSE"],3)),
                       paste0("rMAE: ",round(x$accuracy["rMAE"],3)),
@@ -3131,29 +3135,29 @@ print.mesCombined <- function(x, digits=4, ...){
 }
 
 #### Coefficients ####
-confint.mes <- function(object, parm, level=0.95, ...){
-    mesVcov <- vcov(object);
-    mesSD <- sqrt(abs(diag(mesVcov)));
-    # mesCoef <- coef(object);
-    mesCoefBounds <- matrix(0,length(mesSD),2);
-    mesCoefBounds[,1] <- qnorm((1-level)/2, 0, mesSD);
-    mesCoefBounds[,2] <- qnorm((1+level)/2, 0, mesSD);
-    mesReturn <- cbind(mesSD,mesCoefBounds);
-    colnames(mesReturn) <- c("S.E.",
-                             paste0((1-level)/2*100,"%"), paste0((1+level)/2*100,"%"));
+confint.adam <- function(object, parm, level=0.95, ...){
+    adamVcov <- vcov(object);
+    adamSD <- sqrt(abs(diag(adamVcov)));
+    # adamCoef <- coef(object);
+    adamCoefBounds <- matrix(0,length(adamSD),2);
+    adamCoefBounds[,1] <- qnorm((1-level)/2, 0, adamSD);
+    adamCoefBounds[,2] <- qnorm((1+level)/2, 0, adamSD);
+    adamReturn <- cbind(adamSD,adamCoefBounds);
+    colnames(adamReturn) <- c("S.E.",
+                              paste0((1-level)/2*100,"%"), paste0((1+level)/2*100,"%"));
 
-    return(mesReturn);
+    return(adamReturn);
 }
 
 #' @export
-coef.mes <- function(object, ...){
+coef.adam <- function(object, ...){
     return(object$B);
 }
 
 
 #' @importFrom stats sigma
 #' @export
-sigma.mes <- function(object, ...){
+sigma.adam <- function(object, ...){
     df <- (nobs(object, all=FALSE)-nparam(object));
     # If the sample is too small, then use biased estimator
     if(df<=0){
@@ -3174,7 +3178,7 @@ sigma.mes <- function(object, ...){
 }
 
 #' @export
-summary.mes <- function(object, level=0.95, ...){
+summary.adam <- function(object, level=0.95, ...){
     ourReturn <- list(model=object$model,responseName=all.vars(formula(object))[1]);
 
     occurrence <- NULL;
@@ -3228,16 +3232,16 @@ summary.mes <- function(object, level=0.95, ...){
         names(ICs) <- c("AIC","AICc","BIC","BICc");
         ourReturn$ICs <- ICs;
     }
-    return(structure(ourReturn, class="summary.mes"));
+    return(structure(ourReturn, class="summary.adam"));
 }
 
 #' @export
-summary.mesCombined <- function(object, ...){
-    return(print.mesCombined(object, ...));
+summary.adamCombined <- function(object, ...){
+    return(print.adamCombined(object, ...));
 }
 
 #' @export
-print.summary.mes <- function(x, ...){
+print.summary.adam <- function(x, ...){
     ellipsis <- list(...);
     if(!any(names(ellipsis)=="digits")){
         digits <- 4;
@@ -3301,7 +3305,7 @@ print.summary.mes <- function(x, ...){
 }
 
 #' @export
-vcov.mes <- function(object, ...){
+vcov.adam <- function(object, ...){
     # If the forecast is in numbers, then use its length as a horizon
     if(any(!is.na(object$forecast))){
         h <- length(object$forecast)
@@ -3309,7 +3313,7 @@ vcov.mes <- function(object, ...){
     else{
         h <- 0;
     }
-    modelReturn <- suppressWarnings(mes(actuals(object), h=h, model=object, FI=TRUE));
+    modelReturn <- suppressWarnings(adam(actuals(object), h=h, model=object, FI=TRUE));
     vcovMatrix <- try(chol2inv(chol(modelReturn$FI)), silent=TRUE);
     if(inherits(vcovMatrix,"try-error")){
         vcovMatrix <- try(solve(modelReturn$FI, diag(ncol(modelReturn$FI)), tol=1e-20), silent=TRUE);
@@ -3328,7 +3332,7 @@ vcov.mes <- function(object, ...){
 
 #' @importFrom greybox actuals
 #' @export
-actuals.mes <- function(object, all=TRUE, ...){
+actuals.adam <- function(object, all=TRUE, ...){
     if(all){
         return(object$y);
     }
@@ -3338,12 +3342,12 @@ actuals.mes <- function(object, all=TRUE, ...){
 }
 
 #' @export
-nobs.mes <- function(object, ...){
+nobs.adam <- function(object, ...){
     return(length(actuals(object, ...)));
 }
 
 #' @export
-residuals.mes <- function(object, ...){
+residuals.adam <- function(object, ...){
     return(switch(object$distribution,
                   "dlnorm"=,
                   "dllaplace"=,
@@ -3380,7 +3384,7 @@ residuals.mes <- function(object, ...){
 #' @examples
 #'
 #' x <- rnorm(100,0,1)
-#' ourModel <- mes(x)
+#' ourModel <- adam(x)
 #' rmultistep(ourModel, h=13)
 #'
 #' @export rmultistep
@@ -3392,7 +3396,7 @@ rmultistep.default <- function(object, h=10, ...){
 }
 
 #' @export
-rmultistep.mes <- function(object, h=10, ...){
+rmultistep.adam <- function(object, h=10, ...){
     # Technical parameters
     lagsModelAll <- lags(object);
     componentsNumber <- length(object$persistence);
@@ -3415,16 +3419,16 @@ rmultistep.mes <- function(object, h=10, ...){
     }
 
     # Produce multi-step errors matrix
-    return(ts(mesErrorerWrap(t(object$states), object$measurement, object$transition,
-                             lagsModelAll, Etype, Ttype, Stype,
-                             componentsNumber, componentsNumberSeasonal, h,
-                             matrix(actuals(object),obsInSample,1), ot),
+    return(ts(adamErrorerWrap(t(object$states), object$measurement, object$transition,
+                              lagsModelAll, Etype, Ttype, Stype,
+                              componentsNumber, componentsNumberSeasonal, h,
+                              matrix(actuals(object),obsInSample,1), ot),
               start=start(actuals(object)), frequency=frequency(actuals(object))));
 }
 
 #' @importFrom stats rstandard
 #' @export
-rstandard.mes <- function(model, ...){
+rstandard.adam <- function(model, ...){
     obs <- nobs(model);
     df <- obs - nparam(model);
     errors <- residuals(model);
@@ -3461,7 +3465,7 @@ rstandard.mes <- function(model, ...){
 
 #' @importFrom stats rstudent
 #' @export
-rstudent.mes <- function(model, ...){
+rstudent.adam <- function(model, ...){
     obs <- nobs(model);
     df <- obs - nparam(model) - 1;
     rstudentised <- errors <- residuals(model);
@@ -3535,8 +3539,8 @@ rstudent.mes <- function(model, ...){
 
 #### Predict and forecast functions ####
 #' @export
-predict.mes <- function(object, newxreg=NULL, interval=c("none", "confidence", "prediction"),
-                        level=0.95, side=c("both","upper","lower"), ...){
+predict.adam <- function(object, newxreg=NULL, interval=c("none", "confidence", "prediction"),
+                         level=0.95, side=c("both","upper","lower"), ...){
 
     interval <- match.arg(interval);
     obsInSample <- nobs(object);
@@ -3564,7 +3568,7 @@ predict.mes <- function(object, newxreg=NULL, interval=c("none", "confidence", "
         if(interval=="none"){
             return(structure(list(mean=fitted(object), lower=NA, upper=NA, model=object,
                                   level=level, interval=interval, side=side),
-                             class=c("mes.predict","mes.forecast")));
+                             class=c("adam.predict","adam.forecast")));
         }
         # Otherwise we do one-step-ahead prediction / confidence interval
         else{
@@ -3690,9 +3694,9 @@ predict.mes <- function(object, newxreg=NULL, interval=c("none", "confidence", "
         }
         else{
             yLower[] <- qalaplace(levelLow, 1,
-                                            sqrt(s2*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
+                                  sqrt(s2*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
             yUpper[] <- qalaplace(levelUp, 1,
-                                            sqrt(s2*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
+                                  sqrt(s2*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
         }
     }
     else if(object$distribution=="dlnorm"){
@@ -3743,11 +3747,11 @@ predict.mes <- function(object, newxreg=NULL, interval=c("none", "confidence", "
 
     return(structure(list(mean=yForecast, lower=yLower, upper=yUpper, model=object,
                           level=level, interval=interval, side=side),
-                     class=c("mes.predict","mes.forecast")));
+                     class=c("adam.predict","adam.forecast")));
 }
 
 #' @export
-plot.mes.predict <- function(x, ...){
+plot.adam.predict <- function(x, ...){
     ellipsis <- list(...);
     if(is.null(ellipsis$ylim)){
         ellipsis$ylim <- range(c(actuals(x$model),x$mean,x$lower,x$upper),na.rm=TRUE);
@@ -3769,9 +3773,9 @@ plot.mes.predict <- function(x, ...){
 #' @importFrom statmod rinvgauss qinvgauss
 #' @importFrom greybox rlaplace rs ralaplace qlaplace qs qalaplace
 #' @export
-forecast.mes <- function(object, h=10, newxreg=NULL, occurrence=NULL,
-                         interval=c("none", "simulated", "approximate", "semiparametric", "nonparametric", "confidence"),
-                         level=0.95, side=c("both","upper","lower"), cumulative=FALSE, nsim=10000, ...){
+forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
+                          interval=c("none", "simulated", "approximate", "semiparametric", "nonparametric", "confidence"),
+                          level=0.95, side=c("both","upper","lower"), cumulative=FALSE, nsim=10000, ...){
 
     ellipsis <- list(...);
 
@@ -3827,7 +3831,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                     call.=FALSE);
             newxreg <- matrix(NA,h,xregNumber);
             for(i in 1:xregNumber){
-                newxreg[,i] <- mes(object$xreg[,i],h=h,silent=TRUE)$forecast;
+                newxreg[,i] <- adam(object$xreg[,i],h=h,silent=TRUE)$forecast;
             }
         }
         else{
@@ -3878,18 +3882,18 @@ forecast.mes <- function(object, h=10, newxreg=NULL, occurrence=NULL,
     matF <- object$transition;
 
     # Produce point forecasts
-    mesForecast <- mesForecasterWrap(matVt, matWt, matF,
-                                     lagsModelAll, Etype, Ttype, Stype,
-                                     componentsNumber, componentsNumberSeasonal, h);
+    adamForecast <- adamForecasterWrap(matVt, matWt, matF,
+                                       lagsModelAll, Etype, Ttype, Stype,
+                                       componentsNumber, componentsNumberSeasonal, h);
 
     #### Make safety checks
     # If there are NaN values
-    if(any(is.nan(mesForecast))){
-        mesForecast[is.nan(mesForecast)] <- 0;
+    if(any(is.nan(adamForecast))){
+        adamForecast[is.nan(adamForecast)] <- 0;
     }
     # If there are negative values in the multiplicative model
-    # if(any(c(Etype,Ttype,Stype)=="M") && any(mesForecast<=0)){
-    #     mesForecast[mesForecast<=0] <- 0.01;
+    # if(any(c(Etype,Ttype,Stype)=="M") && any(adamForecast<=0)){
+    #     adamForecast[adamForecast<=0] <- 0.01;
     # }
 
     # If this is a mixture model, produce forecasts for the occurrence
@@ -3934,11 +3938,11 @@ forecast.mes <- function(object, h=10, newxreg=NULL, occurrence=NULL,
     # Cumulative forecasts have only one observation
     if(cumulative){
         yForecast <- yUpper <- yLower <- ts(vector("numeric", 1), start=yForecastStart, frequency=yFrequency);
-        yForecast[] <- sum(mesForecast * pForecast);
+        yForecast[] <- sum(adamForecast * pForecast);
     }
     else{
         yForecast <- yUpper <- yLower <- ts(vector("numeric", h), start=yForecastStart, frequency=yFrequency);
-        yForecast[] <- mesForecast * pForecast;
+        yForecast[] <- adamForecast * pForecast;
     }
 
     if(interval!="none"){
@@ -3991,8 +3995,8 @@ forecast.mes <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                                    "dinvgauss"=rinvgauss(h*nsim, 1, dispersion=sigmaValue^2)-1,
                                    "dls"=exp(rs(h*nsim, 0, (sigmaValue^2/120)^0.25))-1,
                                    "dllaplace"=exp(rlaplace(h*nsim, 0, sigmaValue/2))-1
-                                   ),
-                            h,nsim);
+        ),
+        h,nsim);
         # This stuff is needed in order to produce adequate values for weird models
         EtypeModified <- Etype;
         if(Etype=="A" && any(object$distribution==c("dlnorm","dinvgauss","dls","dllaplace"))){
@@ -4000,11 +4004,11 @@ forecast.mes <- function(object, h=10, newxreg=NULL, occurrence=NULL,
         }
 
         # States, Errors, Ot, Transition, Measurement, Persistence
-        ySimulated <- mesSimulatorwrap(arrVt, matErrors, matrix(rbinom(h*nsim, 1, pForecast), h, nsim),
-                                       array(matF,c(dim(matF),nsim)), matWt,
-                                       matrix(vecG, componentsNumber+xregNumber, nsim),
-                                       EtypeModified, Ttype, Stype, lagsModelAll,
-                                       componentsNumberSeasonal, componentsNumber)$matrixYt;
+        ySimulated <- adamSimulatorwrap(arrVt, matErrors, matrix(rbinom(h*nsim, 1, pForecast), h, nsim),
+                                        array(matF,c(dim(matF),nsim)), matWt,
+                                        matrix(vecG, componentsNumber+xregNumber, nsim),
+                                        EtypeModified, Ttype, Stype, lagsModelAll,
+                                        componentsNumberSeasonal, componentsNumber)$matrixYt;
 
         #### Note that the cumulative doesn't work with oes at the moment!
         if(cumulative){
@@ -4036,7 +4040,7 @@ forecast.mes <- function(object, h=10, newxreg=NULL, occurrence=NULL,
             s2 <- sigma(object)^2;
             # IG and Lnorm can use approximations from the multiplications
             if(any(object$distribution==c("dinvgauss","dlnorm","dls","dllaplace")) && Etype=="M"){
-                vcovMulti <- mesVarAnal(lagsModelAll, h, matWt[1,,drop=FALSE], matF, vecG, s2);
+                vcovMulti <- adamVarAnal(lagsModelAll, h, matWt[1,,drop=FALSE], matF, vecG, s2);
                 if(any(object$distribution==c("dlnorm","dls","dllaplace"))){
                     vcovMulti[] <- log(1+vcovMulti);
                 }
@@ -4072,35 +4076,35 @@ forecast.mes <- function(object, h=10, newxreg=NULL, occurrence=NULL,
         # Extract multistep errors and calculate the covariance matrix
         else if(any(interval==c("semiparametric","nonparametric"))){
             if(h>1){
-                mesErrors <- rmultistep(object, h=h);
+                adamErrors <- rmultistep(object, h=h);
 
                 if(any(object$distribution==c("dinvgauss","dlnorm","dls","dllaplace")) && (Etype=="A")){
-                    yFittedMatrix <- mesErrors;
+                    yFittedMatrix <- adamErrors;
                     for(i in 1:h){
                         yFittedMatrix[,i] <- fitted(object)[1:(obsInSample-h)+i];
                     }
-                    mesErrors[] <- mesErrors/yFittedMatrix;
+                    adamErrors[] <- adamErrors/yFittedMatrix;
                 }
 
                 if(interval=="semiparametric"){
                     # Do either the variance of sum, or a diagonal
                     if(cumulative){
-                        vcovMulti <- sum(t(mesErrors) %*% mesErrors / (obsInSample-h));
+                        vcovMulti <- sum(t(adamErrors) %*% adamErrors / (obsInSample-h));
                     }
                     else{
-                        vcovMulti <- diag(t(mesErrors) %*% mesErrors / (obsInSample-h));
+                        vcovMulti <- diag(t(adamErrors) %*% adamErrors / (obsInSample-h));
                     }
                 }
                 # For nonparametric and cumulative...
                 else{
                     if(cumulative){
-                        mesErrors <- matrix(apply(mesErrors, 2, sum),obsInSample-h,1);
+                        adamErrors <- matrix(apply(adamErrors, 2, sum),obsInSample-h,1);
                     }
                 }
             }
             else{
                 vcovMulti <- sigma(object)^2;
-                mesErrors <- resid(object);
+                adamErrors <- resid(object);
             }
         }
         # Calculate interval for approximate and semiparametric
@@ -4166,26 +4170,42 @@ forecast.mes <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                 }
                 else{
                     yLower[] <- qalaplace(levelLow, 1,
-                                                    sqrt(vcovMulti*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
+                                          sqrt(vcovMulti*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
                     yUpper[] <- qalaplace(levelUp, 1,
-                                                    sqrt(vcovMulti*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
+                                          sqrt(vcovMulti*lambda^2*(1-lambda)^2/(lambda^2+(1-lambda)^2)), lambda);
                 }
             }
             else if(object$distribution=="dlnorm"){
                 yLower[] <- qlnorm(levelLow, 0, sqrt(vcovMulti));
                 yUpper[] <- qlnorm(levelUp, 0, sqrt(vcovMulti));
+                if(Etype=="A"){
+                    yLower[] <- (yLower-1)*yForecast;
+                    yUpper[] <-(yUpper-1)*yForecast;
+                }
             }
             else if(object$distribution=="dllaplace"){
                 yLower[] <- exp(qlaplace(levelLow, 0, sqrt(vcovMulti/2)));
                 yUpper[] <- exp(qlaplace(levelUp, 0, sqrt(vcovMulti/2)));
+                if(Etype=="A"){
+                    yLower[] <- (yLower-1)*yForecast;
+                    yUpper[] <-(yUpper-1)*yForecast;
+                }
             }
             else if(object$distribution=="dls"){
                 yLower[] <- exp(qs(levelLow, 0, (vcovMulti/120)^0.25));
                 yUpper[] <- exp(qs(levelUp, 0, (vcovMulti/120)^0.25));
+                if(Etype=="A"){
+                    yLower[] <- (yLower-1)*yForecast;
+                    yUpper[] <-(yUpper-1)*yForecast;
+                }
             }
             else if(object$distribution=="dinvgauss"){
                 yLower[] <- qinvgauss(levelLow, 1, dispersion=vcovMulti);
                 yUpper[] <- qinvgauss(levelUp, 1, dispersion=vcovMulti);
+                if(Etype=="A"){
+                    yLower[] <- (yLower-1)*yForecast;
+                    yUpper[] <-(yUpper-1)*yForecast;
+                }
             }
         }
         # Use Taylor & Bunn approach for the nonparametric ones
@@ -4203,11 +4223,11 @@ forecast.mes <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                 if(length(levelLow)==1 && length(levelUp)==1){
                     # Quantile regression function
                     intervalQuantile <- function(A, alpha){
-                        ee[] <- mesErrors - (A[1]*xe^A[2]);
+                        ee[] <- adamErrors - (A[1]*xe^A[2]);
                         return((1-alpha)*sum(abs(ee[ee<0]))+alpha*sum(abs(ee[ee>=0])));
                     }
 
-                    ee <- mesErrors;
+                    ee <- adamErrors;
                     xe <- matrix(c(1:h),nrow=obsInSample-h,ncol=h,byrow=TRUE);
 
                     # lower quantiles
@@ -4220,24 +4240,29 @@ forecast.mes <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                 }
                 else{
                     if(cumulative){
-                        yLower[] <- quantile(mesErrors,levelLow,type=7);
-                        yUpper[] <- quantile(mesErrors,levelUp,type=7);
+                        yLower[] <- quantile(adamErrors,levelLow,type=7);
+                        yUpper[] <- quantile(adamErrors,levelUp,type=7);
                     }
                     else{
                         for(i in 1:h){
-                            yLower[i] <- quantile(mesErrors[,i],levelLow[i],na.rm=T,type=7);
-                            yUpper[i] <- quantile(mesErrors[,i],levelUp[i],na.rm=T,type=7);
+                            yLower[i] <- quantile(adamErrors[,i],levelLow[i],na.rm=T,type=7);
+                            yUpper[i] <- quantile(adamErrors[,i],levelUp[i],na.rm=T,type=7);
                         }
                     }
                 }
             }
             else{
-                yLower[] <- quantile(mesErrors,levelLow,type=7);
-                yUpper[] <- quantile(mesErrors,levelUp,type=7);
+                yLower[] <- quantile(adamErrors,levelLow,type=7);
+                yUpper[] <- quantile(adamErrors,levelUp,type=7);
             }
+
             if(Etype=="M"){
                 yLower[] <- 1+yLower;
                 yUpper[] <- 1+yUpper;
+            }
+            else if(Etype=="A" & any(object$distribution==c("dinvgauss","dlnorm","dllaplace","dls"))){
+                yLower[] <- yLower*yForecast;
+                yUpper[] <- yUpper*yForecast;
             }
         }
         else{
@@ -4303,13 +4328,13 @@ forecast.mes <- function(object, h=10, newxreg=NULL, occurrence=NULL,
 
     return(structure(list(mean=yForecast, lower=yLower, upper=yUpper, model=object,
                           level=level, interval=interval, side=side, cumulative=cumulative),
-                     class=c("mes.forecast","smooth.forecast","forecast")));
+                     class=c("adam.forecast","smooth.forecast","forecast")));
 }
 
 #' @export
-forecast.mesCombined <- function(object, h=10, newxreg=NULL,
-                                 interval=c("none", "simulated", "approximate", "semiparametric", "nonparametric"),
-                                 level=0.95, side=c("both","upper","lower"), cumulative=FALSE, nsim=10000, ...){
+forecast.adamCombined <- function(object, h=10, newxreg=NULL,
+                                  interval=c("none", "simulated", "approximate", "semiparametric", "nonparametric"),
+                                  level=0.95, side=c("both","upper","lower"), cumulative=FALSE, nsim=10000, ...){
     interval <- match.arg(interval);
     side <- match.arg(side);
 
@@ -4326,15 +4351,15 @@ forecast.mesCombined <- function(object, h=10, newxreg=NULL,
     }
 
     # The list contains 8 elements
-    mesForecasts <- vector("list",8);
-    names(mesForecasts)[c(1:3)] <- c("mean","lower","upper");
+    adamForecasts <- vector("list",8);
+    names(adamForecasts)[c(1:3)] <- c("mean","lower","upper");
     for(i in 1:length(object$models)){
-        mesForecasts[] <- forecast.mes(object$models[[i]], h=h, newxreg=newxreg,
-                                       interval=interval,
-                                       level=level, side=side, cumulative=cumulative, nsim=nsim, ...);
-        yForecast[] <- yForecast + mesForecasts$mean * object$ICw[i];
-        yUpper[] <- yUpper + mesForecasts$upper * object$ICw[i];
-        yLower[] <- yLower + mesForecasts$lower * object$ICw[i];
+        adamForecasts[] <- forecast.adam(object$models[[i]], h=h, newxreg=newxreg,
+                                         interval=interval,
+                                         level=level, side=side, cumulative=cumulative, nsim=nsim, ...);
+        yForecast[] <- yForecast + adamForecasts$mean * object$ICw[i];
+        yUpper[] <- yUpper + adamForecasts$upper * object$ICw[i];
+        yLower[] <- yLower + adamForecasts$lower * object$ICw[i];
     }
 
     # Get rid of specific models
@@ -4342,11 +4367,11 @@ forecast.mesCombined <- function(object, h=10, newxreg=NULL,
 
     return(structure(list(mean=yForecast, lower=yLower, upper=yUpper, model=object,
                           level=level, interval=interval, side=side, cumulative=cumulative),
-                     class=c("mes.forecast","smooth.forecast","forecast")));
+                     class=c("adam.forecast","smooth.forecast","forecast")));
 }
 
 #' @export
-print.mes.forecast <- function(x, ...){
+print.adam.forecast <- function(x, ...){
     if(x$interval!="none"){
         returnedValue <- switch(x$side,
                                 "both"=cbind(x$mean,x$lower,x$upper),
@@ -4357,9 +4382,9 @@ print.mes.forecast <- function(x, ...){
                                                    paste0("Lower bound (",mean((1-x$level)/2)*100,"%)"),
                                                    paste0("Upper bound (",mean((1+x$level)/2)*100,"%)")),
                                           "lower"=c("Point forecast",
-                                                   paste0("Lower bound (",mean((1-x$level))*100,"%)")),
+                                                    paste0("Lower bound (",mean((1-x$level))*100,"%)")),
                                           "upper"=c("Point forecast",
-                                                   paste0("Upper bound (",mean(x$level)*100,"%)")));
+                                                    paste0("Upper bound (",mean(x$level)*100,"%)")));
     }
     else{
         returnedValue <- x$mean;
@@ -4369,7 +4394,7 @@ print.mes.forecast <- function(x, ...){
 
 #### Other methods ####
 #' @export
-multicov.mes <- function(object, type=c("analytical","empirical","simulated"), ...){
+multicov.adam <- function(object, type=c("analytical","empirical","simulated"), ...){
     type <- match.arg(type);
 
     h <- length(object$holdout);
@@ -4394,15 +4419,15 @@ multicov.mes <- function(object, type=c("analytical","empirical","simulated"), .
         covarMat <- covarAnal(lagsModelAll, h, matWt[1,,drop=FALSE], matF, vecG, s2);
     }
     else if(type=="empirical"){
-        mesErrors <- rmultistep(object, h=h);
-        covarMat <- t(mesErrors) %*% mesErrors / (nobs(object) - h);
+        adamErrors <- rmultistep(object, h=h);
+        covarMat <- t(adamErrors) %*% adamErrors / (nobs(object) - h);
     }
 
     return(covarMat);
 }
 
 #' @export
-pointLik.mes <- function(object, ...){
+pointLik.adam <- function(object, ...){
     distribution <- object$distribution;
     yInSample <- actuals(object);
     obsInSample <- nobs(object);
@@ -4435,8 +4460,8 @@ pointLik.mes <- function(object, ...){
                                                      "M"=dlaplace(q=yInSample[otLogical], mu=yFitted[otLogical],
                                                                   scale=scale*yFitted[otLogical], log=TRUE)),
                                    "dt"=switch(Etype,
-                                               "A"=dt(mesFitted$errors[otLogical], df=abs(lambda), log=TRUE),
-                                               "M"=dt(mesFitted$errors[otLogical]*yFitted[otLogical],
+                                               "A"=dt(adamFitted$errors[otLogical], df=abs(lambda), log=TRUE),
+                                               "M"=dt(adamFitted$errors[otLogical]*yFitted[otLogical],
                                                       df=abs(lambda), log=TRUE)),
                                    "ds"=switch(Etype,
                                                "A"=ds(q=yInSample[otLogical],mu=yFitted[otLogical],
@@ -4480,5 +4505,5 @@ pointLik.mes <- function(object, ...){
 }
 
 ##### Other methods to implement #####
-# accuracy.mes <- function(object, holdout, ...){}
-# simulate.mes <- function(object, nsim=1, seed=NULL, obs=NULL, ...){}
+# accuracy.adam <- function(object, holdout, ...){}
+# simulate.adam <- function(object, nsim=1, seed=NULL, obs=NULL, ...){}

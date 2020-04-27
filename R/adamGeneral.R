@@ -8,10 +8,10 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                               silent, modelDo, ParentEnvironment,
                               ellipsis, fast=FALSE){
 
-    # The function checks the provided parameters of mes and/or oes
+    # The function checks the provided parameters of adam and/or oes
     ##### data #####
     # If this is simulated, extract the actuals
-    if(is.mes.sim(y) || is.smooth.sim(y)){
+    if(is.adam.sim(y) || is.smooth.sim(y)){
         y <- y$data;
     }
     # If this is Mdata, use all the available stuff
@@ -303,6 +303,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     lags <- c(1,unique(lags[lags>1]));
 
     #### ARIMA term ####
+    # This should be available for pure models only
     if(is.list(orders)){
         arOrders <- orders$ar;
         iOrders <- orders$i;
