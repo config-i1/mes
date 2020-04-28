@@ -14,12 +14,12 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)),
     # Start measuring the time of calculations
     startTime <- Sys.time();
 
-    # if(any(unlist(strsplit(model,""))=="C")){
-    #     modelDo <- "combine";
-    # }
-    # else{
-    #     modelDo <- "select";
-    # }
+    if(any(unlist(strsplit(model,""))=="C")){
+        modelDo <- "combine";
+    }
+    else{
+        modelDo <- "select";
+    }
 
     selectedModels <- vector("list",length(distribution));
     if(!silent){
@@ -48,7 +48,15 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)),
                          "BIC"=BIC,
                          "BICc"=BICc);
 
-    ICValues <- sapply(selectedModels, ICFunction);
+    if(modelDo=="select"){
+        ICValues <- sapply(selectedModels, ICFunction);
+    }
+    else{
+        ICValues <- vector("numeric",length(distribution));
+        for(i in 1:length(distribution)){
+            ICValues[i] <- selectedModels[[i]]$ICs %*% selectedModels[[i]]$ICw;
+        }
+    }
 
     if(!silent){
         plot(selectedModels[[which.min(ICValues)]],7);
