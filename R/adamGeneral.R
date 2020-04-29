@@ -26,7 +26,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
 
     # Extract index from the object in order to use it later
     ### tsibble has its own index function, so shit happens becaus of it...
-    if(inherits(y,"tbl_ts")){S
+    if(inherits(y,"tbl_ts")){
         yIndex <- y[[1]];
         if(any(duplicated(yIndex))){
             warning(paste0("You have duplicated time stamps in the variable ",responseName,
@@ -314,23 +314,80 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         iOrders <- orders[2];
         maOrders <- orders[3];
     }
-    # Do checks for arOrders, making sure that it is a reasonable value
-    if(any(arOrders>0)){
-        # Make sure that arOrders has the same length as lags
-        if(length(arOrders)>length(lags)){
-            arOrders <- arOrders[1:length(lags)];
-        }
-        else if(length(arOrders)<length(lags)){
-            arOrders <- c(arOrders,rep(0,length(lags)-length(arOrders)));
-        }
-        arRequired <- arEstimate <- TRUE;
 
-        ### Form lags for the model
+    # If there is arima, prepare orders
+    if(sum(c(arOrders,iOrders,maOrders))>0){
+        arimaModel <- TRUE;
+
+        # See if AR is needed
+        if(sum(arOrders)>0){
+            arRequired <- TRUE;
+        }
+        else{
+            arRequired <- FALSE;
+        }
+
+        # See if I is needed
+        if(sum(iOrders)>0){
+            iRequired <- TRUE;
+        }
+        else{
+            iRequired <- FALSE;
+        }
+
+        # See if I is needed
+        if(sum(maOrders)>0){
+            maRequired <- TRUE;
+        }
+        else{
+            maRequired <- FALSE;
+        }
+
+        # Define maxOrder and make all the values look similar (for the polynomials)
+        maxOrder <- max(length(arOrders),length(iOrders),length(maOrders),length(lags));
+        if(length(arOrders)!=maxOrder){
+            arOrders <- c(arOrders,rep(0,maxOrder-length(arOrders)));
+        }
+        if(length(iOrders)!=maxOrder){
+            iOrders <- c(iOrders,rep(0,maxOrder-length(iOrders)));
+        }
+        if(length(maOrders)!=maxOrder){
+            maOrders <- c(maOrders,rep(0,maxOrder-length(maOrders)));
+        }
+
+        # If zeroes are defined for some orders, drop them.
+        # if(any((arOrders + iOrders + maOrders)==0)){
+        #     orders2leave <- (arOrders + iOrders + maOrders)!=0;
+        #     if(all(!orders2leave)){
+        #         orders2leave <- lags==min(lags);
+        #     }
+        #     arOrders <- arOrders[orders2leave];
+        #     iOrders <- iOrders[orders2leave];
+        #     maOrders <- maOrders[orders2leave];
+        #     lags <- lags[orders2leave];
+        # }
+    }
+    else{
+        arimaModel <- FALSE;
+        arRequired <- arEstimate <- FALSE;
+        iRequired <- FALSE;
+        maRequired <- maEstimate <- FALSE;
+        lagsModelARIMA <- initialNumberARIMA <- 0;
+        componentsNumberARIMA <- 0;
+        componentsNamesARIMA <- NULL;
+    }
+
+    if(arimaModel){
         # Define the non-zero values. This is done via the calculation of orders of polynomials
         ariValues <- list(NA);
+        maValues <- list(NA);
         for(i in 1:length(lags)){
             ariValues[[i]] <- c(0,min(1,arOrders[i]):arOrders[i])
+            if(iOrders[i]!=0){
+                ariValues[[i]] <- c(ariValues[[i]],1:iOrders[i]+arOrders[i]);
+            }
             ariValues[[i]] <- unique(ariValues[[i]] * lags[i]);
+            maValues[[i]] <- unique(c(0,min(1,maOrders[i]):maOrders[i]) * lags[i]);
         }
 
         # Produce ARI polynomials
@@ -346,15 +403,49 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             }
         }
 
+        # Produce MA polynomials
+        maLengths <- unlist(lapply(maValues,length));
+        maPolynomial <- array(0,maLengths);
+        for(i in 1:length(maValues)){
+            if(i==1){
+                maPolynomial <- maPolynomial + array(maValues[[i]], maLengths);
+            }
+            else{
+                maPolynomial <- maPolynomial + array(rep(maValues[[i]],each=prod(maLengths[1:(i-1)])),
+                                                     maLengths);
+            }
+        }
+
         # What are the non-zero ARI and MA polynomials?
         ### What are their positions in transition matrix?
         nonZeroARI <- unique(matrix(c(ariPolynomial)[-1],ncol=1));
-        nonZeroComponents <- sort(c(nonZeroARI));
-        nonZeroARI <- cbind(nonZeroARI,which(nonZeroComponents %in% nonZeroARI)-1);
-        print(nonZeroARI)
+        nonZeroMA <- unique(matrix(c(maPolynomial)[-1],ncol=1));
+        lagsModelARIMA <- matrix(sort(unique(c(nonZeroARI,nonZeroMA))),ncol=1);
+        nonZeroARI <- cbind(nonZeroARI,which(lagsModelARIMA %in% nonZeroARI)-1);
+        nonZeroMA <- cbind(nonZeroMA,which(lagsModelARIMA %in% nonZeroMA)-1);
+
+        componentsNumberARIMA <- length(lagsModelARIMA);
+        componentsNamesARIMA <- paste0("State",c(1:componentsNumberARIMA));
+        initialNumberARIMA <- sum(lagsModelARIMA)
+
+        if(obsInSample < componentsNumberARIMA){
+            warning(paste0("In-sample size is ",obsInSample,", while number of ARIMA components is ",componentsNumberARIMA,
+                           ". Cannot fit the model."),call.=FALSE)
+            stop("Not enough observations for such a complicated model.",call.=FALSE);
+        }
+
+        # Check the provided parameters for AR and MA
+
+        # Check the provided initials
+
     }
     else{
-        arRequired <- arEstimate <- FALSE;
+        componentsNumberARIMA <- 0;
+        nonZeroARI <- NULL;
+        nonZeroMA <- NULL;
+        arOrders <- NULL;
+        iOrders <- NULL;
+        maOrders <- NULL;
     }
 
     # If we have a trend add one more lag
@@ -413,11 +504,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     # Check, whether the number of lags and the number of components are the same
     if(lagsLength>componentsNumber){
         if(Stype!="N"){
-            # lagsModel <- matrix(lags[1:componentsNumber],ncol=1);
-            # lagsModelMax <- max(lagsModel);
             componentsNames <- c(componentsNames[-length(componentsNames)],paste0("seasonal",c(1:(lagsLength-componentsNumber-1))));
             componentsNumberSeasonal[] <- lagsLength-componentsNumber+1;
-            # lagsLength <- length(lagsModel);
             componentsNumber[] <- lagsLength;
         }
         else{
@@ -727,6 +815,15 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     #### Bounds for the smoothing parameters ####
     bounds <- match.arg(bounds,c("usual","admissible","none"));
 
+    #### Lags for ARIMA ####
+    if(arimaModel){
+        lagsModelAll <- rbind(lagsModel,lagsModelARIMA);
+        lagsModelMax <- max(lagsModel);
+    }
+    else{
+        lagsModelAll <- lagsModel;
+    }
+
     #### Explanatory variables: xreg, xregDo, xregInitial, xregPersistence ####
     xregDo <- match.arg(xregDo,c("use","select"));
     xregExist <- !is.null(xreg);
@@ -896,7 +993,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             xregPersistenceProvided <- FALSE;
             xregPersistenceEstimate <- TRUE;
         }
-        lagsModelAll <- matrix(c(lagsModel,rep(1,xregNumber)),ncol=1);
+        lagsModelAll <- matrix(c(lagsModelAll,rep(1,xregNumber)),ncol=1);
         # If there's only one explanatory variable, then there's nothing to select
         if(xregNumber==1){
             xregDo[] <- "use";
@@ -911,7 +1008,6 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         xregData <- NULL;
         xregNumber <- 0;
         xregNames <- NULL;
-        lagsModelAll <- lagsModel;
         if(is.null(formulaProvided)){
             if(Etype=="M" && any(distribution==c("dnorm","dlogis","dlaplace","dt","ds","dalaplace"))){
                 formulaProvided <- as.formula(paste0("log(`",responseName,"`)~."));
@@ -926,8 +1022,32 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
 
     #### Checks for the potential number of degrees of freedom ####
     # This is needed in order to make the function work on small samples
-    nParamMax <- (1 + componentsNumber*persistenceEstimate + (sum(lagsModelAll)-xregNumber)*(initialType=="optimal") +
-                      phiEstimate + xregNumber*(xregInitialsEstimate+xregPersistenceEstimate));
+    # scale parameter, smoothing parameters and phi
+    nParamMax <- (1 + componentsNumber*persistenceEstimate + phiEstimate +
+                      # Number of ETS initials
+                      (sum(lagsModelAll)-xregNumber-initialNumberARIMA)*(initialType=="optimal") +
+                      # ARIMA components: initials + parameters
+                      arimaModel*(initialNumberARIMA*(initialType=="optimal") + sum(arOrders) + sum(maOrders)) +
+                      # Xreg initials and smoothing parameters
+                      xregNumber*(xregInitialsEstimate+xregPersistenceEstimate));
+
+    # If there is ARIMA terms, remove them
+    if(arimaModel){
+        warning("We don't have enough observations to fit ETS with ARIMA terms. We will construct the simple ETS.",
+                call.=FALSE);
+        arRequired <- iRequired <- maRequired <- arimaModel <- FALSE;
+        arOrders <- iOrders <- maOrders <- NULL;
+        nonZeroARI <- nonZeroMA <- lagsModelARIMA <- NULL;
+        initialNumberARIMA <- componentsNumberARIMA <- 0;
+        lagsModelAll <- lagsModelAll[-c(componentsNumber+c(1:componentsNumberARIMA)),,drop=FALSE];
+        lagsModelMax <- max(lagsModelAll);
+
+        nParamMax[] <- (1 + componentsNumber*persistenceEstimate + phiEstimate +
+                            # Number of ETS initials
+                            (sum(lagsModelAll)-xregNumber)*(initialType=="optimal") +
+                            # Xreg initials and smoothing parameters
+                            xregNumber*(xregInitialsEstimate+xregPersistenceEstimate));
+    }
 
     # If the sample is smaller than the number of parameters
     if(obsNonzero <= nParamMax){
@@ -1258,11 +1378,14 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("componentsNames",componentsNames,ParentEnvironment);
     assign("componentsNumber",componentsNumber,ParentEnvironment);
     assign("componentsNumberSeasonal",componentsNumberSeasonal,ParentEnvironment);
+    # This is the original vector of lags
     assign("lags",lags,ParentEnvironment);
+    # This is the vector of lags of ETS components
     assign("lagsModel",lagsModel,ParentEnvironment);
-    assign("lagsModelMax",lagsModelMax,ParentEnvironment);
+    # This is the vector of all the lags of model (ETS + ARIMA + X)
     assign("lagsModelAll",lagsModelAll,ParentEnvironment);
-    assign("lagsLength",lagsLength,ParentEnvironment);
+    # This is the maximum lag
+    assign("lagsModelMax",lagsModelMax,ParentEnvironment);
 
     # Persistence and initials
     assign("persistence",persistence,ParentEnvironment);
@@ -1291,6 +1414,21 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("ic",ic,ParentEnvironment);
     assign("ICFunction",ICFunction,ParentEnvironment);
     assign("bounds",bounds,ParentEnvironment);
+
+    # ARIMA components
+    assign("arimaModel",arimaModel,ParentEnvironment);
+    assign("arRequired",arRequired,ParentEnvironment);
+    assign("iRequired",iRequired,ParentEnvironment);
+    assign("maRequired",maRequired,ParentEnvironment);
+    assign("nonZeroARI",nonZeroARI,ParentEnvironment);
+    assign("nonZeroMA",nonZeroMA,ParentEnvironment);
+    assign("lagsModelARIMA",lagsModelARIMA,ParentEnvironment);
+    assign("componentsNumberARIMA",componentsNumberARIMA,ParentEnvironment);
+    assign("componentsNamesARIMA",componentsNamesARIMA,ParentEnvironment);
+    assign("initialNumberARIMA",initialNumberARIMA,ParentEnvironment);
+    assign("arOrders",arOrders,ParentEnvironment);
+    assign("iOrders",iOrders,ParentEnvironment);
+    assign("maOrders",maOrders,ParentEnvironment);
 
     # Explanatory variables
     assign("xregDo",xregDo,ParentEnvironment);

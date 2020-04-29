@@ -76,15 +76,16 @@ atomated predictions for big  datasets.}
 
 \item{lags}{Defines lags for the corresponding components. All components
 count, starting from level, so ETS(M,M,M) model for monthly data will have
-lags=c(1,1,12). If fractional numbers are provided, then it is assumed that
-the data is not periodic. The parameter \code{date} is then needed in order
-to setup the appropriate time series structure.}
+\code{lags=c(1,1,12)}. However, the function will also accept \code{lags=c(12)},
+assuming that the lags 1 were dropped.}
 
 \item{orders}{The order of ARIMA to be included in the model. This should be passed
 either as a vector (in which case the non-seasonal ARIMA is assumed) or as a list of
 a type \code{orders=list(ar=c(p,P),i=c(d,D),ma=c(q,Q))}, in which case the \code{lags}
 variable is used in order to determine the seasonality m. See \link[smooth]{msarima}
-for details.}
+for details. Note that ARIMA here is treated as an addition to the ETS model and does
+not allow constant / drift. If you want a pure ARIMA model, use \link[smooth]{msarima}
+function.}
 
 \item{formula}{Formula to use in case of explanatory variables. If \code{NULL},
 then all the variables are used as is. Only considered if \code{xreg} is not

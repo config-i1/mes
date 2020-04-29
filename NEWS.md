@@ -1,3 +1,10 @@
+mes v1.0.0 (Release data: 2020-04-28)
+==============
+
+Changes:
+* Started work on ARIMA components.
+
+
 mes v0.1.0 (Release data: 2020-03-14)
 ==============
 

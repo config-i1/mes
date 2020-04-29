@@ -100,14 +100,15 @@
 #'
 #' @param lags Defines lags for the corresponding components. All components
 #' count, starting from level, so ETS(M,M,M) model for monthly data will have
-#' lags=c(1,1,12). If fractional numbers are provided, then it is assumed that
-#' the data is not periodic. The parameter \code{date} is then needed in order
-#' to setup the appropriate time series structure.
+#' \code{lags=c(1,1,12)}. However, the function will also accept \code{lags=c(12)},
+#' assuming that the lags 1 were dropped.
 #' @param orders The order of ARIMA to be included in the model. This should be passed
 #' either as a vector (in which case the non-seasonal ARIMA is assumed) or as a list of
 #' a type \code{orders=list(ar=c(p,P),i=c(d,D),ma=c(q,Q))}, in which case the \code{lags}
 #' variable is used in order to determine the seasonality m. See \link[smooth]{msarima}
-#' for details.
+#' for details. Note that ARIMA here is treated as an addition to the ETS model and does
+#' not allow constant / drift. If you want a pure ARIMA model, use \link[smooth]{msarima}
+#' function.
 #' @param formula Formula to use in case of explanatory variables. If \code{NULL},
 #' then all the variables are used as is. Only considered if \code{xreg} is not
 #' \code{NULL} and \code{xregDo="use"}.
@@ -290,10 +291,6 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                  xreg=NULL, xregDo=c("use","select"), xregInitial=NULL, xregPersistence=0,
                  silent=TRUE, ...){
     # Copyright (C) 2019 - Inf  Ivan Svetunkov
-    #
-    # Parameters that were moved to forecast() and predict() functions:
-    # h=10, holdout=FALSE, cumulative=FALSE,
-    # interval=c("none","parametric","likelihood","semiparametric","nonparametric","confidence"), level=0.95,
 
     # Start measuring the time of calculations
     startTime <- Sys.time();
@@ -434,14 +431,15 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
     rm(xreg);
 
     #### The function creates the technical variables (lags etc) based on the type of the model ####
-    architector <- function(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType){
+    architector <- function(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType,
+                            arimaModel, lagsModelARIMA){
         if(Ttype!="N"){
-            # Make lags (1, 1) if they are not
+            # Make lags (1, 1)
             lagsModel <- matrix(c(1,1),ncol=1);
             componentsNames <- c("level","trend");
         }
         else{
-            # Make lags (1, ...) if they are not
+            # Make lags (1, ...)
             lagsModel <- matrix(c(1),ncol=1);
             componentsNames <- c("level");
         }
@@ -459,9 +457,13 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
         else{
             componentsNumberSeasonal <- 0;
         }
+        lagsModelAll <- lagsModel;
 
-        componentsNumber <- lagsLength <- length(lagsModel);
-        lagsModelAll <- matrix(c(lagsModel,rep(1,xregNumber)),ncol=1);
+        componentsNumber <- length(lagsModel);
+        if(arimaModel){
+            lagsModelAll <- matrix(c(lagsModel,lagsModelARIMA), ncol=1);
+        }
+        lagsModelAll <- matrix(c(lagsModelAll,rep(1,xregNumber)), ncol=1);
         lagsModelMax <- max(lagsModelAll);
 
         # Define the number of cols that should be in the matvt
@@ -469,7 +471,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                                                        "backcasting"=2,
                                                        1);
 
-        return(list(lagsModel=lagsModel,lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax, lagsLength=lagsLength,
+        return(list(lagsModel=lagsModel,lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
                     componentsNumber=componentsNumber, componentsNumberSeasonal=componentsNumberSeasonal,
                     componentsNames=componentsNames, obsStates=obsStates));
     }
@@ -477,28 +479,35 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
     #### The function creates the necessary matrices based on the model and provided parameters ####
     # This is needed in order to initialise the estimation
     creator <- function(Etype, Ttype, Stype,
-                        lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
+                        lags, lagsModel, lagsModelMax, lagsModelAll,
                         obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
                         componentsNames, otLogical,
                         yInSample, persistence, persistenceEstimate, phi,
                         initialValue, initialType,
+                        # ARIMA elements
+                        arimaModel, arRequired, iRequired, maRequired,
+                        componentsNumberARIMA, componentsNamesARIMA, initialNumberARIMA,
+                        # Explanatory variables
                         xregExist, xregInitialsProvided, xregPersistence,
                         xregModel, xregData, xregNumber, xregNames){
         # Matrix of states. Time in columns, components in rows
-        matVt <- matrix(NA, componentsNumber+xregNumber, obsStates, dimnames=list(c(componentsNames,xregNames),NULL));
+        matVt <- matrix(NA, componentsNumber+componentsNumberARIMA+xregNumber, obsStates,
+                        dimnames=list(c(componentsNames,componentsNamesARIMA,xregNames),NULL));
 
         # Measurement rowvector
-        matWt <- matrix(1, obsAll, componentsNumber+xregNumber, dimnames=list(NULL,c(componentsNames,xregNames)));
+        matWt <- matrix(1, obsAll, componentsNumber+componentsNumberARIMA+xregNumber,
+                        dimnames=list(NULL,c(componentsNames,componentsNamesARIMA,xregNames)));
         # If xreg are provided, then fill in the respective values in Wt vector
         if(xregExist){
-            matWt[,componentsNumber+1:xregNumber] <- xregData;
+            matWt[,componentsNumber+componentsNumberARIMA+1:xregNumber] <- xregData;
         }
 
         # Transition matrix
-        matF <- diag(componentsNumber+xregNumber);
+        matF <- diag(componentsNumber+componentsNumberARIMA+xregNumber);
 
         # Persistence vector
-        vecG <- matrix(0, componentsNumber+xregNumber, 1, dimnames=list(c(componentsNames,xregNames),NULL));
+        vecG <- matrix(0, componentsNumber+componentsNumberARIMA+xregNumber, 1,
+                       dimnames=list(c(componentsNames,componentsNamesARIMA,xregNames),NULL));
         if(!persistenceEstimate){
             vecG[1:componentsNumber,] <- persistence;
         }
@@ -592,6 +601,10 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                     matVt[i,(lagsModelMax-lagsModel[i])+1:lagsModel[i]] <- initialValue[indices];
                 }
             }
+        }
+
+        # If ARIMA orders are specified, prepare initials
+        if(arimaModel){
         }
 
         # Fill in the initials for xreg
@@ -1206,16 +1219,18 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                           bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate){
 
         # Create the basic variables
-        adamArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType);
+        adamArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType, arimaModel, lagsModelARIMA);
         list2env(adamArchitect, environment());
 
         # Create the matrices for the specific ETS model
         adamCreated <- creator(Etype, Ttype, Stype,
-                               lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
+                               lags, lagsModel, lagsModelMax, lagsModelAll,
                                obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
                                componentsNames, otLogical,
                                yInSample, persistence, persistenceEstimate, phi,
                                initialValue, initialType,
+                               arimaModel, arRequired, iRequired, maRequired,
+                               componentsNumberARIMA, componentsNamesARIMA, initialNumberARIMA,
                                xregExist, xregInitialsProvided, xregPersistence,
                                xregModel, xregData, xregNumber, xregNames);
 
@@ -1891,16 +1906,18 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
 
         #### This part is needed in order for the filler to do its job later on
         # Create the basic variables based on the estimated model
-        adamArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType);
+        adamArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType, arimaModel, lagsModelARIMA);
         list2env(adamArchitect, environment());
 
         # Create the matrices for the specific ETS model
         adamCreated <- creator(Etype, Ttype, Stype,
-                               lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
+                               lags, lagsModel, lagsModelMax, lagsModelAll,
                                obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
                                componentsNames, otLogical,
                                yInSample, persistence, persistenceEstimate, phi,
                                initialValue, initialType,
+                               arimaModel, arRequired, iRequired, maRequired,
+                               componentsNumberARIMA, componentsNamesARIMA, initialNumberARIMA,
                                xregExist, xregInitialsProvided, xregPersistence,
                                xregModel, xregData, xregNumber, xregNames);
         list2env(adamCreated, environment());
@@ -1937,16 +1954,18 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
 
         #### This part is needed in order for the filler to do its job later on
         # Create the basic variables based on the estimated model
-        adamArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType);
+        adamArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType, arimaModel, lagsModelARIMA);
         list2env(adamArchitect, environment());
 
         # Create the matrices for the specific ETS model
         adamCreated <- creator(Etype, Ttype, Stype,
-                               lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
+                               lags, lagsModel, lagsModelMax, lagsModelAll,
                                obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
                                componentsNames, otLogical,
                                yInSample, persistence, persistenceEstimate, phi,
                                initialValue, initialType,
+                               arimaModel, arRequired, iRequired, maRequired,
+                               componentsNumberARIMA, componentsNamesARIMA, initialNumberARIMA,
                                xregExist, xregInitialsProvided, xregPersistence,
                                xregModel, xregData, xregNumber, xregNames);
         list2env(adamCreated, environment());
@@ -2040,24 +2059,25 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
 
             #### This part is needed in order for the filler to do its job later on
             # Create the basic variables based on the estimated model
-            adamArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType);
+            adamArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType, arimaModel, lagsModelARIMA);
             list2env(adamArchitect, environment());
 
             adamSelected$results[[i]]$lagsModel <- adamArchitect$lagsModel;
             adamSelected$results[[i]]$lagsModelAll <- adamArchitect$lagsModelAll;
             adamSelected$results[[i]]$lagsModelMax <- adamArchitect$lagsModelMax;
-            adamSelected$results[[i]]$lagsLength <- adamArchitect$lagsLength;
             adamSelected$results[[i]]$componentsNumber <- adamArchitect$componentsNumber;
             adamSelected$results[[i]]$componentsNumberSeasonal <- adamArchitect$componentsNumberSeasonal;
             adamSelected$results[[i]]$componentsNames <- adamArchitect$componentsNames;
 
             # Create the matrices for the specific ETS model
             adamCreated <- creator(Etype, Ttype, Stype,
-                                   lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
+                                   lags, lagsModel, lagsModelMax, lagsModelAll,
                                    obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
                                    componentsNames, otLogical,
                                    yInSample, persistence, persistenceEstimate, phi,
                                    initialValue, initialType,
+                                   arimaModel, arRequired, iRequired, maRequired,
+                                   componentsNumberARIMA, componentsNamesARIMA, initialNumberARIMA,
                                    xregExist, xregInitialsProvided, xregPersistence,
                                    xregModel, xregData, xregNumber, xregNames);
 
@@ -2098,16 +2118,18 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
         }
 
         # Create the basic variables
-        adamArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType);
+        adamArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType, arimaModel, lagsModelARIMA);
         list2env(adamArchitect, environment());
 
         # Create the matrices for the specific ETS model
         adamCreated <- creator(Etype, Ttype, Stype,
-                               lags, lagsModel, lagsModelMax, lagsLength, lagsModelAll,
+                               lags, lagsModel, lagsModelMax, lagsModelAll,
                                obsStates, obsInSample, obsAll, componentsNumber, componentsNumberSeasonal,
                                componentsNames, otLogical,
                                yInSample, persistence, persistenceEstimate, phi,
                                initialValue, initialType,
+                               arimaModel, arRequired, iRequired, maRequired,
+                               componentsNumberARIMA, componentsNamesARIMA, initialNumberARIMA,
                                xregExist, xregInitialsProvided, xregPersistence,
                                xregModel, xregData, xregNumber, xregNames);
         list2env(adamCreated, environment());
@@ -2534,7 +2556,7 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
 
 
         if(!any(names(ellipsis)=="ylim")){
-            ellipsis$ylim <- range(c(ellipsis$y,zValues), na.rm=TRUE);
+            ellipsis$ylim <- range(c(ellipsis$y,zValues), na.rm=TRUE)*1.2;
             if(legend){
                 if(legendPosition=="bottomright"){
                     ellipsis$ylim[1] <- ellipsis$ylim[1] - 0.2*diff(ellipsis$ylim);
@@ -2556,7 +2578,7 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
         abline(h=zValues, col="red", lty=2);
         if(length(outliers)>0){
             points(ellipsis$x[outliers], ellipsis$y[outliers], pch=16);
-            text(ellipsis$x[outliers], ellipsis$y[outliers], labels=outliers, pos=4);
+            text(ellipsis$x[outliers], ellipsis$y[outliers], labels=outliers, pos=(ellipsis$y[outliers]>0)*2+1);
         }
         if(lowess){
             lines(lowess(ellipsis$x[!is.na(ellipsis$y)], ellipsis$y[!is.na(ellipsis$y)]), col="red");
@@ -2644,7 +2666,7 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
     plot4 <- function(x, ...){
         ellipsis <- list(...);
 
-        ellipsis$y <- residuals(x);
+        ellipsis$y <- as.vector(residuals(x));
         if(is.occurrence(x$occurrence)){
             ellipsis$y <- ellipsis$y[actuals(x$occurrence)!=0];
         }
@@ -2753,11 +2775,29 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
 
     # 7. Basic plot over time
     plot5 <- function(x, ...){
-        yActuals <- actuals(x);
+        ellipsis <- list(...);
+
+        ellipsis$actuals <- actuals(x);
         if(!is.null(x$holdout)){
-            yActuals <- ts(c(yActuals,x$holdout),start=start(yActuals),frequency=frequency(yActuals));
+            if(is.ts(ellipsis$actuals)){
+                ellipsis$actuals <- ts(c(ellipsis$actuals,x$holdout),
+                                       start=start(ellipsis$actuals),
+                                       frequency=frequency(ellipsis$actuals));
+            }
+            else{
+                ellipsis$actuals <- zoo(c(as.vector(ellipsis$actuals),as.vector(x$holdout)),
+                                order.by=c(zoo::index(ellipsis$actuals),zoo::index(x$holdout)));
+            }
         }
-        graphmaker(yActuals, x$forecast, fitted(x), main=x$model, legend=legend, parReset=FALSE, ...);
+        if(is.null(ellipsis$main)){
+            ellipsis$main <- x$model;
+        }
+        ellipsis$forecast <- x$forecast;
+        ellipsis$fitted <- fitted(x);
+        ellipsis$legend <- FALSE;
+        ellipsis$parReset <- FALSE;
+
+        do.call(graphmaker, ellipsis);
     }
 
     # 8 and 9. Standardised / Studentised residuals vs time
@@ -2818,7 +2858,7 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
 
 
         if(!any(names(ellipsis)=="ylim")){
-            ellipsis$ylim <- c(-max(abs(ellipsis$x)),max(abs(ellipsis$x)))*1.1;
+            ellipsis$ylim <- c(-max(abs(ellipsis$x)),max(abs(ellipsis$x)))*1.2;
         }
 
         if(legend){
@@ -2831,7 +2871,7 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
         do.call(plot,ellipsis);
         if(length(outliers)>0){
             points(time(ellipsis$x)[outliers], ellipsis$x[outliers], pch=16);
-            text(time(ellipsis$x)[outliers], ellipsis$x[outliers], labels=outliers, pos=4);
+            text(time(ellipsis$x)[outliers], ellipsis$x[outliers], labels=outliers, pos=(ellipsis$x[outliers]>0)*2+1);
         }
         if(lowess){
             lines(lowess(c(1:length(ellipsis$x)),ellipsis$x), col="red");
@@ -2878,18 +2918,24 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
         }
 
         if(type=="acf"){
-            theValues <- acf(residuals(x), plot=FALSE, na.action=na.pass);
+            theValues <- acf(as.vector(residuals(x)), plot=FALSE, na.action=na.pass);
         }
         else{
-            theValues <- pacf(residuals(x), plot=FALSE, na.action=na.pass);
+            theValues <- pacf(as.vector(residuals(x)), plot=FALSE, na.action=na.pass);
         }
         ellipsis$x <- theValues$acf[-1];
+        zValues <- qnorm(c((1-level)/2, (1+level)/2),0,sqrt(1/nobs(x)));
 
         ellipsis$type <- "h"
 
         do.call(plot,ellipsis);
         abline(h=0, col="black", lty=1);
-        abline(h=qnorm(c((1-level)/2, (1+level)/2),0,sqrt(1/nobs(x))), col="red", lty=2);
+        abline(h=zValues, col="red", lty=2);
+        if(any(ellipsis$x>zValues[2] | ellipsis$x<zValues[1])){
+            outliers <- which(ellipsis$x >zValues[2] | ellipsis$x <zValues[1]);
+            points(outliers, ellipsis$x[outliers], pch=16);
+            text(outliers, ellipsis$x[outliers], labels=outliers, pos=(ellipsis$x[outliers]>0)*2+1);
+        }
     }
 
     # 12. Plot of states
@@ -3397,6 +3443,8 @@ rmultistep.default <- function(object, h=10, ...){
 
 #' @export
 rmultistep.adam <- function(object, h=10, ...){
+    yClasses <- class(actuals(object));
+
     # Technical parameters
     lagsModelAll <- lags(object);
     componentsNumber <- length(object$persistence);
@@ -3418,12 +3466,21 @@ rmultistep.adam <- function(object, h=10, ...){
         ot <- matrix(1,obsInSample,1);
     }
 
-    # Produce multi-step errors matrix
-    return(ts(adamErrorerWrap(t(object$states), object$measurement, object$transition,
-                              lagsModelAll, Etype, Ttype, Stype,
-                              componentsNumber, componentsNumberSeasonal, h,
-                              matrix(actuals(object),obsInSample,1), ot),
-              start=start(actuals(object)), frequency=frequency(actuals(object))));
+    # Return multi-step errors matrix
+    if(any(yClasses=="ts")){
+        return(ts(adamErrorerWrap(t(object$states), object$measurement, object$transition,
+                                  lagsModelAll, Etype, Ttype, Stype,
+                                  componentsNumber, componentsNumberSeasonal, h,
+                                  matrix(actuals(object),obsInSample,1), ot),
+                  start=start(actuals(object)), frequency=frequency(actuals(object))));
+    }
+    else{
+        return(zoo(adamErrorerWrap(t(object$states), object$measurement, object$transition,
+                                   lagsModelAll, Etype, Ttype, Stype,
+                                   componentsNumber, componentsNumberSeasonal, h,
+                                   matrix(actuals(object),obsInSample,1), ot),
+                  order.by=zoo::index(actuals(object))));
+    }
 }
 
 #' @importFrom stats rstandard
@@ -3767,7 +3824,8 @@ plot.adam.predict <- function(x, ...){
 
 # Work in progress...
 #' @param nsim Number of iterations to do in case of \code{interval="simulated"}.
-#' @param occurrence The vector of occurrence variable (values in [0,1]).
+#' @param occurrence The vector containing the fututer occurrence variable
+#' (values in [0,1]), if it is known.
 #' @rdname forecast.smooth
 #' @importFrom stats rnorm rlogis rt rlnorm qnorm qlogis qt qlnorm
 #' @importFrom statmod rinvgauss qinvgauss
@@ -3817,9 +3875,18 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
     Ttype <- substr(model,2,2);
     Stype <- substr(model,nchar(model),nchar(model));
 
-    # ts structure
-    yForecastStart <- time(actuals(object))[obsInSample]+deltat(actuals(object));
-    yFrequency <- frequency(actuals(object));
+    yClasses <- class(actuals(object));
+
+    if(any(yClasses=="ts")){
+        # ts structure
+        yForecastStart <- time(actuals(object))[obsInSample]+deltat(actuals(object));
+        yFrequency <- frequency(actuals(object));
+    }
+    else{
+        # zoo thingy
+        yIndex <- zoo::index(actuals(object));
+        yForecastIndex <- yIndex[obsInSample]+diff(yIndex)[1]*c(1:h);
+    }
 
     # All the important matrices
     matVt <- t(object$states[obsStates-(lagsModelMax:1)+1,,drop=FALSE]);
@@ -3897,6 +3964,7 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
     # }
 
     # If this is a mixture model, produce forecasts for the occurrence
+    # is.oes is needed for the general model
     if(is.occurrence(object$occurrence)){
         occurrenceModel <- TRUE;
         if(is.alm(object$occurrence)){
@@ -3908,46 +3976,55 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
     }
     else{
         occurrenceModel <- FALSE;
-        # If this was provided occurrence, then use provided values
-        if(!is.null(object$occurrence) && !is.null(object$occurrence$occurrence) &&
-           (object$occurrence$occurrence=="provided")){
-            if(!is.null(occurrence) && is.numeric(occurrence)){
-                pForecast <- occurrence;
-            }
-            else{
-                pForecast <- object$occurrence$forecast;
-            }
-            # Make sure that the values are of the correct length
-            if(h<length(pForecast)){
-                pForecast <- pForecast[1:h];
-            }
-            else if(h>length(pForecast)){
-                pForecast <- c(pForecast,
-                               rep(tail(pForecast,1),
-                                   h-length(pForecast)));
-            }
-            else{
-                pForecast <- pForecast;
-            }
+        # If the occurrence values are provided
+        if(!is.null(occurrence) && is.numeric(occurrence)){
+            pForecast <- occurrence;
         }
         else{
-            pForecast <- rep(1, h);
+            # If this was provided occurrence, then use provided values
+            if(!is.null(object$occurrence) && !is.null(object$occurrence$occurrence) &&
+               (object$occurrence$occurrence=="provided")){
+                pForecast <- object$occurrence$forecast;
+            }
+            else{
+                pForecast <- rep(1, h);
+            }
+        }
+        # Make sure that the values are of the correct length
+        if(h<length(pForecast)){
+            pForecast <- pForecast[1:h];
+        }
+        else if(h>length(pForecast)){
+            pForecast <- c(pForecast,
+                           rep(tail(pForecast,1),
+                               h-length(pForecast)));
         }
     }
 
     # Cumulative forecasts have only one observation
     if(cumulative){
-        yForecast <- yUpper <- yLower <- ts(vector("numeric", 1), start=yForecastStart, frequency=yFrequency);
+        if(any(yClasses=="ts")){
+            yForecast <- yUpper <- yLower <- ts(vector("numeric", 1), start=yForecastStart, frequency=yFrequency);
+        }
+        else{
+            yForecast <- yUpper <- yLower <- zoo(vector("numeric", 1), order.by=yForecastIndex);
+        }
         yForecast[] <- sum(adamForecast * pForecast);
     }
     else{
-        yForecast <- yUpper <- yLower <- ts(vector("numeric", h), start=yForecastStart, frequency=yFrequency);
+        if(any(yClasses=="ts")){
+            yForecast <- yUpper <- yLower <- ts(vector("numeric", h), start=yForecastStart, frequency=yFrequency);
+        }
+        else{
+            yForecast <- yUpper <- yLower <- zoo(vector("numeric", h), order.by=yForecastIndex);
+        }
         yForecast[] <- adamForecast * pForecast;
     }
 
     if(interval!="none"){
         # If this is an occurrence model, then take probability into account in the level.
-        if(occurrenceModel){
+        # This correction is only needed for simulated and approximate, because the empirical contain zeroes
+        if(occurrenceModel && any(interval==c("simulated","approximate"))){
             levelNew <- (level-(1-pForecast))/pForecast;
             levelNew[levelNew<0] <- 0;
         }
@@ -3995,8 +4072,8 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                                    "dinvgauss"=rinvgauss(h*nsim, 1, dispersion=sigmaValue^2)-1,
                                    "dls"=exp(rs(h*nsim, 0, (sigmaValue^2/120)^0.25))-1,
                                    "dllaplace"=exp(rlaplace(h*nsim, 0, sigmaValue/2))-1
-        ),
-        h,nsim);
+                                   ),
+                            h,nsim);
         # This stuff is needed in order to produce adequate values for weird models
         EtypeModified <- Etype;
         if(Etype=="A" && any(object$distribution==c("dlnorm","dinvgauss","dls","dllaplace"))){
@@ -4004,7 +4081,9 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
         }
 
         # States, Errors, Ot, Transition, Measurement, Persistence
-        ySimulated <- adamSimulatorwrap(arrVt, matErrors, matrix(rbinom(h*nsim, 1, pForecast), h, nsim),
+        ySimulated <- adamSimulatorwrap(arrVt, matErrors,
+                                        matrix(rep(1,h*nsim), h, nsim),
+                                        # matrix(rbinom(h*nsim, 1, pForecast), h, nsim),
                                         array(matF,c(dim(matF),nsim)), matWt,
                                         matrix(vecG, componentsNumber+xregNumber, nsim),
                                         EtypeModified, Ttype, Stype, lagsModelAll,
@@ -4076,7 +4155,7 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
         # Extract multistep errors and calculate the covariance matrix
         else if(any(interval==c("semiparametric","nonparametric"))){
             if(h>1){
-                adamErrors <- rmultistep(object, h=h);
+                adamErrors <- as.matrix(rmultistep(object, h=h));
 
                 if(any(object$distribution==c("dinvgauss","dlnorm","dls","dllaplace")) && (Etype=="A")){
                     yFittedMatrix <- adamErrors;
@@ -4104,9 +4183,10 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
             }
             else{
                 vcovMulti <- sigma(object)^2;
-                adamErrors <- resid(object);
+                adamErrors <- as.vector(resid(object));
             }
         }
+
         # Calculate interval for approximate and semiparametric
         if(any(interval==c("approximate","confidence","semiparametric"))){
             if(object$distribution=="dnorm"){
@@ -4209,6 +4289,7 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
             }
         }
         # Use Taylor & Bunn approach for the nonparametric ones
+        #### Nonparametric intervals, regression ####
         else if(interval=="nonparametric"){
             if(h>1){
                 # This is needed in order to see if quant regression can be used
@@ -4228,7 +4309,7 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                     }
 
                     ee <- adamErrors;
-                    xe <- matrix(c(1:h),nrow=obsInSample-h,ncol=h,byrow=TRUE);
+                    xe <- matrix(c(1:h),nrow=nrow(ee),ncol=ncol(ee),byrow=TRUE);
 
                     # lower quantiles
                     A <- nlminb(rep(1,2),intervalQuantile,alpha=levelLow)$par;
@@ -4334,20 +4415,39 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
 #' @export
 forecast.adamCombined <- function(object, h=10, newxreg=NULL,
                                   interval=c("none", "simulated", "approximate", "semiparametric", "nonparametric"),
-                                  level=0.95, side=c("both","upper","lower"), cumulative=FALSE, nsim=10000, ...){
+                                  level=0.95, side=c("both","upper","lower"), cumulative=FALSE, nsim=5000, ...){
     interval <- match.arg(interval);
     side <- match.arg(side);
 
-    # ts structure
-    yForecastStart <- time(actuals(object))[nobs(object)]+deltat(actuals(object));
-    yFrequency <- frequency(actuals(object));
+    yClasses <- class(actuals(object));
+
+    if(any(yClasses=="ts")){
+        # ts structure
+        yForecastStart <- time(actuals(object))[obsInSample]+deltat(actuals(object));
+        yFrequency <- frequency(actuals(object));
+    }
+    else{
+        # zoo thingy
+        yIndex <- zoo::index(actuals(object));
+        yForecastIndex <- yIndex[obsInSample]+diff(yIndex)[1]*c(1:h);
+    }
 
     # Cumulative forecasts have only one observation
     if(cumulative){
-        yForecast <- yUpper <- yLower <- ts(vector("numeric", 1), start=yForecastStart, frequency=yFrequency);
+        if(any(yClasses=="ts")){
+            yForecast <- yUpper <- yLower <- ts(vector("numeric", 1), start=yForecastStart, frequency=yFrequency);
+        }
+        else{
+            yForecast <- yUpper <- yLower <- zoo(vector("numeric", 1), order.by=yForecastIndex);
+        }
     }
     else{
-        yForecast <- yUpper <- yLower <- ts(vector("numeric", h), start=yForecastStart, frequency=yFrequency);
+        if(any(yClasses=="ts")){
+            yForecast <- yUpper <- yLower <- ts(vector("numeric", h), start=yForecastStart, frequency=yFrequency);
+        }
+        else{
+            yForecast <- yUpper <- yLower <- zoo(vector("numeric", h), order.by=yForecastIndex);
+        }
     }
 
     # The list contains 8 elements
@@ -4391,6 +4491,46 @@ print.adam.forecast <- function(x, ...){
     }
     print(returnedValue);
 }
+
+#' @export
+plot.adam.forecast <- function(x, ...){
+    yClasses <- class(actuals(x));
+
+    ellipsis <- list(...);
+    if(is.null(ellipsis$ylim)){
+        ellipsis$ylim <- switch(x$side,
+                                "both"=range(c(as.vector(actuals(x$model)),as.vector(x$mean),
+                                               as.vector(x$lower),as.vector(x$upper)),na.rm=TRUE),
+                                "lower"=range(c(as.vector(actuals(x$model)),as.vector(x$mean),
+                                                as.vector(x$lower)),na.rm=TRUE),
+                                "upper"=range(c(as.vector(actuals(x$model)),as.vector(x$mean),
+                                                as.vector(x$upper)),na.rm=TRUE));
+    }
+
+    if(!is.null(x$model$holdout)){
+        if(any(yClasses=="ts")){
+            ellipsis$actuals <- ts(c(actuals(x$model),x$model$holdout),
+                                   start=start(actuals(x$model)),
+                                   frequency=frequency(actuals(x$model)));
+        }
+        else{
+            ellipsis$actuals <- zoo(c(as.vector(actuals(x$model)),as.vector(x$model$holdout)),
+                                    order.by=c(zoo::index(actuals(x$model)),zoo::index(x$model$holdout)));
+        }
+    }
+    else{
+        ellipsis$actuals <- actuals(x$model);
+    }
+
+    ellipsis$forecast <- x$mean;
+    ellipsis$fitted <- fitted(x);
+    ellipsis$lower <- x$lower;
+    ellipsis$upper <- x$upper;
+    ellipsis$level <- x$level[1];
+
+    do.call(graphmaker, ellipsis);
+}
+
 
 #### Other methods ####
 #' @export

@@ -360,7 +360,8 @@ arma::mat adamErrorer(arma::mat const &matrixVt, arma::mat const &matrixWt, arma
 
     for(unsigned int i = 0; i < (obs-horizon); i=i+1){
         hh = std::min(horizon, obs-i);
-        matErrors.submat(0, i, hh-1, i) = (vectorOt.rows(i, i+hh-1) % errorfVector(vectorYt.rows(i, i+hh-1),
+        // matErrors.submat(0, i, hh-1, i) = (vectorOt.rows(i, i+hh-1) % errorfVector(vectorYt.rows(i, i+hh-1),
+        matErrors.submat(0, i, hh-1, i) = (errorfVector(vectorYt.rows(i, i+hh-1),
                                            adamForecaster(matrixVt.cols(i,i+lagsModelMax-1), matrixWt.rows(i,i+hh-1),
                                                           matrixF, lags, E, T, S, nNonSeasonal, nSeasonal, hh), E));
     }
