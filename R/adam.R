@@ -1262,6 +1262,8 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
             BValues <- initialiser(Etype, Ttype, Stype, componentsNumberSeasonal,
                                    componentsNumber, lagsModel, lagsModelMax, adamCreated$matVt,
                                    persistenceEstimate, phiEstimate, initialType,
+                                   arimaModel, arRequired, iRequired, maRequired,
+                                   componentsNumberARIMA, componentsNamesARIMA, initialNumberARIMA,
                                    xregInitialsEstimate, xregPersistenceEstimate, xregNumber, lambdaEstimate);
             # Create the vector of initials for the optimisation
             B <- BValues$B;
@@ -2189,6 +2191,8 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                 BValues <- initialiser(Etype, Ttype, Stype, componentsNumberSeasonal,
                                        componentsNumber, lagsModel, lagsModelMax, adamCreated$matVt,
                                        TRUE, damped, "optimal",
+                                       arimaModel, arRequired, iRequired, maRequired,
+                                       componentsNumberARIMA, componentsNamesARIMA, initialNumberARIMA,
                                        xregExist, FALSE, xregNumber, FALSE);
                 # Create the vector of initials for the optimisation
                 B <- BValues$B;

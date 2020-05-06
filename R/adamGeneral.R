@@ -933,7 +933,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             obsXreg <- nrow(xreg);
             # If there are more xreg values than the obsAll, redo stuff and use them
             if(obsXreg>=obsAll){
-                xregData <- as.matrix(model.frame(formulaProvided,data=as.data.frame(xreg)))[1:obsAll,xregNames,drop=FALSE];
+                xregData <- model.frame(formulaProvided,data=as.data.frame(xreg));
+                xregData <- as.matrix(model.matrix(xregData,data=xregData))[1:obsAll,xregNames,drop=FALSE];
             }
             # If there are less xreg observations than obsAll, use Naive
             else{
@@ -941,7 +942,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                                "Using the last available values as future ones."),
                         call.=FALSE);
                 newnRows <- obsAll-obsXreg;
-                xregData <- as.matrix(model.frame(formulaProvided,data=as.data.frame(xreg)))[,xregNames,drop=FALSE];
+                xregData <- model.frame(formulaProvided,data=as.data.frame(xreg));
+                xregData <- as.matrix(model.matrix(xregData,data=xregData))[,xregNames,drop=FALSE];
                 xregData <- rbind(xregData,matrix(rep(tail(xregData,1),each=newnRows),newnRows,xregNumber));
             }
             formulaProvided <- formula(testModel);
