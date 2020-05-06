@@ -3660,7 +3660,17 @@ predict.adam <- function(object, newxreg=NULL, interval=c("none", "confidence", 
             yForecast <- fitted(object);
         }
     }
+
+    ##### Prediction interval for in sample only! #####
     side <- match.arg(side);
+
+    if(length(level)>1){
+        warning(paste0("Sorry, but we only support scalar for the level, ",
+                       "when constructing in-sample prediction interval. ",
+                       "Using the first provided value."),
+                call.=FALSE);
+        level <- level[1];
+    }
 
     # Basic parameters
     model <- modelType(object);
@@ -3986,29 +3996,24 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
     if(any(is.nan(adamForecast))){
         adamForecast[is.nan(adamForecast)] <- 0;
     }
-    # If there are negative values in the multiplicative model
-    # if(any(c(Etype,Ttype,Stype)=="M") && any(adamForecast<=0)){
-    #     adamForecast[adamForecast<=0] <- 0.01;
-    # }
 
-    # If this is a mixture model, produce forecasts for the occurrence
-    # is.oes is needed for the general model
-    if(is.occurrence(object$occurrence)){
-        occurrenceModel <- TRUE;
-        if(is.alm(object$occurrence)){
-            pForecast <- forecast(object$occurrence,h=h,newdata=newxreg)$mean;
-        }
-        else{
-            pForecast <- forecast(object$occurrence,h=h,newxreg=newxreg)$mean;
-        }
+    # If the occurrence values are provided for the holdout
+    if(!is.null(occurrence) && is.numeric(occurrence)){
+        pForecast <- occurrence;
     }
     else{
-        occurrenceModel <- FALSE;
-        # If the occurrence values are provided
-        if(!is.null(occurrence) && is.numeric(occurrence)){
-            pForecast <- occurrence;
+        # If this is a mixture model, produce forecasts for the occurrence
+        if(is.occurrence(object$occurrence)){
+            occurrenceModel <- TRUE;
+            if(is.alm(object$occurrence)){
+                pForecast <- forecast(object$occurrence,h=h,newdata=newxreg)$mean;
+            }
+            else{
+                pForecast <- forecast(object$occurrence,h=h,newxreg=newxreg)$mean;
+            }
         }
         else{
+            occurrenceModel <- FALSE;
             # If this was provided occurrence, then use provided values
             if(!is.null(object$occurrence) && !is.null(object$occurrence$occurrence) &&
                (object$occurrence$occurrence=="provided")){
@@ -4018,65 +4023,68 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                 pForecast <- rep(1, h);
             }
         }
-        # Make sure that the values are of the correct length
-        if(h<length(pForecast)){
-            pForecast <- pForecast[1:h];
-        }
-        else if(h>length(pForecast)){
-            pForecast <- c(pForecast,
-                           rep(tail(pForecast,1),
-                               h-length(pForecast)));
-        }
+    }
+    # Make sure that the values are of the correct length
+    if(h<length(pForecast)){
+        pForecast <- pForecast[1:h];
+    }
+    else if(h>length(pForecast)){
+        pForecast <- c(pForecast, rep(tail(pForecast,1), h-length(pForecast)));
     }
 
+    # How many levels did user asked to produce
+    nLevels <- length(level);
     # Cumulative forecasts have only one observation
     if(cumulative){
-        if(any(yClasses=="ts")){
-            yForecast <- yUpper <- yLower <- ts(vector("numeric", 1), start=yForecastStart, frequency=yFrequency);
-        }
-        else{
-            yForecast <- yUpper <- yLower <- zoo(vector("numeric", 1), order.by=yForecastIndex);
-        }
+        # hFinal is the number of elements we will have in the final forecast
+        hFinal <- 1;
+    }
+    else{
+        hFinal <- h;
+    }
+
+    # Create necessary matrices for the forecasts
+    if(any(yClasses=="ts")){
+        yForecast <- ts(vector("numeric", hFinal), start=yForecastStart, frequency=yFrequency);
+        yUpper <- yLower <- ts(matrix(0,hFinal,nLevels), start=yForecastStart, frequency=yFrequency);
+    }
+    else{
+        yForecast <- zoo(vector("numeric", hFinal), order.by=yForecastIndex);
+        yUpper <- yLower <- zoo(matrix(0,hFinal,nLevels), order.by=yForecastIndex);
+    }
+    # Fill in the point forecasts
+    if(cumulative){
         yForecast[] <- sum(adamForecast * pForecast);
     }
     else{
-        if(any(yClasses=="ts")){
-            yForecast <- yUpper <- yLower <- ts(vector("numeric", h), start=yForecastStart, frequency=yFrequency);
-        }
-        else{
-            yForecast <- yUpper <- yLower <- zoo(vector("numeric", h), order.by=yForecastIndex);
-        }
         yForecast[] <- adamForecast * pForecast;
     }
 
     if(interval!="none"){
-        # If this is an occurrence model, then take probability into account in the level.
-        # This correction is only needed for simulated and approximate, because the empirical contain zeroes
-        if(occurrenceModel && any(interval==c("simulated","approximate"))){
-            levelNew <- (level-(1-pForecast))/pForecast;
-            levelNew[levelNew<0] <- 0;
+        # Fix just in case a silly user used 95 etc instead of 0.95
+        if(any(level>1)){
+            level[] <- level / 100;
         }
-        else{
-            levelNew <- level;
-        }
+        levelLow <- levelUp <- matrix(0,hFinal,nLevels);
+        levelNew <- matrix(level,nrow=hFinal,ncol=nLevels,byrow=TRUE);
 
-        if(cumulative){
-            levelLow <- levelUp <- vector("numeric",1);
-        }
-        else{
-            levelLow <- levelUp <- vector("numeric",h);
+        # If this is an occurrence model, then take probability into account in the level.
+        # This correction is only needed for approximate, because the others contain zeroes
+        if(occurrenceModel && interval=="approximate"){
+            levelNew[] <- (levelNew-(1-as.vector(pForecast)))/as.vector(pForecast);
+            levelNew[levelNew<0] <- 0;
         }
         if(side=="both"){
             levelLow[] <- (1-levelNew)/2;
             levelUp[] <- (1+levelNew)/2;
         }
         else if(side=="upper"){
-            levelLow[] <- rep(0,length(levelNew));
+            levelLow[] <- 0;
             levelUp[] <- levelNew;
         }
         else{
             levelLow[] <- 1-levelNew;
-            levelUp[] <- rep(1,length(levelNew));
+            levelUp[] <- 1;
         }
         levelLow[levelLow<0] <- 0;
         levelUp[levelUp<0] <- 0;
@@ -4110,8 +4118,8 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
 
         # States, Errors, Ot, Transition, Measurement, Persistence
         ySimulated <- adamSimulatorwrap(arrVt, matErrors,
-                                        matrix(rep(1,h*nsim), h, nsim),
-                                        # matrix(rbinom(h*nsim, 1, pForecast), h, nsim),
+                                        # matrix(rep(1,h*nsim), h, nsim),
+                                        matrix(rbinom(h*nsim, 1, pForecast), h, nsim),
                                         array(matF,c(dim(matF),nsim)), matWt,
                                         matrix(vecG, componentsNumber+xregNumber, nsim),
                                         EtypeModified, Ttype, Stype, lagsModelAll,
@@ -4119,15 +4127,14 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
 
         #### Note that the cumulative doesn't work with oes at the moment!
         if(cumulative){
-            yForecast[] <- mean(colSums(ySimulated,na.rm=T)*pForecast);
+            yForecast[] <- mean(colSums(ySimulated,na.rm=T));
             yLower[] <- quantile(colSums(ySimulated,na.rm=T),levelLow,type=7);
             yUpper[] <- quantile(colSums(ySimulated,na.rm=T),levelUp,type=7);
         }
         else{
-            # yForecast[] <- apply(ySimulated,1,mean,na.rm=T) * pForecast;
             for(i in 1:h){
-                yLower[i] <- quantile(ySimulated[i,],levelLow[i],na.rm=T,type=7);
-                yUpper[i] <- quantile(ySimulated[i,],levelUp[i],na.rm=T,type=7);
+                yLower[i,] <- quantile(ySimulated[i,],levelLow[i,],na.rm=T,type=7);
+                yUpper[i,] <- quantile(ySimulated[i,],levelUp[i,],na.rm=T,type=7);
             }
         }
         # This step is needed in order to make intervals similar between the different methods
@@ -4321,15 +4328,16 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
         else if(interval=="nonparametric"){
             if(h>1){
                 # This is needed in order to see if quant regression can be used
-                if(all(levelLow==unique(levelLow))){
-                    levelLow <- unique(levelLow);
+                if(all(levelLow==levelLow[1,])){
+                    levelLow <- levelLow[1,];
                 }
-                if(all(levelUp==unique(levelUp))){
-                    levelUp <- unique(levelUp);
+                if(all(levelUp==levelUp[1,])){
+                    levelUp <- levelUp[1,];
                 }
 
-                # Do quantile regression for h>1 and scalars for the level
-                if(length(levelLow)==1 && length(levelUp)==1){
+                # Do quantile regression for h>1 and scalars for the level (no change across h)
+                # transpose is needed in order to compare correctly
+                if(all(t(levelNew)==levelNew[1,])){
                     # Quantile regression function
                     intervalQuantile <- function(A, alpha){
                         ee[] <- adamErrors - (A[1]*xe^A[2]);
@@ -4339,14 +4347,17 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                     ee <- adamErrors;
                     xe <- matrix(c(1:h),nrow=nrow(ee),ncol=ncol(ee),byrow=TRUE);
 
-                    # lower quantiles
-                    A <- nlminb(rep(1,2),intervalQuantile,alpha=levelLow)$par;
-                    yLower[] <- A[1]*c(1:h)^A[2];
+                    for(i in 1:nLevels){
+                        # lower quantiles
+                        A <- nlminb(rep(1,2),intervalQuantile,alpha=levelLow[1,i])$par;
+                        yLower[,i] <- A[1]*c(1:h)^A[2];
 
-                    # upper quantiles
-                    A[] <- nlminb(rep(1,2),intervalQuantile,alpha=levelUp)$par;
-                    yUpper[] <- A[1]*c(1:h)^A[2];
+                        # upper quantiles
+                        A[] <- nlminb(rep(1,2),intervalQuantile,alpha=levelUp[1,i])$par;
+                        yUpper[,i] <- A[1]*c(1:h)^A[2];
+                    }
                 }
+                # Otherwise just return quantiles of errors
                 else{
                     if(cumulative){
                         yLower[] <- quantile(adamErrors,levelLow,type=7);
@@ -4433,6 +4444,16 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                 yLower[is.na(yLower)] <- 0;
             }
         }
+
+        colnames(yLower) <- switch(side,
+                                   "both"=paste0("Lower bound (",(1-level)/2*100,"%)"),
+                                   "lower"=paste0("Lower bound (",(1-level)*100,"%)"),
+                                   "upper"="Lower 0%");
+
+        colnames(yUpper) <- switch(side,
+                                   "both"=paste0("Upper bound (",(1+level)/2*100,"%)"),
+                                   "lower"="Upper 100%",
+                                   "upper"=paste0("Upper bound (",level*100,"%)"));
     }
 
     return(structure(list(mean=yForecast, lower=yLower, upper=yUpper, model=object,
@@ -4460,22 +4481,25 @@ forecast.adamCombined <- function(object, h=10, newxreg=NULL,
         yForecastIndex <- yIndex[obsInSample]+diff(yIndex)[1]*c(1:h);
     }
 
+    # How many levels did user asked to produce
+    nLevels <- length(level);
     # Cumulative forecasts have only one observation
     if(cumulative){
-        if(any(yClasses=="ts")){
-            yForecast <- yUpper <- yLower <- ts(vector("numeric", 1), start=yForecastStart, frequency=yFrequency);
-        }
-        else{
-            yForecast <- yUpper <- yLower <- zoo(vector("numeric", 1), order.by=yForecastIndex);
-        }
+        # hFinal is the number of elements we will have in the final forecast
+        hFinal <- 1;
     }
     else{
-        if(any(yClasses=="ts")){
-            yForecast <- yUpper <- yLower <- ts(vector("numeric", h), start=yForecastStart, frequency=yFrequency);
-        }
-        else{
-            yForecast <- yUpper <- yLower <- zoo(vector("numeric", h), order.by=yForecastIndex);
-        }
+        hFinal <- h;
+    }
+
+    # Create necessary matrices for the forecasts
+    if(any(yClasses=="ts")){
+        yForecast <- ts(vector("numeric", hFinal), start=yForecastStart, frequency=yFrequency);
+        yUpper <- yLower <- ts(matrix(0,hFinal,nLevels), start=yForecastStart, frequency=yFrequency);
+    }
+    else{
+        yForecast <- zoo(vector("numeric", hFinal), order.by=yForecastIndex);
+        yUpper <- yLower <- zoo(matrix(0,hFinal,nLevels), order.by=yForecastIndex);
     }
 
     # The list contains 8 elements
@@ -4506,13 +4530,9 @@ print.adam.forecast <- function(x, ...){
                                 "lower"=cbind(x$mean,x$lower),
                                 "upper"=cbind(x$mean,x$upper));
         colnames(returnedValue) <- switch(x$side,
-                                          "both"=c("Point forecast",
-                                                   paste0("Lower bound (",mean((1-x$level)/2)*100,"%)"),
-                                                   paste0("Upper bound (",mean((1+x$level)/2)*100,"%)")),
-                                          "lower"=c("Point forecast",
-                                                    paste0("Lower bound (",mean((1-x$level))*100,"%)")),
-                                          "upper"=c("Point forecast",
-                                                    paste0("Upper bound (",mean(x$level)*100,"%)")));
+                                          "both"=c("Point forecast",colnames(x$lower),colnames(x$upper)),
+                                          "lower"=c("Point forecast",colnames(x$lower)),
+                                          "upper"=c("Point forecast",colnames(x$upper)))
     }
     else{
         returnedValue <- x$mean;
@@ -4554,7 +4574,7 @@ plot.adam.forecast <- function(x, ...){
     ellipsis$fitted <- fitted(x);
     ellipsis$lower <- x$lower;
     ellipsis$upper <- x$upper;
-    ellipsis$level <- x$level[1];
+    ellipsis$level <- x$level;
 
     do.call(graphmaker, ellipsis);
 }
