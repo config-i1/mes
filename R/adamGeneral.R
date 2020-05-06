@@ -1031,22 +1031,26 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                       # Xreg initials and smoothing parameters
                       xregNumber*(xregInitialsEstimate+xregPersistenceEstimate));
 
-    # If there is ARIMA terms, remove them
-    if(arimaModel){
-        warning("We don't have enough observations to fit ETS with ARIMA terms. We will construct the simple ETS.",
-                call.=FALSE);
-        arRequired <- iRequired <- maRequired <- arimaModel <- FALSE;
-        arOrders <- iOrders <- maOrders <- NULL;
-        nonZeroARI <- nonZeroMA <- lagsModelARIMA <- NULL;
-        initialNumberARIMA <- componentsNumberARIMA <- 0;
-        lagsModelAll <- lagsModelAll[-c(componentsNumber+c(1:componentsNumberARIMA)),,drop=FALSE];
-        lagsModelMax <- max(lagsModelAll);
+    # If the sample is smaller than the number of parameters
+    if(obsNonzero <= nParamMax){
+        # If there is ARIMA terms, remove them
+        if(arimaModel){
+            warning("We don't have enough observations to fit ETS with ARIMA terms. We will construct the simple ETS.",
+                    call.=FALSE);
+            arRequired <- iRequired <- maRequired <- arimaModel <- FALSE;
+            arOrders <- iOrders <- maOrders <- NULL;
+            nonZeroARI <- nonZeroMA <- lagsModelARIMA <- NULL;
+            componentsNamesARIMA <- NULL;
+            initialNumberARIMA <- componentsNumberARIMA <- 0;
+            lagsModelAll <- lagsModelAll[-c(componentsNumber+c(1:componentsNumberARIMA)),,drop=FALSE];
+            lagsModelMax <- max(lagsModelAll);
 
-        nParamMax[] <- (1 + componentsNumber*persistenceEstimate + phiEstimate +
-                            # Number of ETS initials
-                            (sum(lagsModelAll)-xregNumber)*(initialType=="optimal") +
-                            # Xreg initials and smoothing parameters
-                            xregNumber*(xregInitialsEstimate+xregPersistenceEstimate));
+            nParamMax[] <- (1 + componentsNumber*persistenceEstimate + phiEstimate +
+                                # Number of ETS initials
+                                (sum(lagsModelAll)-xregNumber)*(initialType=="optimal") +
+                                # Xreg initials and smoothing parameters
+                                xregNumber*(xregInitialsEstimate+xregPersistenceEstimate));
+        }
     }
 
     # If the sample is smaller than the number of parameters
@@ -1095,7 +1099,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                 }
             }
 
-            warning("Not enought of non-zero observations for the fit of ETS(",model,")! Fitting what we can...",
+            warning("Not enough of non-zero observations for the fit of ETS(",model,")! Fitting what we can...",
                     call.=FALSE);
             if(modelDo=="combine"){
                 model <- "CNN";
@@ -1233,6 +1237,26 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             initialType <- "p";
             initialEstimate <- FALSE;
             warning("We did not have enough of non-zero observations, so we used Naive.",call.=FALSE);
+            modelDo <- "nothing"
+            model <- "ANN";
+            Etype <- "A";
+            Ttype <- "N";
+            Stype <- "N";
+            phiEstimate <- FALSE;
+            parametersNumber[1,1] <- 0;
+            parametersNumber[2,1] <- 2;
+        }
+        # Only zeroes in the data...
+        else if(obsNonzero==0 && obsInSample>1){
+            modelsPool <- NULL;
+            persistence <- 0;
+            names(persistence) <- "level";
+            persistenceEstimate <- FALSE;
+            initialValue <- 0;
+            initialType <- "p";
+            initialEstimate <- FALSE;
+            occurrenceModelProvided <- occurrenceModel <- FALSE;
+            warning("You have a sample with zeroes only. Your forecast will be zero.",call.=FALSE);
             modelDo <- "nothing"
             model <- "ANN";
             Etype <- "A";

@@ -601,19 +601,28 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                     matVt[i,(lagsModelMax-lagsModel[i])+1:lagsModel[i]] <- initialValue[indices];
                 }
             }
+            j <- componentsNumber;
         }
 
         # If ARIMA orders are specified, prepare initials
         if(arimaModel){
+            if(Etype=="A"){
+                for(i in 1:componentsNumberARIMA){
+                    nRepeats <- ceiling(lagsModelMax/lagsModelAll[componentsNumber+i]);
+                    matVt[componentsNumber+i,
+                          1:lagsModelMax] <- rep(yInSample[1:lagsModelAll[componentsNumber+i]],
+                                                 nRepeats)[nRepeats*lagsModelAll[componentsNumber+i]+(-lagsModelMax+1):0];
+                }
+            }
         }
 
         # Fill in the initials for xreg
         if(xregExist){
             if(Etype=="A" || xregInitialsProvided || is.null(xregModel[[2]])){
-                matVt[componentsNumber+1:xregNumber,1:lagsModelMax] <- xregModel[[1]]$xregInitial;
+                matVt[componentsNumber+componentsNumberARIMA+1:xregNumber,1:lagsModelMax] <- xregModel[[1]]$xregInitial;
             }
             else{
-                matVt[componentsNumber+1:xregNumber,1:lagsModelMax] <- xregModel[[2]]$xregInitial;
+                matVt[componentsNumber+componentsNumberARIMA+1:xregNumber,1:lagsModelMax] <- xregModel[[2]]$xregInitial;
             }
         }
 
@@ -678,9 +687,15 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
     initialiser <- function(Etype, Ttype, Stype, componentsNumberSeasonal,
                             componentsNumber, lagsModel, lagsModelMax, matVt,
                             persistenceEstimate, phiEstimate, initialType,
+                            # ARIMA elements
+                            arimaModel, arRequired, iRequired, maRequired,
+                            componentsNumberARIMA, componentsNamesARIMA, initialNumberARIMA,
+                            # Explanatory variables
                             xregInitialsEstimate, xregPersistenceEstimate, xregNumber, lambdaEstimate){
-        # Persistence of states, persistence of xreg, phi, initials, initials for xreg
+        # The order:
+        # Persistence of states and for xreg, phi, AR and MA parameters, initials, initialsARIMA, initials for xreg
         B <- Bl <- Bu <- vector("numeric",persistenceEstimate*componentsNumber+xregPersistenceEstimate*xregNumber+phiEstimate+
+                                    (sum(arOrders)+sum(maOrders)+componentsNumberARIMA*(initialType=="optimal"))*arimaModel+
                                     (initialType=="optimal")*sum(lagsModel)+xregInitialsEstimate*xregNumber+lambdaEstimate);
 
         j <- 1;
@@ -760,6 +775,12 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
             j <- j+1;
         }
 
+        # ARIMA parameters (AR / MA)
+        if(arimaModel){
+            if(arRequired){}
+            if(maRequired){}
+        }
+
         # Initials
         if(initialType=="optimal"){
             i <- 1;
@@ -821,6 +842,9 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                 }
             }
         }
+
+        # ARIMA initials
+        if(arimaModel){}
 
         # Initials of the xreg
         if(xregInitialsEstimate){
