@@ -4448,11 +4448,11 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
         colnames(yLower) <- switch(side,
                                    "both"=paste0("Lower bound (",(1-level)/2*100,"%)"),
                                    "lower"=paste0("Lower bound (",(1-level)*100,"%)"),
-                                   "upper"="Lower 0%");
+                                   "upper"=rep("Lower 0%",nLevels));
 
         colnames(yUpper) <- switch(side,
                                    "both"=paste0("Upper bound (",(1+level)/2*100,"%)"),
-                                   "lower"="Upper 100%",
+                                   "lower"=rep("Upper 100%",nLevels),
                                    "upper"=paste0("Upper bound (",level*100,"%)"));
     }
 
