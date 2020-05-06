@@ -4546,13 +4546,23 @@ plot.adam.forecast <- function(x, ...){
 
     ellipsis <- list(...);
     if(is.null(ellipsis$ylim)){
-        ellipsis$ylim <- switch(x$side,
-                                "both"=range(c(as.vector(actuals(x$model)),as.vector(x$mean),
-                                               as.vector(x$lower),as.vector(x$upper)),na.rm=TRUE),
-                                "lower"=range(c(as.vector(actuals(x$model)),as.vector(x$mean),
-                                                as.vector(x$lower)),na.rm=TRUE),
-                                "upper"=range(c(as.vector(actuals(x$model)),as.vector(x$mean),
-                                                as.vector(x$upper)),na.rm=TRUE));
+        vectorOfValues <- switch(x$side,
+                                 "both"=c(as.vector(actuals(x$model)),as.vector(x$mean),
+                                          as.vector(x$lower),as.vector(x$upper)),
+                                 "lower"=c(as.vector(actuals(x$model)),as.vector(x$mean),
+                                           as.vector(x$lower)),
+                                 "upper"=c(as.vector(actuals(x$model)),as.vector(x$mean),
+                                           as.vector(x$upper)));
+        ellipsis$ylim <- range(vectorOfValues[is.finite(vectorOfValues)],na.rm=TRUE);
+    }
+
+    if(is.null(ellipsis$legend)){
+        ellipsis$legend <- FALSE;
+        ellipsis$parReset <- FALSE;
+    }
+
+    if(is.null(ellipsis$main)){
+        ellipsis$main <- paste0("Forecast from ",test2$model$model);
     }
 
     if(!is.null(x$model$holdout)){
