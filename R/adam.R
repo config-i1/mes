@@ -4562,7 +4562,7 @@ plot.adam.forecast <- function(x, ...){
     }
 
     if(is.null(ellipsis$main)){
-        ellipsis$main <- paste0("Forecast from ",test2$model$model);
+        ellipsis$main <- paste0("Forecast from ",x$model$model);
     }
 
     if(!is.null(x$model$holdout)){
