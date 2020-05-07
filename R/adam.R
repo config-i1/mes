@@ -2814,7 +2814,7 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
             }
             else{
                 ellipsis$actuals <- zoo(c(as.vector(ellipsis$actuals),as.vector(x$holdout)),
-                                order.by=c(zoo::index(ellipsis$actuals),zoo::index(x$holdout)));
+                                order.by=c(time(ellipsis$actuals),time(x$holdout)));
             }
         }
         if(is.null(ellipsis$main)){
@@ -3507,7 +3507,7 @@ rmultistep.adam <- function(object, h=10, ...){
                                    lagsModelAll, Etype, Ttype, Stype,
                                    componentsNumber, componentsNumberSeasonal, h,
                                    matrix(actuals(object),obsInSample,1), ot),
-                  order.by=zoo::index(actuals(object))));
+                  order.by=time(actuals(object))));
     }
 }
 
@@ -3922,7 +3922,7 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
     }
     else{
         # zoo thingy
-        yIndex <- zoo::index(actuals(object));
+        yIndex <- time(actuals(object));
         yForecastIndex <- yIndex[obsInSample]+diff(yIndex)[1]*c(1:h);
     }
 
@@ -4329,10 +4329,10 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
             if(h>1){
                 # This is needed in order to see if quant regression can be used
                 if(all(levelLow==levelLow[1,])){
-                    levelLow <- levelLow[1,];
+                    levelLow <- levelLow[1,,drop=FALSE];
                 }
                 if(all(levelUp==levelUp[1,])){
-                    levelUp <- levelUp[1,];
+                    levelUp <- levelUp[1,,drop=FALSE];
                 }
 
                 # Do quantile regression for h>1 and scalars for the level (no change across h)
@@ -4477,7 +4477,7 @@ forecast.adamCombined <- function(object, h=10, newxreg=NULL,
     }
     else{
         # zoo thingy
-        yIndex <- zoo::index(actuals(object));
+        yIndex <- time(actuals(object));
         yForecastIndex <- yIndex[obsInSample]+diff(yIndex)[1]*c(1:h);
     }
 
@@ -4573,7 +4573,7 @@ plot.adam.forecast <- function(x, ...){
         }
         else{
             ellipsis$actuals <- zoo(c(as.vector(actuals(x$model)),as.vector(x$model$holdout)),
-                                    order.by=c(zoo::index(actuals(x$model)),zoo::index(x$model$holdout)));
+                                    order.by=c(time(actuals(x$model)),time(x$model$holdout)));
         }
     }
     else{

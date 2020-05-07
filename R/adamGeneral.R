@@ -35,7 +35,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         }
     }
     else{
-        yIndex <- zoo::index(y);
+        yIndex <- time(y);
     }
     yClasses <- class(y);
 
