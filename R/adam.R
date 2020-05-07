@@ -485,7 +485,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                         yInSample, persistence, persistenceEstimate, phi,
                         initialValue, initialType,
                         # ARIMA elements
-                        arimaModel, arRequired, iRequired, maRequired,
+                        arimaModel, arRequired, iRequired, maRequired, lagsModelARIMA,
                         componentsNumberARIMA, componentsNamesARIMA, initialNumberARIMA,
                         # Explanatory variables
                         xregExist, xregInitialsProvided, xregPersistence,
@@ -606,13 +606,11 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
 
         # If ARIMA orders are specified, prepare initials
         if(arimaModel){
-            if(Etype=="A"){
-                for(i in 1:componentsNumberARIMA){
-                    nRepeats <- ceiling(lagsModelMax/lagsModelAll[componentsNumber+i]);
-                    matVt[componentsNumber+i,
-                          1:lagsModelMax] <- rep(yInSample[1:lagsModelAll[componentsNumber+i]],
-                                                 nRepeats)[nRepeats*lagsModelAll[componentsNumber+i]+(-lagsModelMax+1):0];
-                }
+            for(i in 1:componentsNumberARIMA){
+                nRepeats <- ceiling(max(lagsModelARIMA)/lagsModelARIMA[i]);
+                matVt[componentsNumber+i, 1:max(lagsModelARIMA)+(lagsModelMax-max(lagsModelARIMA))] <-
+                    rep(switch(Etype,"A"=yInSample,"M"=log(yInSample))[1:lagsModelARIMA[i]],
+                        nRepeats)[nRepeats*lagsModelARIMA[i]+(-max(lagsModelARIMA)+1):0];
             }
         }
 
@@ -688,7 +686,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                             componentsNumber, lagsModel, lagsModelMax, matVt,
                             persistenceEstimate, phiEstimate, initialType,
                             # ARIMA elements
-                            arimaModel, arRequired, iRequired, maRequired,
+                            arimaModel, arRequired, maRequired, arOrders, maOrders, lagsModelARIMA,
                             componentsNumberARIMA, componentsNamesARIMA, initialNumberARIMA,
                             # Explanatory variables
                             xregInitialsEstimate, xregPersistenceEstimate, xregNumber, lambdaEstimate){
@@ -777,8 +775,18 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
 
         # ARIMA parameters (AR / MA)
         if(arimaModel){
-            if(arRequired){}
-            if(maRequired){}
+            if(arRequired){
+                B[j+c(1:sum(arOrders))-1] <- 1/sum(arOrders);
+                Bl[j+c(1:sum(arOrders))-1] <- -5;
+                Bu[j+c(1:sum(arOrders))-1] <- 5;
+                j <- j + sum(arOrders);
+            }
+            if(maRequired){
+                B[j+c(1:sum(maOrders))-1] <- 1/sum(maOrders);
+                Bl[j+c(1:sum(arOrders))-1] <- -5;
+                Bu[j+c(1:sum(arOrders))-1] <- 5;
+                j <- j + sum(maOrders);
+            }
         }
 
         # Initials
@@ -844,12 +852,15 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
         }
 
         # ARIMA initials
-        if(arimaModel){}
+        if(arimaModel){
+            B[j+1:max(lagsModelARIMA)-1] <- matVt[componentsNumber+componentsNumberARIMA,1:max(lagsModelARIMA)];
+            j <- j+max(lagsModelARIMA);
+        }
 
         # Initials of the xreg
         if(xregInitialsEstimate){
-            B[j-1+1:xregNumber] <- matVt[componentsNumber+1:xregNumber,lagsModelMax];
-            names(B)[j-1+1:xregNumber] <- rownames(matVt)[componentsNumber+1:xregNumber];
+            B[j-1+1:xregNumber] <- matVt[componentsNumber+componentsNumberARIMA+1:xregNumber,lagsModelMax];
+            names(B)[j-1+1:xregNumber] <- rownames(matVt)[componentsNumber+componentsNumberARIMA+1:xregNumber];
             if(Etype=="A"){
                 Bl[j-1+1:xregNumber] <- -Inf;
                 Bu[j-1+1:xregNumber] <- Inf;
@@ -1253,7 +1264,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                                componentsNames, otLogical,
                                yInSample, persistence, persistenceEstimate, phi,
                                initialValue, initialType,
-                               arimaModel, arRequired, iRequired, maRequired,
+                               arimaModel, arRequired, iRequired, maRequired, lagsModelARIMA,
                                componentsNumberARIMA, componentsNamesARIMA, initialNumberARIMA,
                                xregExist, xregInitialsProvided, xregPersistence,
                                xregModel, xregData, xregNumber, xregNames);
@@ -1262,7 +1273,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
             BValues <- initialiser(Etype, Ttype, Stype, componentsNumberSeasonal,
                                    componentsNumber, lagsModel, lagsModelMax, adamCreated$matVt,
                                    persistenceEstimate, phiEstimate, initialType,
-                                   arimaModel, arRequired, iRequired, maRequired,
+                                   arimaModel, arRequired, maRequired, arOrders, maOrders, lagsModelARIMA,
                                    componentsNumberARIMA, componentsNamesARIMA, initialNumberARIMA,
                                    xregInitialsEstimate, xregPersistenceEstimate, xregNumber, lambdaEstimate);
             # Create the vector of initials for the optimisation
@@ -1942,7 +1953,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                                componentsNames, otLogical,
                                yInSample, persistence, persistenceEstimate, phi,
                                initialValue, initialType,
-                               arimaModel, arRequired, iRequired, maRequired,
+                               arimaModel, arRequired, iRequired, maRequired, lagsModelARIMA,
                                componentsNumberARIMA, componentsNamesARIMA, initialNumberARIMA,
                                xregExist, xregInitialsProvided, xregPersistence,
                                xregModel, xregData, xregNumber, xregNames);
@@ -1990,7 +2001,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                                componentsNames, otLogical,
                                yInSample, persistence, persistenceEstimate, phi,
                                initialValue, initialType,
-                               arimaModel, arRequired, iRequired, maRequired,
+                               arimaModel, arRequired, iRequired, maRequired, lagsModelARIMA,
                                componentsNumberARIMA, componentsNamesARIMA, initialNumberARIMA,
                                xregExist, xregInitialsProvided, xregPersistence,
                                xregModel, xregData, xregNumber, xregNames);
@@ -2102,7 +2113,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                                    componentsNames, otLogical,
                                    yInSample, persistence, persistenceEstimate, phi,
                                    initialValue, initialType,
-                                   arimaModel, arRequired, iRequired, maRequired,
+                                   arimaModel, arRequired, iRequired, maRequired, lagsModelARIMA,
                                    componentsNumberARIMA, componentsNamesARIMA, initialNumberARIMA,
                                    xregExist, xregInitialsProvided, xregPersistence,
                                    xregModel, xregData, xregNumber, xregNames);
@@ -2154,7 +2165,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                                componentsNames, otLogical,
                                yInSample, persistence, persistenceEstimate, phi,
                                initialValue, initialType,
-                               arimaModel, arRequired, iRequired, maRequired,
+                               arimaModel, arRequired, iRequired, maRequired, lagsModelARIMA,
                                componentsNumberARIMA, componentsNamesARIMA, initialNumberARIMA,
                                xregExist, xregInitialsProvided, xregPersistence,
                                xregModel, xregData, xregNumber, xregNames);
@@ -2191,7 +2202,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                 BValues <- initialiser(Etype, Ttype, Stype, componentsNumberSeasonal,
                                        componentsNumber, lagsModel, lagsModelMax, adamCreated$matVt,
                                        TRUE, damped, "optimal",
-                                       arimaModel, arRequired, iRequired, maRequired,
+                                       arimaModel, arRequired, maRequired, arOrders, maOrders, lagsModelARIMA,
                                        componentsNumberARIMA, componentsNamesARIMA, initialNumberARIMA,
                                        xregExist, FALSE, xregNumber, FALSE);
                 # Create the vector of initials for the optimisation
@@ -4562,7 +4573,20 @@ plot.adam.forecast <- function(x, ...){
     }
 
     if(is.null(ellipsis$main)){
-        ellipsis$main <- paste0("Forecast from ",x$model$model);
+        distrib <- switch(x$model$distribution,
+                          "dnorm" = "Normal",
+                          "dlogis" = "Logistic",
+                          "dlaplace" = "Laplace",
+                          "dalaplace" = paste0("Asymmetric Laplace with lambda=",round(x$model$lambda,digits)),
+                          "dt" = paste0("Student t with df=",round(x$model$lambda, digits)),
+                          "ds" = "S",
+                          "dlnorm" = "Log Normal",
+                          "dllaplace" = "Log Laplace",
+                          "dls" = "Log S",
+                          # "dbcnorm" = paste0("Box-Cox Normal with lambda=",round(x$other$lambda,2)),
+                          "dinvgauss" = "Inverse Gaussian"
+        );
+        ellipsis$main <- paste0("Forecast from ",x$model$model," with ",distrib," distribution");
     }
 
     if(!is.null(x$model$holdout)){
