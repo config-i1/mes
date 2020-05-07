@@ -276,7 +276,7 @@
 #' @importFrom statmod dinvgauss
 #' @importFrom nloptr nloptr
 #' @importFrom pracma hessian
-#' @importFrom zoo zoo index
+#' @importFrom zoo zoo
 #' @useDynLib mes
 #' @rdname adam
 #' @export adam
