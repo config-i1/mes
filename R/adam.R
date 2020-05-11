@@ -607,10 +607,11 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
         # If ARIMA orders are specified, prepare initials
         if(arimaModel){
             for(i in 1:componentsNumberARIMA){
-                nRepeats <- ceiling(max(lagsModelARIMA)/lagsModelARIMA[i]);
-                matVt[componentsNumber+i, 1:max(lagsModelARIMA)+(lagsModelMax-max(lagsModelARIMA))] <-
-                    rep(switch(Etype,"A"=yInSample,"M"=log(yInSample))[1:lagsModelARIMA[i]],
-                        nRepeats)[nRepeats*lagsModelARIMA[i]+(-max(lagsModelARIMA)+1):0];
+                # nRepeats <- ceiling(max(lagsModelARIMA)/lagsModelARIMA[i]);
+                matVt[componentsNumber+i, 1:lagsModelARIMA[i]+(lagsModelMax-lagsModelARIMA[i])] <-
+                    switch(Etype,"A"=yInSample,"M"=log(yInSample))[1:lagsModelARIMA[i]];
+                    # rep(switch(Etype,"A"=yInSample,"M"=log(yInSample))[1:lagsModelARIMA[i]],
+                    #     nRepeats)[nRepeats*lagsModelARIMA[i]+(-max(lagsModelARIMA)+1):0];
             }
         }
 
@@ -1376,18 +1377,11 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
             errors <- adamFitted$errors+switch(Etype,"A"=0,"M"=1);
 
             # Call the xregSelector providing the original matrix with the data
-            if(Etype=="A"){
-                xregModel[[1]] <- xregSelector(errors=errors, xregData=xregDataOriginal, ic=ic,
-                                               df=length(B)+1, distribution=distributionNew, occurrence=oesModel);
-                xregNumber <- length(xregModel[[1]]$xregInitial);
-                xregNames <- names(xregModel[[1]]$xregInitial);
-            }
-            else{
-                xregModel[[2]] <- xregSelector(errors=errors, xregData=xregDataOriginal, ic=ic,
-                                               df=length(B)+1, distribution=distributionNew, occurrence=oesModel);
-                xregNumber <- length(xregModel[[2]]$xregInitial);
-                xregNames <- names(xregModel[[2]]$xregInitial);
-            }
+            xregIndex <- switch(Etype,"A"=1,"M"=2);
+            xregModel[[xregIndex]] <- xregSelector(errors=errors, xregData=xregDataOriginal, ic=ic,
+                                           df=length(B)+1, distribution=distributionNew, occurrence=oesModel);
+            xregNumber <- length(xregModel[[xregIndex]]$xregInitial);
+            xregNames <- names(xregModel[[xregIndex]]$xregInitial);
 
             # If there are some variables, then do the proper reestimation and return the new values
             if(xregNumber>0){
