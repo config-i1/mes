@@ -1258,6 +1258,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             initialType <- "p";
             initialEstimate <- FALSE;
             occurrenceModelProvided <- occurrenceModel <- FALSE;
+            occurrence <- "none";
             warning("You have a sample with zeroes only. Your forecast will be zero.",call.=FALSE);
             modelDo <- "nothing"
             model <- "ANN";
