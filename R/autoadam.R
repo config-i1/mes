@@ -30,7 +30,7 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)),
             cat(paste0(distribution[i],", "));
         }
         selectedModels[[i]] <- adam(y=y, model=model, lags=lags,
-                                   distribution=distribution[i], loss="likelihood",
+                                   distribution=distribution[i],
                                    h=h, holdout=holdout,
                                    persistence=persistence, phi=phi, initial=initial,
                                    occurrence=occurrence, ic=ic, bounds=bounds,
