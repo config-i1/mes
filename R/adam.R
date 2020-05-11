@@ -1383,6 +1383,9 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
             xregNumber <- length(xregModel[[xregIndex]]$xregInitial);
             xregNames <- names(xregModel[[xregIndex]]$xregInitial);
 
+            # Make sure that the accidental "`" don't reappear...
+            xregNames[] <- gsub("\`","",xregNames,ignore.case=TRUE);
+
             # If there are some variables, then do the proper reestimation and return the new values
             if(xregNumber>0){
                 xregExist[] <- TRUE;

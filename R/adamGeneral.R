@@ -1000,6 +1000,10 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         if(xregNumber==1){
             xregDo[] <- "use";
         }
+
+        # The gsub is needed in order to remove accidental special characters
+        colnames(xregData) <- gsub("\`","",colnames(xregData),ignore.case=TRUE);
+        xregNames[] <- gsub("\`","",xregNames,ignore.case=TRUE);
     }
     else{
         xregInitialsProvided <- FALSE;
@@ -1021,10 +1025,6 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     }
     # Remove xreg, just to preserve some memory
     rm(xreg);
-
-    # The gsub is needed in order to remove accidental special characters
-    colnames(xregData) <- gsub("\`","",colnames(xregData),ignore.case=TRUE);
-    xregNames[] <- gsub("\`","",xregNames,ignore.case=TRUE);
 
     #### Checks for the potential number of degrees of freedom ####
     # This is needed in order to make the function work on small samples
