@@ -629,7 +629,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         }
     }
 
-    #### Vector of initial values ####
+    #### Initial values ####
     # initial type can be: "o" - optimal, "b" - backcasting, "p" - provided.
     if(any(is.character(initial))){
         initialType <- match.arg(initial, c("optimal","backcasting"));
@@ -643,31 +643,39 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         initialValue <- NULL;
     }
     else if(!is.null(initial)){
-        if(!is.numeric(initial)){
-            warning(paste0("Initial vector is not numeric!\n",
-                           "Values of initial vector will be estimated."),call.=FALSE);
-            initialValue <- NULL;
-            initialType <- "optimal";
+        # If the list is provided, then check what this is.
+        if(is.list(initial)){
+            # This should be: level, trend, seasonal[[1]], seasonal[[2]], ..., ARIMA, xreg
         }
         else{
-            if(modelDo!="estimate"){
-                warning(paste0("Predefined initials vector can only be used with preselected ETS model.\n",
-                               "Changing to estimation of initials."),call.=FALSE);
+            if(!is.numeric(initial)){
+                warning(paste0("Initial vector is not numeric!\n",
+                               "Values of initial vector will be estimated."),call.=FALSE);
                 initialValue <- NULL;
                 initialType <- "optimal";
             }
             else{
-                if(length(initial)!=sum(lags)){
-                    warning(paste0("Wrong length of the initial vector. Should be ",sum(lags),
-                                   " instead of ",length(initial),".\n",
-                                   "Values of initial vector will be estimated."),call.=FALSE);
+                # If this is a vector, then it should contain values in the order:
+                # level, trend, seasonal1, seasonal2, ..., ARIMA, xreg
+                if(modelDo!="estimate"){
+                    warning(paste0("Predefined initials vector can only be used with preselected ETS model.\n",
+                                   "Changing to estimation of initials."),call.=FALSE);
                     initialValue <- NULL;
                     initialType <- "optimal";
                 }
                 else{
-                    initialType <- "provided";
-                    initialValue <- initial;
-                    parametersNumber[2,1] <- parametersNumber[2,1] + sum(lags);
+                    if(length(initial)!=sum(lags)){
+                        warning(paste0("Wrong length of the initial vector. Should be ",sum(lags),
+                                       " instead of ",length(initial),".\n",
+                                       "Values of initial vector will be estimated."),call.=FALSE);
+                        initialValue <- NULL;
+                        initialType <- "optimal";
+                    }
+                    else{
+                        initialType <- "provided";
+                        initialValue <- initial;
+                        parametersNumber[2,1] <- parametersNumber[2,1] + sum(lags);
+                    }
                 }
             }
         }

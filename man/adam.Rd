@@ -240,7 +240,8 @@ following values:
 \item \code{measurement} - the measurement matrix with observations in rows and state elements
 in columns,
 \item \code{initialType} - the type of initialisation used ("optimal" / "backcasting" / "provided"),
-\item \code{initial} - the initial values, including level, trend and seasonal components,
+\item \code{initial} - the named list of initial values, including level, trend, seasonal, ARIMA
+and xreg components,
 \item \code{nParam} - the matrix of the estimated / provided parameters,
 \item \code{occurrence} - the oes model used for the occurrence part of the model,
 \item \code{xreg} - the matrix of explanatory variables after all expansions and transformations,

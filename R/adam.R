@@ -245,7 +245,8 @@
 #' \item \code{measurement} - the measurement matrix with observations in rows and state elements
 #' in columns,
 #' \item \code{initialType} - the type of initialisation used ("optimal" / "backcasting" / "provided"),
-#' \item \code{initial} - the initial values, including level, trend and seasonal components,
+#' \item \code{initial} - the named list of initial values, including level, trend, seasonal, ARIMA
+#' and xreg components,
 #' \item \code{nParam} - the matrix of the estimated / provided parameters,
 #' \item \code{occurrence} - the oes model used for the occurrence part of the model,
 #' \item \code{xreg} - the matrix of explanatory variables after all expansions and transformations,
@@ -1862,12 +1863,43 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
         }
 
         if(initialType=="optimal"){
-            initialValue <- vector("numeric", sum(lagsModel));
-            j <- 0;
+            initialValue <- vector("list", 1+(Ttype!="N")+(Stype!="N")+arimaModel+xregExist);
+            initialValueETS <- vector("list", length(lagsModel));
+            initialValueNames <- vector("character", 1+(Ttype!="N")+(Stype!="N")+arimaModel+xregExist);
+            # Write down level, trend and seasonal
             for(i in 1:length(lagsModel)){
-                initialValue[j+1:lagsModel[i]] <- tail(matVt[i,1:lagsModelMax],lagsModel[i]);
-                j <- j + lagsModel[i];
+                initialValueETS[[i]] <- tail(matVt[i,1:lagsModelMax],lagsModel[i]);
+                # initialValue[j+1:lagsModel[i]] <- tail(matVt[i,1:lagsModelMax],lagsModel[i]);
             }
+            j <- 1;
+            # Write down level in the final list
+            initialValue[[j]] <- initialValueETS[[j]];
+            initialValueNames[j] <- c("level");
+            if(Ttype!="N"){
+                j <- 2;
+                # Write down trend in the final list
+                initialValue[[j]] <- initialValueETS[[j]];
+                initialValueETS[[j]] <- NULL;
+                initialValueNames[j] <- c("trend");
+            }
+            if(Stype!="N"){
+                initialValueETS[[1]] <- NULL;
+                j <- j+1;
+                initialValue[[j]] <- initialValueETS;
+                initialValueNames[[j]] <- "seasonal";
+                # initialValueNames[2+c(1:length(lagsModel[lagsModel!=1]))] <- paste0("seasonal",c(1:length(lagsModel[lagsModel!=1])));
+            }
+            if(arimaModel){
+                j <- j+1;
+                initialValueNames[j] <- "ARIMA";
+                initialValue[[j]] <- tail(matVt[componentsNumber+1:componentsNumberARIMA,],max(lagsModelARIMA));
+            }
+            if(xregExist){
+                j <- j+1;
+                initialValueNames[j] <- "xreg";
+                initialValue[[j]] <- matVt[-c(1:(componentsNumber+componentsNumberARIMA)),lagsModelMax];
+            }
+            names(initialValue) <- initialValueNames;
         }
 
         if(persistenceEstimate){
@@ -1880,9 +1912,9 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
             names(xregPersistence) <- rownames(vecG)[-c(1:componentsNumber)];
         }
 
-        if(xregInitialsEstimate){
-            xregInitial <- matVt[-c(1:componentsNumber),lagsModelMax];
-        }
+        # if(xregInitialsEstimate){
+        #     xregInitial <- matVt[-c(1:componentsNumber),lagsModelMax];
+        # }
 
         scale <- scaler(distribution, Etype, errors[otLogical], yFitted[otLogical], obsInSample, lambda);
         # Amend the class of state matrix
