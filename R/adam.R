@@ -533,49 +533,88 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
         if(initialType!="provided"){
             # For the seasonal models
             if(Stype!="N"){
-                # If either Etype or Stype are multiplicative, do multiplicative decomposition
-                decompositionType <- c("additive","multiplicative")[any(c(Etype,Stype)=="M")+1];
-                yDecomposition <- msdecompose(yInSample, lags[lags!=1], type=decompositionType);
-                j <- 1;
-                # level
-                matVt[j,1:lagsModelMax] <- mean(yInSample[1:lagsModelMax]);
-                j <- j+1;
-                if(Ttype!="N"){
-                    if(Ttype=="A" && Stype=="M"){
-                        # level fix
-                        matVt[j-1,1:lagsModelMax] <- exp(mean(log(yInSample[otLogical][1:lagsModelMax])));
-                        # trend
-                        matVt[j,1:lagsModelMax] <- prod(yDecomposition$initial)-yDecomposition$initial[1];
-                    }
-                    else if(Ttype=="M" && Stype=="A"){
-                        # level fix
-                        matVt[j-1,1:lagsModelMax] <- exp(mean(log(yInSample[otLogical][1:lagsModelMax])));
-                        # trend
-                        matVt[j,1:lagsModelMax] <- sum(yDecomposition$initial)/yDecomposition$initial[1];
-                    }
-                    else{
-                        # trend
-                        matVt[j,1:lagsModelMax] <- yDecomposition$initial[2];
-                    }
-                    # This is a failsafe for multiplicative trend models, so that the thing does not explode
-                    if(Ttype=="M" && matVt[j,1:lagsModelMax]>1.1){
-                        matVt[j,1:lagsModelMax] <- 1;
-                    }
+                if(obsNonzero>=lagsModelMax*2){
+                    # If either Etype or Stype are multiplicative, do multiplicative decomposition
+                    decompositionType <- c("additive","multiplicative")[any(c(Etype,Stype)=="M")+1];
+                    yDecomposition <- msdecompose(yInSample, lags[lags!=1], type=decompositionType);
+                    j <- 1;
+                    # level
+                    matVt[j,1:lagsModelMax] <- mean(yInSample[1:lagsModelMax]);
                     j <- j+1;
-                }
-                #### Seasonal components
-                # For pure models use stuff as is
-                if(all(c(Etype,Stype)=="A") || all(c(Etype,Stype)=="M") ||
-                   (Etype=="A" & Stype=="M")){
-                    for(i in 1:componentsNumberSeasonal){
-                        matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <- yDecomposition$seasonal[[i]];
+                    if(Ttype!="N"){
+                        if(Ttype=="A" && Stype=="M"){
+                            # level fix
+                            matVt[j-1,1:lagsModelMax] <- exp(mean(log(yInSample[otLogical][1:lagsModelMax])));
+                            # trend
+                            matVt[j,1:lagsModelMax] <- prod(yDecomposition$initial)-yDecomposition$initial[1];
+                        }
+                        else if(Ttype=="M" && Stype=="A"){
+                            # level fix
+                            matVt[j-1,1:lagsModelMax] <- exp(mean(log(yInSample[otLogical][1:lagsModelMax])));
+                            # trend
+                            matVt[j,1:lagsModelMax] <- sum(yDecomposition$initial)/yDecomposition$initial[1];
+                        }
+                        else{
+                            # trend
+                            matVt[j,1:lagsModelMax] <- yDecomposition$initial[2];
+                        }
+                        # This is a failsafe for multiplicative trend models, so that the thing does not explode
+                        if(Ttype=="M" && matVt[j,1:lagsModelMax]>1.1){
+                            matVt[j,1:lagsModelMax] <- 1;
+                        }
+                        j <- j+1;
+                    }
+                    #### Seasonal components
+                    # For pure models use stuff as is
+                    if(all(c(Etype,Stype)=="A") || all(c(Etype,Stype)=="M") ||
+                       (Etype=="A" & Stype=="M")){
+                        for(i in 1:componentsNumberSeasonal){
+                            matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <- yDecomposition$seasonal[[i]];
+                        }
+                    }
+                    # For mixed models use a different set of initials
+                    else if(Etype=="M" && Stype=="A"){
+                        for(i in 1:componentsNumberSeasonal){
+                            matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+
+                                      1:lagsModel[i+j-1]] <- log(yDecomposition$seasonal[[i]])*min(yInSample[otLogical]);
+                        }
                     }
                 }
-                # For mixed models use a different set of initials
-                else if(Etype=="M" && Stype=="A"){
-                    for(i in 1:componentsNumberSeasonal){
-                        matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+
-                                  1:lagsModel[i+j-1]] <- log(yDecomposition$seasonal[[i]])*min(yInSample[otLogical]);
+                else{
+                    # If either Etype or Stype are multiplicative, do multiplicative decomposition
+                    j <- 1;
+                    # level
+                    matVt[j,1:lagsModelMax] <- mean(yInSample[1:lagsModelMax]);
+                    j <- j+1;
+                    if(Ttype!="N"){
+                        if(Ttype=="A"){
+                            # trend
+                            matVt[j,1:lagsModelMax] <- yInSample[2]-yInSample[1];
+                        }
+                        else if(Ttype=="M"){
+                            # level fix
+                            matVt[j-1,1:lagsModelMax] <- exp(mean(log(yInSample[otLogical][1:lagsModelMax])));
+                            # trend
+                            matVt[j,1:lagsModelMax] <- yInSample[2]/yInSample[1];
+                        }
+                        # This is a failsafe for multiplicative trend models, so that the thing does not explode
+                        if(Ttype=="M" && matVt[j,1:lagsModelMax]>1.1){
+                            matVt[j,1:lagsModelMax] <- 1;
+                        }
+                        j <- j+1;
+                    }
+                    #### Seasonal components
+                    # For pure models use stuff as is
+                    if(Stype=="A"){
+                        for(i in 1:componentsNumberSeasonal){
+                            matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <- yInSample[1:lagsModel[i+j-1]]-matVt[1,1];
+                        }
+                    }
+                    # For mixed models use a different set of initials
+                    else{
+                        for(i in 1:componentsNumberSeasonal){
+                            matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <- yInSample[1:lagsModel[i+j-1]]/matVt[1,1];
+                        }
                     }
                 }
             }
