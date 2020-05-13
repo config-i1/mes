@@ -1110,12 +1110,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                 }
                 if(initialType=="optimal"){
                     # Standardise the level
-                    if(Etype=="M"){
-                        B[persistenceToSkip+j] <- log(B[persistenceToSkip+j] / mean(yInSample[1:lagsModelMax]));
-                    }
-                    else{
-                        B[persistenceToSkip+j] <- B[persistenceToSkip+j] / mean(yInSample[1:lagsModelMax]);
-                    }
+                    B[persistenceToSkip+j] <- (B[persistenceToSkip+j] - mean(yInSample[1:lagsModelMax])) / mean(yInSample[1:lagsModelMax]);
                     # Change B values for the trend, so that it shrinks properly
                     if(Ttype=="M"){
                         j[] <- j+1;
