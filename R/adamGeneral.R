@@ -31,7 +31,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         if(any(duplicated(yIndex))){
             warning(paste0("You have duplicated time stamps in the variable ",responseName,
                            ". We will refactor this."),call.=FALSE);
-            yIndex <- yIndex[1] + c(1:length(y[[1]])) * diff(yIndex)[1];
+            yIndex <- yIndex[1] + c(1:length(y[[1]])) * diff(tail(yIndex,2));
         }
     }
     else{
@@ -89,9 +89,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         yInSampleIndex <- yIndex[c(1:obsInSample)];
     }
     else{
-        yForecastStart <- yIndex[obsInSample]+diff(yIndex)[1];
+        yForecastStart <- yIndex[obsInSample]+diff(tail(yIndex,2));
         yInSampleIndex <- yIndex;
-        yForecastIndex <- yIndex[obsInSample]+diff(yIndex)[1]*c(1:max(h,1));
+        yForecastIndex <- yIndex[obsInSample]+diff(tail(yIndex,2))*c(1:max(h,1));
         yHoldout <- NULL;
     }
 
@@ -524,30 +524,38 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     }
 
     #### Loss function type ####
-    loss <- match.arg(loss[1],c("likelihood","MSE","MAE","HAM","LASSO","RIDGE",
-                                "MSEh","TMSE","GTMSE","MSCE",
-                                "MAEh","TMAE","GTMAE","MACE",
-                                "HAMh","THAM","GTHAM","CHAM","GPL",
-                                "aMSEh","aTMSE","aGTMSE","aMSCE","aGPL"));
-
-    if(any(loss==c("MSEh","TMSE","GTMSE","MSCE","MAEh","TMAE","GTMAE","MACE",
-                   "HAMh","THAM","GTHAM","CHAM","GPL",
-                   "aMSEh","aTMSE","aGTMSE","aMSCE","aGPL"))){
-        if(!is.null(h) && h>0){
-            multisteps <- TRUE;
-        }
-        else{
-            stop("The horizon \"h\" needs to be specified and be positive in order for the multistep loss to work.",
-                 call.=FALSE);
-            multisteps <- FALSE;
-        }
-    }
-    else{
+    if(is.function(loss)){
+        lossFunction <- loss;
+        loss <- "custom";
         multisteps <- FALSE;
     }
-    if(any(loss==c("LASSO","RIDGE"))){
-        warning(paste0(loss," is not yet implemented properly. This is an experimental option. Use with care."),
-                call.=FALSE);
+    else{
+        loss <- match.arg(loss[1],c("likelihood","MSE","MAE","HAM","LASSO","RIDGE",
+                                    "MSEh","TMSE","GTMSE","MSCE",
+                                    "MAEh","TMAE","GTMAE","MACE",
+                                    "HAMh","THAM","GTHAM","CHAM","GPL",
+                                    "aMSEh","aTMSE","aGTMSE","aMSCE","aGPL"));
+
+        if(any(loss==c("MSEh","TMSE","GTMSE","MSCE","MAEh","TMAE","GTMAE","MACE",
+                       "HAMh","THAM","GTHAM","CHAM","GPL",
+                       "aMSEh","aTMSE","aGTMSE","aMSCE","aGPL"))){
+            if(!is.null(h) && h>0){
+                multisteps <- TRUE;
+            }
+            else{
+                stop("The horizon \"h\" needs to be specified and be positive in order for the multistep loss to work.",
+                     call.=FALSE);
+                multisteps <- FALSE;
+            }
+        }
+        else{
+            multisteps <- FALSE;
+        }
+        if(any(loss==c("LASSO","RIDGE"))){
+            warning(paste0(loss," is not yet implemented properly. This is an experimental option. Use with care."),
+                    call.=FALSE);
+        }
+        lossFunction <- NULL;
     }
 
     #### Persistence provided ####
@@ -1441,6 +1449,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     # Distribution, loss, bounds and IC
     assign("distribution",distribution,ParentEnvironment);
     assign("loss",loss,ParentEnvironment);
+    assign("lossFunction",lossFunction,ParentEnvironment);
     assign("multisteps",multisteps,ParentEnvironment);
     assign("ic",ic,ParentEnvironment);
     assign("ICFunction",ICFunction,ParentEnvironment);

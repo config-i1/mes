@@ -139,9 +139,15 @@
 #' \code{aMSEh}, \code{aTMSE} and \code{aGTMSE}. These can be useful in cases
 #' of small samples.
 #'
-#' Finally, just for fun the absolute and half analogues of multistep estimators
+#' Furthermore, just for fun the absolute and half analogues of multistep estimators
 #' are available: \code{MAEh}, \code{TMAE}, \code{GTMAE}, \code{MACE},
 #' \code{HAMh}, \code{THAM}, \code{GTHAM}, \code{CHAM}.
+#'
+#' Last but not least, user can provide their own function here as well, making sure
+#' that it accepts parameters \code{actual}, \code{fitted} and \code{B}. Here is an
+#' example:
+#' \code{lossFunction <- function(actual, fitted, B) return(mean(abs(actual-fitted)))}
+#' \code{loss=lossFunction}
 #' @param h The forecast horizon. Mainly needed for the multistep loss functions.
 #' @param holdout Logical. If \code{TRUE}, then the holdout of the size \code{h}
 #' is taken from the data (can be used for the model testing purposes.
@@ -919,7 +925,8 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                    persistenceEstimate, phiEstimate, initialType,
                    xregExist, xregInitialsEstimate, xregPersistenceEstimate,
                    xregNumber,
-                   bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate){
+                   bounds, loss, lossFunction, distribution,
+                   horizon, multisteps, lambda, lambdaEstimate){
 
         # Fill in the matrices
         adamElements <- filler(B,
@@ -1106,6 +1113,9 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                                                    "A"=(1-lambda)* sqrt(sum(adamFitted$errors^2)) + lambda * sqrt(sum((B)^2)),
                                                    "M"=(1-lambda)* sqrt(sum(log(1+adamFitted$errors)^2)) + lambda * sqrt(sum((B)^2))));
             }
+            else if(loss=="custom"){
+                CFValue <- lossFunction(actual=yInSample,fitted=adamFitted$yFitted,B=B);
+            }
         }
         else{
             # Call for the Rcpp function to produce a matrix of multistep errors
@@ -1174,7 +1184,8 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                                     persistenceEstimate, phiEstimate, initialType,
                                     xregExist, xregInitialsEstimate, xregPersistenceEstimate,
                                     xregNumber,
-                                    bounds, "likelihood", distributionNew, horizon, multisteps, lambda, lambdaEstimate);
+                                    bounds, "likelihood", lossFunction, distributionNew,
+                                    horizon, multisteps, lambda, lambdaEstimate);
 
                 # If this is an occurrence model, add the probabilities
                 if(occurrenceModel){
@@ -1216,7 +1227,8 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                                persistenceEstimate, phiEstimate, initialType,
                                xregExist, xregInitialsEstimate, xregPersistenceEstimate,
                                xregNumber,
-                               bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
+                               bounds, loss, lossFunction, distribution,
+                               horizon, multisteps, lambda, lambdaEstimate);
 
             logLikReturn[] <- -switch(loss,
                                       "MSEh"=, "aMSEh"=, "TMSE"=, "aTMSE"=, "MSCE"=, "aMSCE"=
@@ -1316,8 +1328,8 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                                        persistenceEstimate=persistenceEstimate, phiEstimate=phiEstimate, initialType=initialType,
                                        xregExist=xregExist, xregInitialsEstimate=xregInitialsEstimate,
                                        xregPersistenceEstimate=xregPersistenceEstimate, xregNumber=xregNumber,
-                                       bounds=bounds, loss=loss, distribution=distributionNew, horizon=horizon, multisteps=multisteps,
-                                       lambda=lambda, lambdaEstimate=lambdaEstimate));
+                                       bounds=bounds, loss=loss, lossFunction=lossFunction, distribution=distributionNew,
+                                       horizon=horizon, multisteps=multisteps, lambda=lambda, lambdaEstimate=lambdaEstimate));
 
         if(is.infinite(res$objective) || res$objective==1e+300){
             # If the optimisation didn't work, give it another try with zero initials for smoothing parameters
@@ -1333,8 +1345,8 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                                            persistenceEstimate=persistenceEstimate, phiEstimate=phiEstimate, initialType=initialType,
                                            xregExist=xregExist, xregInitialsEstimate=xregInitialsEstimate,
                                            xregPersistenceEstimate=xregPersistenceEstimate, xregNumber=xregNumber,
-                                           bounds=bounds, loss=loss, distribution=distributionNew, horizon=horizon, multisteps=multisteps,
-                                           lambda=lambda, lambdaEstimate=lambdaEstimate));
+                                           bounds=bounds, loss=loss, lossFunction=lossFunction, distribution=distributionNew,
+                                           horizon=horizon, multisteps=multisteps, lambda=lambda, lambdaEstimate=lambdaEstimate));
         }
 
         ##### !!! Check the obtained parameters and the loss value and remove redundant parameters !!! #####
@@ -1844,7 +1856,8 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
             matVt <- ts(t(matVt), start=(time(y)[1]-deltat(y)*lagsModelMax), frequency=yFrequency);
         }
         else{
-            yStatesIndex <- yInSampleIndex[1] - lagsModelMax*diff(yInSampleIndex)[1] + c(1:lagsModelMax-1)*diff(yInSampleIndex)[1];
+            yStatesIndex <- yInSampleIndex[1] - lagsModelMax*diff(tail(yInSampleIndex,2)) +
+                c(1:lagsModelMax-1)*diff(tail(yInSampleIndex,2));
             yStatesIndex <- c(yStatesIndex, yInSampleIndex);
             matVt <- zoo(t(matVt), order.by=yStatesIndex);
         }
@@ -2176,8 +2189,8 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                       persistenceEstimate=persistenceEstimate, phiEstimate=phiEstimate, initialType=initialType,
                       xregExist=xregExist, xregInitialsEstimate=xregInitialsEstimate,
                       xregPersistenceEstimate=xregPersistenceEstimate, xregNumber=xregNumber,
-                      bounds=bounds, loss=loss, distribution=distributionNew, horizon=horizon, multisteps=multisteps,
-                      lambda=lambda, lambdaEstimate=lambdaEstimate);
+                      bounds=bounds, loss=loss, lossFunction=lossFunction, distribution=distributionNew,
+                      horizon=horizon, multisteps=multisteps, lambda=lambda, lambdaEstimate=lambdaEstimate);
 
         parametersNumber[1,1] <- parametersNumber[1,4] <- 1;
         logLikADAMValue <- structure(logLikADAM(B=0,
@@ -2419,6 +2432,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
         class(modelReturned) <- c("adamCombined","adam","smooth");
     }
     modelReturned$ICs <- icSelection;
+    modelReturned$lossFunction <- lossFunction;
 
     # Error measures if there is a holdout
     if(holdout){
@@ -3931,7 +3945,7 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
     else{
         # zoo thingy
         yIndex <- time(actuals(object));
-        yForecastIndex <- yIndex[obsInSample]+diff(yIndex)[1]*c(1:h);
+        yForecastIndex <- yIndex[obsInSample]+diff(tail(yIndex,2))*c(1:h);
     }
 
     # All the important matrices
@@ -4486,7 +4500,7 @@ forecast.adamCombined <- function(object, h=10, newxreg=NULL,
     else{
         # zoo thingy
         yIndex <- time(actuals(object));
-        yForecastIndex <- yIndex[obsInSample]+diff(yIndex)[1]*c(1:h);
+        yForecastIndex <- yIndex[obsInSample]+diff(tail(yIndex,2))*c(1:h);
     }
 
     # How many levels did user asked to produce
