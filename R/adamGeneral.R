@@ -77,13 +77,10 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     }
 
     # Substitute NAs with mean values.
-    if(any(is.na(y))){
+    yNAValues <- is.na(y);
+    if(any(yNAValues)){
         warning("Data contains NAs. The values will be ignored during the model construction.",call.=FALSE);
-        yNAValues <- is.na(y);
         y[yNAValues] <- na.interp(y)[yNAValues];
-    }
-    else{
-        yNAValues <- is.na(y);
     }
 
     # Define obs, the number of observations of in-sample
