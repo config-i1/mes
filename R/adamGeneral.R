@@ -35,7 +35,16 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         }
     }
     else{
-        yIndex <- time(y);
+        yIndex <- try(time(y),silent=TRUE);
+        # If we cannot extract time, do something
+        if(inherits(yIndex,"try-error")){
+            if(!is.null(dim(y))){
+                yIndex <- as.POSIXct(rownames(y));
+            }
+            else{
+                yIndex <- c(1:length(y));
+            }
+        }
     }
     yClasses <- class(y);
 
@@ -52,6 +61,12 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                 xreg <- y[,-1];
             }
             y <- y[[1]];
+        }
+        else if(inherits(y,"zoo")){
+            if(ncol(y)>1){
+                xreg <- as.data.frame(y[,-1]);
+            }
+            y <- zoo(y[,1],order.by=time(y));
         }
         else{
             if(ncol(y)>1){
@@ -77,7 +92,12 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
 
     # If this is just a numeric variable, use ts class
     if(all(yClasses=="integer") || all(yClasses=="data.frame") || all(yClasses=="matrix")){
-        yClasses <- "ts";
+        if(any(class(yIndex) %in% c("POSIXct","Date"))){
+            yClasses <- "zoo";
+        }
+        else{
+            yClasses <- "ts";
+        }
     }
     yFrequency <- frequency(y);
     yStart <- yIndex[1];
@@ -911,7 +931,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             }
 
             xregNames <- c(responseName,colnames(xreg));
-            xregData <- cbind(yInSample,xreg[1:obsInSample,,drop=FALSE]);
+            xregData <- cbind(yInSample,as.data.frame(xreg[1:obsInSample,,drop=FALSE]));
             colnames(xregData) <- xregNames;
 
             if(Etype!="Z"){
