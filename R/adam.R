@@ -244,9 +244,9 @@
 #' \item \code{transition} - the transition matrix,
 #' \item \code{measurement} - the measurement matrix with observations in rows and state elements
 #' in columns,
-#' \item \code{initialType} - the type of initialisation used ("optimal" / "backcasting" / "provided"),
 #' \item \code{initial} - the named list of initial values, including level, trend, seasonal, ARIMA
 #' and xreg components,
+#' \item \code{initialType} - the type of initialisation used ("optimal" / "backcasting" / "provided"),
 #' \item \code{nParam} - the matrix of the estimated / provided parameters,
 #' \item \code{occurrence} - the oes model used for the occurrence part of the model,
 #' \item \code{xreg} - the matrix of explanatory variables after all expansions and transformations,
@@ -1932,7 +1932,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                     y=NA, holdout=NA, fitted=yFitted, residuals=errors,
                     forecast=yForecast, states=matVt,
                     persistence=persistence, phi=phi, transition=matF,
-                    measurement=matWt, initialType=initialType, initial=initialValue,
+                    measurement=matWt, initial=initialValue, initialType=initialType,
                     nParam=parametersNumber, occurrence=oesModel, xreg=xregData,
                     xregInitial=xregInitial, xregPersistence=xregPersistence, formula=formula,
                     loss=loss, lossValue=CFValue, logLik=logLikADAMValue, distribution=distribution,
