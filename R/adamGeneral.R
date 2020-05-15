@@ -4,7 +4,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                                              "dlnorm","dllaplace","dls","dinvgauss"),
                               loss, h, holdout,occurrence,
                               ic=c("AICc","AIC","BIC","BICc"), bounds=c("traditional","admissible","none"),
-                              xreg, xregDo, xregInitial, xregPersistence, responseName,
+                              xreg, xregDo, xregPersistence, responseName,
                               silent, modelDo, ParentEnvironment,
                               ellipsis, fast=FALSE){
 
@@ -106,9 +106,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         yInSampleIndex <- yIndex[c(1:obsInSample)];
     }
     else{
-        yForecastStart <- yIndex[obsInSample]+diff(tail(yIndex,2));
+        yForecastStart <- yIndex[obsInSample]+as.numeric(diff(tail(yIndex,2)));
         yInSampleIndex <- yIndex;
-        yForecastIndex <- yIndex[obsInSample]+diff(tail(yIndex,2))*c(1:max(h,1));
+        yForecastIndex <- yIndex[obsInSample]+as.numeric(diff(tail(yIndex,2)))*c(1:max(h,1));
         yHoldout <- NULL;
     }
 
@@ -190,19 +190,19 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
 
     # If chosen model is "AAdN" or anything like that, we are taking the appropriate values
     if(nchar(model)==4){
-        Etype <- substring(model,1,1);
-        Ttype <- substring(model,2,2);
-        Stype <- substring(model,4,4);
+        Etype <- substr(model,1,1);
+        Ttype <- substr(model,2,2);
+        Stype <- substr(model,4,4);
         damped <- TRUE;
-        if(substring(model,3,3)!="d"){
+        if(substr(model,3,3)!="d"){
             message(paste0("You have defined a strange model: ",model));
             model <- paste0(Etype,Ttype,"d",Stype);
         }
     }
     else if(nchar(model)==3){
-        Etype <- substring(model,1,1);
-        Ttype <- substring(model,2,2);
-        Stype <- substring(model,3,3);
+        Etype <- substr(model,1,1);
+        Ttype <- substr(model,2,2);
+        Stype <- substr(model,3,3);
         if(any(Ttype==c("Z","X","Y"))){
             damped <- TRUE;
         }
@@ -496,7 +496,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     if(all(modelIsSeasonal,lagsModelMax==1)){
         if(all(Stype!=c("Z","X","Y"))){
             warning(paste0("Cannot build the seasonal model on data with the unity lags.\n",
-                           "Switching to non-seasonal model: ETS(",substring(model,1,nchar(model)-1),"N)"));
+                           "Switching to non-seasonal model: ETS(",substr(model,1,nchar(model)-1),"N)"));
         }
         Stype <- "N";
         modelIsSeasonal <- FALSE;
@@ -646,64 +646,16 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         }
     }
 
-    #### Initial values ####
-    # initial type can be: "o" - optimal, "b" - backcasting, "p" - provided.
-    if(any(is.character(initial))){
-        initialType <- match.arg(initial, c("optimal","backcasting"));
-        initialValue <- NULL;
-    }
-    else if(is.null(initial)){
-        if(!silent){
-            message("Initial value is not selected. Switching to optimal.");
-        }
-        initialType <- "optimal";
-        initialValue <- NULL;
-    }
-    else if(!is.null(initial)){
-        # If the list is provided, then check what this is.
-        if(is.list(initial)){
-            # This should be: level, trend, seasonal[[1]], seasonal[[2]], ..., ARIMA, xreg
-        }
-        else{
-            if(!is.numeric(initial)){
-                warning(paste0("Initial vector is not numeric!\n",
-                               "Values of initial vector will be estimated."),call.=FALSE);
-                initialValue <- NULL;
-                initialType <- "optimal";
-            }
-            else{
-                # If this is a vector, then it should contain values in the order:
-                # level, trend, seasonal1, seasonal2, ..., ARIMA, xreg
-                if(modelDo!="estimate"){
-                    warning(paste0("Predefined initials vector can only be used with preselected ETS model.\n",
-                                   "Changing to estimation of initials."),call.=FALSE);
-                    initialValue <- NULL;
-                    initialType <- "optimal";
-                }
-                else{
-                    if(length(initial)!=sum(lags)){
-                        warning(paste0("Wrong length of the initial vector. Should be ",sum(lags),
-                                       " instead of ",length(initial),".\n",
-                                       "Values of initial vector will be estimated."),call.=FALSE);
-                        initialValue <- NULL;
-                        initialType <- "optimal";
-                    }
-                    else{
-                        initialType <- "provided";
-                        initialValue <- initial;
-                        parametersNumber[2,1] <- parametersNumber[2,1] + sum(lags);
-                    }
-                }
-            }
-        }
-    }
-    initialEstimate <- initialType=="optimal";
 
-    # Observations in the states matrix
-    # Define the number of cols that should be in the matvt
-    obsStates <- obsInSample + lagsModelMax*switch(initialType,
-                                                   "backcasting"=2,
-                                                   1);
+    #### Lags for ARIMA ####
+    if(arimaModel){
+        lagsModelAll <- rbind(lagsModel,lagsModelARIMA);
+        lagsModelMax <- max(lagsModel);
+    }
+    else{
+        lagsModelAll <- lagsModel;
+    }
+
 
     #### Occurrence variable ####
     if(is.occurrence(occurrence)){
@@ -810,66 +762,170 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     obsNonzero <- sum(ot);
     obsZero <- obsInSample - obsNonzero;
 
-    # Check if multiplicative models can be fitted
-    allowMultiplicative <- !((any(yInSample<=0) && !occurrenceModel) || (occurrenceModel && any(yInSample<0)));
+    #### Explanatory variables: xreg, xregDo, initialXreg, xregPersistence ####
+    xregDo <- match.arg(xregDo,c("use","select"));
+    xregExist <- !is.null(xreg);
 
-    # Clean the pool of models if only additive are allowed
-    if(!allowMultiplicative && !is.null(modelsPool)){
-        modelsPoolMultiplicative <- ((substr(modelsPool,1,1)=="M") |
-                                         substr(modelsPool,2,2)=="M" |
-                                         substr(modelsPool,nchar(modelsPool),nchar(modelsPool))=="M");
-        if(any(modelsPoolMultiplicative)){
-            modelsPool <- modelsPool[!modelsPoolMultiplicative];
+    #### Initial values ####
+    # Vectors for initials of different components
+    initialLevel <- NULL;
+    initialTrend <- NULL;
+    initialSeasonal <- NULL;
+    initialArima <- NULL;
+    initialXreg <- NULL;
+    # InitialEstimate vectors, defining what needs to be estimated
+    # NOTE: that initial==c("optimal","backcasting") meanst initialEstimate==TRUE!
+    initialEstimate <- initialLevelEstimate <- initialTrendEstimate <-
+        initialArimaEstimate <- initialXregEstimate <- TRUE;
+    # initials of seasonal is a vector, not a scalar, because we can have several lags
+    initialSeasonalEstimate <- rep(TRUE,componentsNumberSeasonal);
 
-            if(!any(model==c("PPP","FFF"))){
-                warning("Only additive models are allowed for your data. Amending the pool.",
-                        call.=FALSE);
+    # initial type can be: "o" - optimal, "b" - backcasting, "p" - provided.
+    if(any(is.character(initial))){
+        initialType <- match.arg(initial, c("optimal","backcasting"));
+    }
+    else if(is.null(initial)){
+        if(!silent){
+            message("Initial value is not selected. Switching to optimal.");
+        }
+        initialType <- "optimal";
+    }
+    else if(!is.null(initial)){
+        if(modelDo!="estimate"){
+            warning(paste0("Predefined initials vector can only be used with preselected ETS model.\n",
+                           "Changing to estimation of initials."),call.=FALSE);
+            initialType <- "optimal";
+            initialEstimate[] <- initialLevelEstimate[] <- initialTrendEstimate[] <-
+                initialSeasonalEstimate[] <- initialArimaEstimate[] <- initialXregEstimate[] <- TRUE;
+        }
+        else{
+            # If the list is provided, then check what this is.
+            # This should be: level, trend, seasonal[[1]], seasonal[[2]], ..., ARIMA, xreg
+            if(is.list(initial)){
+                # If this is a named list, then extract stuff using names
+                if(!is.null(names(initial))){
+                    if(!is.null(initial$level)){
+                        initialLevel <- initial$level;
+                    }
+                    if(!is.null(initial$trend)){
+                        initialTrend <- initial$trend;
+                    }
+                    if(!is.null(initial$seasonal)){
+                        initialSeasonal <- initial$seasonal;
+                    }
+                    if(!is.null(initial$ARIMA)){
+                        initialArima <- initial$ARIMA;
+                    }
+                    if(!is.null(initial$xreg)){
+                        initialXreg <- initial$xreg;
+                    }
+                }
+                else{
+                    if(!is.null(initial[[1]])){
+                        initialLevel <- initial[[1]];
+                    }
+                    if(!is.null(initial[[2]])){
+                        initialTrend <- initial[[2]];
+                    }
+                    if(!is.null(initial[[3]])){
+                        initialSeasonal <- initial[[3]];
+                    }
+                    if(!is.null(initial[[4]])){
+                        initialArima <- initial[[4]];
+                    }
+                    if(!is.null(initial[[5]])){
+                        initialXreg <- initial[[5]];
+                    }
+                }
+                # Define estimate variables
+                if(!is.null(initialLevel)){
+                    initialLevelEstimate[] <- FALSE;
+                    parametersNumber[2,1] <- parametersNumber[2,1] + 1;
+                }
+                if(!is.null(initialTrend)){
+                    initialTrendEstimate[] <- FALSE;
+                    parametersNumber[2,1] <- parametersNumber[2,1] + 1;
+                }
+                if(!is.null(initialSeasonal)){
+                    if(is.list(initialSeasonal)){
+                        initialSeasonalEstimate[] <- !(sapply(initialSeasonal,length)==lags[lags>1]);
+                    }
+                    else{
+                        initialSeasonalEstimate[] <- FALSE;
+                    }
+                    parametersNumber[2,1] <- parametersNumber[2,1] + length(unlist(initialSeasonal));
+                }
+                if(!is.null(initialArima)){
+                    initialArimaEstimate[] <- FALSE;
+                    parametersNumber[2,1] <- parametersNumber[2,1] + length(initialArima);
+                }
+                if(!is.null(initialXreg)){
+                    initialXregEstimate[] <- FALSE;
+                    parametersNumber[2,1] <- parametersNumber[2,1] + length(initialXreg);
+                }
+                initialType <- "provided";
+            }
+            else{
+                if(!is.numeric(initial)){
+                    warning(paste0("Initial vector is not numeric!\n",
+                                   "Values of initial vector will be estimated."),call.=FALSE);
+                    initialType <- "optimal";
+                }
+                else{
+                    # If this is a vector, then it should contain values in the order:
+                    # level, trend, seasonal1, seasonal2, ..., ARIMA, xreg
+                    if(length(initial)<(sum(lagsModelAll))){
+                        warning(paste0("Wrong length of the initial vector. Should be ",sum(lagsModelAll),
+                                       " instead of ",length(initial),".\n",
+                                       "Values of initial vector will be estimated."),call.=FALSE);
+                        initialType <- "optimal";
+                    }
+                    else{
+                        initialType <- "provided";
+                        j <- 1;
+                        initialLevel <- initial[1];
+                        if(Ttype!="N"){
+                            j <- 2;
+                            initialTrend <- initial[j];
+                        }
+                        if(Stype!="N"){
+                            initialSeasonal <- initial[j+c(1:sum(lags[lags>1]))];
+                            j <- j+sum(lags[lags>1]);
+                        }
+                        if(arimaModel){
+                            initialArima <- initial[j+c(1:max(lagsModelARIMA))];
+                            j <- j+max(lagsModelARIMA);
+                        }
+                        if(xregExist){
+                            initialXreg <- initial[-c(1:j)];
+                        }
+                        initialLevelEstimate[] <- initialTrendEstimate[] <- initialSeasonalEstimate[] <-
+                            initialArimaEstimate[] <- initialXregEstimate[] <- FALSE;
+                        parametersNumber[2,1] <- parametersNumber[2,1] + j;
+                    }
+                }
             }
         }
     }
-    if(any(model==c("PPP","FFF"))){
-        model <- "ZZZ";
-    }
 
-    # Update the number of parameters
-    if(occurrenceModelProvided){
-        parametersNumber[2,3] <- nparam(oesModel);
-        pForecast <- c(forecast(oesModel, h=h)$mean);
-    }
 
-    #### Information Criteria ####
-    ic <- match.arg(ic,c("AICc","AIC","BIC","BICc"));
-    ICFunction <- switch(ic,
-                         "AIC"=AIC,
-                         "AICc"=AICc,
-                         "BIC"=BIC,
-                         "BICc"=BICc);
-
-    #### Bounds for the smoothing parameters ####
-    bounds <- match.arg(bounds,c("usual","admissible","none"));
-
-    #### Lags for ARIMA ####
-    if(arimaModel){
-        lagsModelAll <- rbind(lagsModel,lagsModelARIMA);
-        lagsModelMax <- max(lagsModel);
-    }
-    else{
-        lagsModelAll <- lagsModel;
-    }
-
-    #### Explanatory variables: xreg, xregDo, xregInitial, xregPersistence ####
-    xregDo <- match.arg(xregDo,c("use","select"));
-    xregExist <- !is.null(xreg);
+    #### xreg preparation ####
+    # Check the xregDo
     if(!xregExist){
         xregDo[] <- "use";
         formulaProvided <- NULL;
     }
     else{
         if(xregDo=="select"){
-            if(!is.null(xregInitial)){
+            # If this has not happened by chance, then switch to optimisation
+            if(!is.null(initialXreg) && (initialType=="optimal")){
                 warning("Variables selection does not work with the provided initials for explantory variables. We will drop them.",
                         call.=FALSE);
-                xregInitial <- NULL;
+                initialXreg <- NULL;
+                initialXregEstimate <- TRUE;
+            }
+            else{
+                xregDo <- "use";
             }
             if(!is.null(xregPersistence) && any(xregPersistence!=0)){
                 warning(paste0("We cannot do variables selection with the provided smoothing parameters ",
@@ -886,9 +942,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         xregModel <- vector("list",2);
 
         # If the initials are not provided, estimate them using ALM.
-        if(is.null(xregInitial)){
+        if(initialXregEstimate){
             xregInitialsProvided <- FALSE;
-            xregInitialsEstimate <- TRUE;
+            initialXregEstimate <- TRUE;
             # The function returns an ALM model
             xregInitialiser <- function(Etype,distribution,formulaProvided,otLogical,responseName){
                 # Fix the default distribution for ALM
@@ -928,17 +984,23 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             }
 
             xregNames <- c(responseName,colnames(xreg));
-            xregData <- cbind(yInSample,as.data.frame(xreg[1:obsInSample,,drop=FALSE]));
+            if(nrow(xreg)>=obsInSample){
+                xregData <- cbind(yInSample,as.data.frame(xreg[1:obsInSample,,drop=FALSE]));
+            }
+            else{
+                stop(paste0("xreg contains less observations than needed: ", nrow(xreg),
+                            " instead of ", obsInSample), call.=FALSE);
+            }
             colnames(xregData) <- xregNames;
 
             if(Etype!="Z"){
                 testModel <- xregInitialiser(Etype,distribution,formulaProvided,otLogical,responseName);
                 if(Etype=="A"){
-                    xregModel[[1]]$xregInitial <- testModel$coefficients[-1];
+                    xregModel[[1]]$initialXreg <- testModel$coefficients[-1];
                     xregModel[[1]]$other <- testModel$other;
                 }
                 else{
-                    xregModel[[2]]$xregInitial <- testModel$coefficients[-1];
+                    xregModel[[2]]$initialXreg <- testModel$coefficients[-1];
                     xregModel[[2]]$other <- testModel$other;
                 }
             }
@@ -946,11 +1008,11 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             else{
                 # Additive model
                 testModel <- xregInitialiser("A",distribution,formulaProvided,otLogical,responseName);
-                xregModel[[1]]$xregInitial <- testModel$coefficients[-1];
+                xregModel[[1]]$initialXreg <- testModel$coefficients[-1];
                 xregModel[[1]]$other <- testModel$other;
                 # Multiplicative model
                 testModel[] <- xregInitialiser("M",distribution,formulaProvided,otLogical,responseName);
-                xregModel[[2]]$xregInitial <- testModel$coefficients[-1];
+                xregModel[[2]]$initialXreg <- testModel$coefficients[-1];
                 xregModel[[2]]$other <- testModel$other;
             }
 
@@ -983,11 +1045,10 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         }
         else{
             xregInitialsProvided <- TRUE;
-            xregInitialsEstimate <- FALSE;
 
-            xregModel[[1]]$xregInitial <- xregInitial;
+            xregModel[[1]]$initialXreg <- initialXreg;
             if(Etype=="Z"){
-                xregModel[[2]]$xregInitial <- xregInitial;
+                xregModel[[2]]$initialXreg <- initialXreg;
             }
 
             # Write down the number and names of parameters
@@ -1001,7 +1062,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                 xregData <- xreg;
             }
             xregNumber <- ncol(xregData);
-            xregNames <- names(xregModel[[1]]$xregInitial);
+            xregNames <- names(xregModel[[1]]$initialXreg);
+            parametersNumber[2,2] <- parametersNumber[2,2] + xregNumber;
         }
 
         # Process the persistence for xreg
@@ -1040,7 +1102,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     }
     else{
         xregInitialsProvided <- FALSE;
-        xregInitialsEstimate <- FALSE;
+        initialXregEstimate <- FALSE;
         xregPersistenceProvided <- FALSE;
         xregPersistenceEstimate <- FALSE;
         xregModel <- NULL;
@@ -1059,6 +1121,82 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     # Remove xreg, just to preserve some memory
     rm(xreg);
 
+    #### Conclusions about the initials ####
+    # Make sure that only important elements are estimated.
+    if(Ttype=="N"){
+        initialTrendEstimate <- FALSE;
+        initialTrend <- NULL;
+    }
+    if(Stype=="N"){
+        initialSeasonalEstimate <- FALSE;
+        initialSeasonal <- NULL;
+    }
+    if(!arimaModel){
+        initialArimaEstimate <- FALSE;
+        initialArima <- NULL;
+    }
+    if(!xregExist){
+        initialXregEstimate <- FALSE;
+        initialXreg <- NULL;
+    }
+
+    # If we don't need to estimate anything, flag initialEstimate and define initialType
+    if(!any(c(initialLevelEstimate, (initialTrendEstimate & Ttype!="N"),
+              (initialSeasonalEstimate & Stype!="N"),
+              (initialArimaEstimate & arimaModel),
+              (initialXregEstimate & xregExist)))){
+        initialEstimate[] <- FALSE;
+    }
+    else{
+        initialEstimate[] <- TRUE;
+    }
+
+    # Observations in the states matrix
+    # Define the number of cols that should be in the matvt
+    obsStates <- obsInSample + lagsModelMax*switch(initialType,
+                                                   "backcasting"=2,
+                                                   1);
+
+
+    # Check if multiplicative models can be fitted
+    allowMultiplicative <- !((any(yInSample<=0) && !occurrenceModel) || (occurrenceModel && any(yInSample<0)));
+
+    # Clean the pool of models if only additive are allowed
+    if(!allowMultiplicative && !is.null(modelsPool)){
+        modelsPoolMultiplicative <- ((substr(modelsPool,1,1)=="M") |
+                                         substr(modelsPool,2,2)=="M" |
+                                         substr(modelsPool,nchar(modelsPool),nchar(modelsPool))=="M");
+        if(any(modelsPoolMultiplicative)){
+            modelsPool <- modelsPool[!modelsPoolMultiplicative];
+
+            if(!any(model==c("PPP","FFF"))){
+                warning("Only additive models are allowed for your data. Amending the pool.",
+                        call.=FALSE);
+            }
+        }
+    }
+    if(any(model==c("PPP","FFF"))){
+        model <- "ZZZ";
+    }
+
+    # Update the number of parameters
+    if(occurrenceModelProvided){
+        parametersNumber[2,3] <- nparam(oesModel);
+        pForecast <- c(forecast(oesModel, h=h)$mean);
+    }
+
+    #### Information Criteria ####
+    ic <- match.arg(ic,c("AICc","AIC","BIC","BICc"));
+    ICFunction <- switch(ic,
+                         "AIC"=AIC,
+                         "AICc"=AICc,
+                         "BIC"=BIC,
+                         "BICc"=BICc);
+
+    #### Bounds for the smoothing parameters ####
+    bounds <- match.arg(bounds,c("usual","admissible","none"));
+
+
     #### Checks for the potential number of degrees of freedom ####
     # This is needed in order to make the function work on small samples
     # scale parameter, smoothing parameters and phi
@@ -1068,7 +1206,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                       # ARIMA components: initials + parameters
                       arimaModel*(initialNumberARIMA*(initialType=="optimal") + sum(arOrders) + sum(maOrders)) +
                       # Xreg initials and smoothing parameters
-                      xregNumber*(xregInitialsEstimate+xregPersistenceEstimate));
+                      xregNumber*(initialXregEstimate+xregPersistenceEstimate));
 
     # If the sample is smaller than the number of parameters
     if(obsNonzero <= nParamMax){
@@ -1088,13 +1226,13 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                                 # Number of ETS initials
                                 (sum(lagsModelAll)-xregNumber)*(initialType=="optimal") +
                                 # Xreg initials and smoothing parameters
-                                xregNumber*(xregInitialsEstimate+xregPersistenceEstimate));
+                                xregNumber*(initialXregEstimate+xregPersistenceEstimate));
         }
     }
 
-    # If the sample is smaller than the number of parameters
+    # If the sample is still smaller than the number of parameters
     if(obsNonzero <= nParamMax){
-        nParamExo <- xregNumber*(xregInitialsEstimate+xregPersistenceEstimate);
+        nParamExo <- xregNumber*(initialXregEstimate+xregPersistenceEstimate);
         if(!silent){
             message(paste0("Number of non-zero observations is ",obsNonzero,
                            ", while the maximum number of parameters to estimate is ", nParamMax,".\n",
@@ -1102,7 +1240,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         }
 
         # If the number of observations is still enough for the model selection and the pool is not specified
-        if(obsNonzero > (3 + nParamExo) && is.null(modelsPool)){
+        if(obsNonzero > (3 + nParamExo) && is.null(modelsPool) && any(modelDo==c("select","combine"))){
             # We have enough observations for local level model
             modelsPool <- c("ANN");
             if(allowMultiplicative){
@@ -1154,8 +1292,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                 model <- "ZZZ";
             }
         }
-        # If the pool is provided, amend it
-        else if(obsNonzero > (3 + nParamExo) & !is.null(modelsPool)){
+        # If the pool is provided (so, select / combine), amend it
+        else if(obsNonzero > (3 + nParamExo) && !is.null(modelsPool)){
             # We don't have enough observations for seasonal models with damped trend
             if((obsNonzero <= (6 + lagsModelMax + 1 + nParamExo))){
                 modelsPool <- modelsPool[!(nchar(modelsPool)==4 &
@@ -1196,6 +1334,33 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             else{
                 modelDo <- "select"
                 model <- "ZZZ";
+            }
+        }
+        # If the model needs to be estimated / used, not selected
+        else if(obsNonzero > (3 + nParamExo) && any(modelDo==c("estimate","use"))){
+            # We don't have enough observations for seasonal models with damped trend
+            if((obsNonzero <= (6 + lagsModelMax + 1 + nParamExo))){
+                model <- model[!(nchar(model)==4 &
+                                               substr(model,nchar(model),nchar(model))=="A")];
+                model <- model[!(nchar(model)==4 &
+                                               substr(model,nchar(model),nchar(model))=="M")];
+            }
+            # We don't have enough observations for seasonal models with trend
+            if((obsNonzero <= (5 + lagsModelMax + 1 + nParamExo))){
+                model <- model[!(substr(model,2,2)!="N" &
+                                               substr(model,nchar(model),nchar(model))!="N")];
+            }
+            # We don't have enough observations for seasonal models
+            if(obsNonzero <= 2*lagsModelMax){
+                model <- model[substr(model,nchar(model),nchar(model))=="N"];
+            }
+            # We don't have enough observations for damped trend
+            if(obsNonzero <= (6 + nParamExo)){
+                model <- model[nchar(model)!=4];
+            }
+            # We don't have enough observations for any trend
+            if(obsNonzero <= (5 + nParamExo)){
+                model <- model[substr(model,2,2)=="N"];
             }
         }
         # Extreme cases of small samples
@@ -1252,9 +1417,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             persistence <- 0;
             names(persistence) <- "level";
             persistenceEstimate <- FALSE;
-            initialValue <- mean(yInSample);
+            initialLevel <- mean(yInSample);
             initialType <- "provided";
-            initialEstimate <- FALSE;
+            initialEstimate <- initialLevelEstimate <- FALSE;
             warning("We did not have enough of non-zero observations, so persistence value was set to zero and initial was preset.",
                     call.=FALSE);
             modelDo <- "use";
@@ -1272,9 +1437,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             persistence <- 0;
             names(persistence) <- "level";
             persistenceEstimate <- FALSE;
-            initialValue <- yInSample[yInSample!=0];
-            initialType <- "p";
-            initialEstimate <- FALSE;
+            initialLevel <- yInSample[yInSample!=0];
+            initialType <- "provided";
+            initialEstimate <- initialLevelEstimate <- FALSE;
             warning("We did not have enough of non-zero observations, so we used Naive.",call.=FALSE);
             modelDo <- "nothing"
             model <- "ANN";
@@ -1291,9 +1456,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             persistence <- 0;
             names(persistence) <- "level";
             persistenceEstimate <- FALSE;
-            initialValue <- 0;
-            initialType <- "p";
-            initialEstimate <- FALSE;
+            initialLevel <- 0;
+            initialType <- "provided";
+            initialEstimate <- initialLevelEstimate <- FALSE;
             occurrenceModelProvided <- occurrenceModel <- FALSE;
             occurrence <- "none";
             warning("You have a sample with zeroes only. Your forecast will be zero.",call.=FALSE);
@@ -1397,8 +1562,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     }
 
     # See if the estimation of the model is not needed
-    if(!any(persistenceEstimate,phiEstimate,initialEstimate,
-            xregInitialsEstimate,xregPersistenceEstimate,lambdaEstimate)){
+    if(!any(persistenceEstimate,phiEstimate,(initialType!="backcasting")&initialEstimate,
+            xregPersistenceEstimate,lambdaEstimate)){
         modelDo <- "use";
     }
 
@@ -1441,6 +1606,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("allowMultiplicative",allowMultiplicative,ParentEnvironment);
     assign("componentsNames",componentsNames,ParentEnvironment);
     assign("componentsNumber",componentsNumber,ParentEnvironment);
+    assign("componentsNumberNonSeasonal",componentsNumber-componentsNumberSeasonal,ParentEnvironment);
     assign("componentsNumberSeasonal",componentsNumberSeasonal,ParentEnvironment);
     # This is the original vector of lags
     assign("lags",lags,ParentEnvironment);
@@ -1451,15 +1617,26 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     # This is the maximum lag
     assign("lagsModelMax",lagsModelMax,ParentEnvironment);
 
-    # Persistence and initials
+    # Persistence and phi
     assign("persistence",persistence,ParentEnvironment);
     assign("persistenceEstimate",persistenceEstimate,ParentEnvironment);
     assign("phi",phi,ParentEnvironment);
     assign("phiEstimate",phiEstimate,ParentEnvironment);
+
+    # Initials
     assign("initial",initial,ParentEnvironment);
     assign("initialType",initialType,ParentEnvironment);
     assign("initialEstimate",initialEstimate,ParentEnvironment);
-    assign("initialValue",initialValue,ParentEnvironment);
+    assign("initialLevel",initialLevel,ParentEnvironment);
+    assign("initialTrend",initialTrend,ParentEnvironment);
+    assign("initialSeasonal",initialSeasonal,ParentEnvironment);
+    assign("initialArima",initialArima,ParentEnvironment);
+    assign("initialXreg",initialXreg,ParentEnvironment);
+    assign("initialLevelEstimate",initialLevelEstimate,ParentEnvironment);
+    assign("initialTrendEstimate",initialTrendEstimate,ParentEnvironment);
+    assign("initialSeasonalEstimate",initialSeasonalEstimate,ParentEnvironment);
+    assign("initialArimaEstimate",initialArimaEstimate,ParentEnvironment);
+    assign("initialXregEstimate",initialXregEstimate,ParentEnvironment);
 
     # Occurrence model
     assign("oesModel",oesModel,ParentEnvironment);
@@ -1503,7 +1680,6 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("xregNumber",xregNumber,ParentEnvironment);
     assign("xregNames",xregNames,ParentEnvironment);
     assign("xregInitialsProvided",xregInitialsProvided,ParentEnvironment);
-    assign("xregInitialsEstimate",xregInitialsEstimate,ParentEnvironment);
     assign("xregPersistenceProvided",xregPersistenceProvided,ParentEnvironment);
     assign("xregPersistenceEstimate",xregPersistenceEstimate,ParentEnvironment);
     assign("xregPersistence",xregPersistence,ParentEnvironment);

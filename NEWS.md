@@ -3,6 +3,7 @@ mes v1.0.0 (Release data: 2020-04-28)
 
 Changes:
 * Started work on ARIMA components.
+* initial now accepts a list. This gives additional flexibility on what to estimate.
 
 
 mes v0.1.0 (Release data: 2020-03-14)

@@ -14,8 +14,7 @@ adam(y, model = "ZXZ", lags = c(frequency(y)), orders = list(ar = c(0), i
   occurrence = c("none", "auto", "fixed", "general", "odds-ratio",
   "inverse-odds-ratio", "direct"), ic = c("AICc", "AIC", "BIC", "BICc"),
   bounds = c("usual", "admissible", "none"), xreg = NULL,
-  xregDo = c("use", "select"), xregInitial = NULL, xregPersistence = 0,
-  silent = TRUE, ...)
+  xregDo = c("use", "select"), xregPersistence = 0, silent = TRUE, ...)
 
 auto.adam(y, model = "ZXZ", lags = c(frequency(y)),
   distribution = c("dnorm", "dlogis", "dlaplace", "ds", "dlnorm",
@@ -140,10 +139,17 @@ parameters. If \code{NULL}, then estimated.}
 \item{phi}{Value of damping parameter. If \code{NULL} then it is estimated.
 Only applicable for damped-trend models.}
 
-\item{initial}{Can be either character or a vector of initial states. If it
-is character, then it can be \code{"optimal"}, meaning that the initial
+\item{initial}{Can be either character or a list, or a vector of initial states.
+If it is character, then it can be \code{"optimal"}, meaning that the initial
 states are optimised, or \code{"backcasting"}, meaning that the initials are
-produced using backcasting procedure (advised for data with high frequency).}
+produced using backcasting procedure (advised for data with high frequency). In
+case of the list, it is recommended to use the named one and to provide those
+initial components that are available. For example:
+\code{initial=list(level=1000,trend=10,seasonal=list(c(1,2),c(1,2,3,4)),
+ARIMA=1,xreg=100)}. If some of the components are needed by the model, but are
+not provided in the list, they will be estimated. If the vector is provided,
+then it is expected that the components will be provided one after another
+without any gaps.}
 
 \item{occurrence}{The type of model used in probability estimation. Can be
 \code{"none"} - none,
@@ -180,9 +186,6 @@ function will either trim or extrapolate the data.}
 \item{xregDo}{The variable defines what to do with the provided xreg:
 \code{"use"} means that all of the data should be used, while
 \code{"select"} means that a selection using \code{ic} should be done.}
-
-\item{xregInitial}{The vector of initial parameters for exogenous variables.
-Ignored if \code{xreg} is NULL.}
 
 \item{xregPersistence}{The persistence vector \eqn{g_X}, containing smoothing
 parameters for exogenous variables. If \code{NULL}, then estimated. If \code{0}
@@ -239,13 +242,12 @@ following values:
 \item \code{transition} - the transition matrix,
 \item \code{measurement} - the measurement matrix with observations in rows and state elements
 in columns,
-\item \code{initialType} - the type of initialisation used ("optimal" / "backcasting" / "provided"),
 \item \code{initial} - the named list of initial values, including level, trend, seasonal, ARIMA
 and xreg components,
+\item \code{initialType} - the type of initialisation used ("optimal" / "backcasting" / "provided"),
 \item \code{nParam} - the matrix of the estimated / provided parameters,
 \item \code{occurrence} - the oes model used for the occurrence part of the model,
 \item \code{xreg} - the matrix of explanatory variables after all expansions and transformations,
-\item \code{xregInitial} - the vector of initials for the parameters of explanatory variable,
 \item \code{xregPersistence} - the vector of smoothing parameters for the explanatory variables,
 \item \code{formula} - the formula used for the explanatory variables expansion,
 \item \code{loss} - the type of loss function used in the estimation,
