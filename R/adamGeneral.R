@@ -4,7 +4,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                                              "dlnorm","dllaplace","dls","dinvgauss"),
                               loss, h, holdout,occurrence,
                               ic=c("AICc","AIC","BIC","BICc"), bounds=c("traditional","admissible","none"),
-                              xreg, xregDo, xregPersistence, responseName,
+                              xreg, xregDo, responseName,
                               silent, modelDo, ParentEnvironment,
                               ellipsis, fast=FALSE){
 
@@ -282,6 +282,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         }
     }
 
+    modelIsTrendy <- (Ttype!="N");
+
     #### Check the components of model ####
     componentsNames <- "level";
     componentsNumber <- 1;
@@ -300,7 +302,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         Ttype <- "Z";
         modelDo <- "select";
     }
-    if(Ttype!="N"){
+    if(modelIsTrendy){
         componentsNames <- c(componentsNames,"trend");
         componentsNumber[] <- componentsNumber+1;
     }
@@ -466,7 +468,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     }
 
     # If we have a trend add one more lag
-    if(Ttype!="N"){
+    if(modelIsTrendy){
         lags <- c(1,lags);
     }
     # If we don't have seasonality, remove seasonal lag
@@ -575,15 +577,89 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         lossFunction <- NULL;
     }
 
+    #### Explanatory variables: xregExist and xregDo ####
+    xregDo <- match.arg(xregDo,c("use","select","adapt"));
+    xregExist <- !is.null(xreg);
+
     #### Persistence provided ####
+    # Vectors for persistence of different components
+    persistenceLevel <- NULL;
+    persistenceTrend <- NULL;
+    persistenceSeasonal <- NULL;
+    persistenceXreg <- NULL;
+    # InitialEstimate vectors, defining what needs to be estimated
+    persistenceEstimate <- persistenceLevelEstimate <- persistenceTrendEstimate <-
+        persistenceXregEstimate <- TRUE;
+    # persistence of seasonal is a vector, not a scalar, because we can have several lags
+    persistenceSeasonalEstimate <- rep(TRUE,componentsNumberSeasonal);
     if(!is.null(persistence)){
-        if((!is.numeric(persistence) | !is.vector(persistence)) & !is.matrix(persistence)){
-            warning(paste0("Persistence is not a numeric vector!\n",
-                           "Changing to estimation of persistence vector values."),call.=FALSE);
-            persistence <- NULL;
-            persistenceEstimate <- TRUE;
+        # If it is a list
+        if(is.list(persistence)){
+            # If this is a named list, then extract stuff using names
+            if(!is.null(names(persistence))){
+                if(!is.null(persistence$level)){
+                    persistenceLevel <- persistence$level;
+                }
+                else if(!is.null(persistence$alpha)){
+                    persistenceLevel <- persistence$alpha;
+                }
+                if(!is.null(persistence$trend)){
+                    persistenceTrend <- persistence$trend;
+                }
+                else if(!is.null(persistence$beta)){
+                    persistenceTrend <- persistence$beta;
+                }
+                if(!is.null(persistence$seasonal)){
+                    persistenceSeasonal <- persistence$seasonal;
+                }
+                else if(!is.null(persistence$gamma)){
+                    persistenceSeasonal <- persistence$gamma;
+                }
+                if(!is.null(persistence$xreg)){
+                    persistenceXreg <- persistence$xreg;
+                }
+                else if(!is.null(persistence$delta)){
+                    persistenceXreg <- persistence$delta;
+                }
+            }
+            else{
+                if(!is.null(persistence[[1]])){
+                    persistenceLevel <- persistence[[1]];
+                }
+                if(!is.null(persistence[[2]])){
+                    persistenceTrend <- persistence[[2]];
+                }
+                if(!is.null(persistence[[3]])){
+                    persistenceSeasonal <- persistence[[3]];
+                }
+                if(!is.null(persistence[[4]])){
+                    persistenceXreg <- persistence[[4]];
+                }
+            }
+            # Define estimate variables
+            if(!is.null(persistenceLevel)){
+                persistenceLevelEstimate[] <- FALSE;
+                parametersNumber[2,1] <- parametersNumber[2,1] + 1;
+            }
+            if(!is.null(persistenceTrend)){
+                persistenceTrendEstimate[] <- FALSE;
+                parametersNumber[2,1] <- parametersNumber[2,1] + 1;
+            }
+            if(!is.null(persistenceSeasonal)){
+                if(is.list(persistenceSeasonal)){
+                    persistenceSeasonalEstimate[] <- length(persistenceSeasonal)==lags[lags>1];
+                }
+                else{
+                    persistenceSeasonalEstimate[] <- FALSE;
+                }
+                parametersNumber[2,1] <- parametersNumber[2,1] + length(unlist(persistenceSeasonal));
+            }
+            if(!is.null(persistenceXreg)){
+                persistenceXregEstimate[] <- FALSE;
+                parametersNumber[2,1] <- parametersNumber[2,1] + length(persistenceXreg);
+            }
         }
-        else{
+        else if(is.numeric(persistence)){
             if(modelDo!="estimate"){
                 warning(paste0("Predefined persistence vector can only be used with ",
                                "preselected ETS model.\n",
@@ -592,27 +668,68 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                 persistenceEstimate <- TRUE;
             }
             else{
-                if(length(persistence)!=lagsLength){
+                # If it is smaller... We don't know the length of xreg yet at this stage
+                if(length(persistence)<lagsLength){
                     warning(paste0("Length of persistence vector is wrong! ",
-                                   "It should be ",lagsLength,".\n",
                                    "Changing to estimation of persistence vector values."),
                             call.=FALSE);
                     persistence <- NULL;
                     persistenceEstimate <- TRUE;
                 }
                 else{
-                    persistence <- as.vector(persistence);
-                    names(persistence) <- componentsNames;
-                    persistenceEstimate <- FALSE;
+                    j <- 1;
+                    persistenceLevel <- as.vector(persistence)[1];
+                    names(persistenceLevel) <- "alpha";
+                    if(modelIsTrendy && length(persistence)>j){
+                        j <- j+1;
+                        persistenceTrend <- as.vector(persistence)[j];
+                        names(persistenceTrend) <- "beta";
+                    }
+                    if(Stype!="N" && length(persistence)>j){
+                        j <- j+1;
+                        persistenceSeasonal <- as.vector(persistence)[j];
+                        names(persistenceSeasonal) <- paste0("gamma",c(1:length(persistenceSeasonal)));
+                    }
+                    if(xregExist && length(persistence)>j){
+                        persistenceXreg <- as.vector(persistence)[-c(1:j)];
+                        names(persistenceXreg) <- paste0("delta",c(1:length(persistenceXreg)));
+                    }
+
+                    persistenceEstimate[] <- persistenceLevelEstimate[] <- persistenceTrendEstimate[] <-
+                        persistenceXregEstimate[] <- persistenceSeasonalEstimate[] <- FALSE;
                     parametersNumber[2,1] <- parametersNumber[2,1] + length(persistence);
                     bounds <- "n";
                 }
             }
         }
+        else{
+            warning(paste0("Persistence is not a numeric vector!\n",
+                           "Changing to estimation of persistence vector values."),call.=FALSE);
+            persistence <- NULL;
+            persistenceEstimate <- TRUE;
+        }
     }
     else{
         persistenceEstimate <- TRUE;
     }
+
+   # Make sure that only important elements are estimated.
+    if(Ttype=="N"){
+        persistenceTrendEstimate[] <- FALSE;
+        persistenceTrend <- NULL;
+    }
+    if(Stype=="N"){
+        persistenceSeasonalEstimate[] <- FALSE;
+        persistenceSeasonal <- NULL;
+    }
+    if(!xregExist){
+        persistenceXregEstimate[] <- FALSE;
+        persistenceXreg <- NULL;
+    }
+
+    # Redefine persitenceEstimate value
+    persistenceEstimate[] <- any(c(persistenceLevelEstimate,persistenceTrendEstimate,
+                                 persistenceSeasonalEstimate,persistenceXregEstimate));
 
     #### Phi ####
     if(!is.null(phi)){
@@ -762,9 +879,6 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     obsNonzero <- sum(ot);
     obsZero <- obsInSample - obsNonzero;
 
-    #### Explanatory variables: xreg, xregDo, initialXreg, xregPersistence ####
-    xregDo <- match.arg(xregDo,c("use","select"));
-    xregExist <- !is.null(xreg);
 
     #### Initial values ####
     # Vectors for initials of different components
@@ -884,7 +998,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                         initialType <- "provided";
                         j <- 1;
                         initialLevel <- initial[1];
-                        if(Ttype!="N"){
+                        if(modelIsTrendy){
                             j <- 2;
                             initialTrend <- initial[j];
                         }
@@ -927,11 +1041,11 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             else{
                 xregDo <- "use";
             }
-            if(!is.null(xregPersistence) && any(xregPersistence!=0)){
+            if(!is.null(persistenceXreg) && any(persistenceXreg!=0)){
                 warning(paste0("We cannot do variables selection with the provided smoothing parameters ",
                                "for explantory variables. We will estimate them instead."),
                         call.=FALSE);
-                xregPersistence <- NULL;
+                persistenceXreg <- NULL;
             }
             formulaProvided <- NULL;
         }
@@ -943,7 +1057,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
 
         # If the initials are not provided, estimate them using ALM.
         if(initialXregEstimate){
-            xregInitialsProvided <- FALSE;
+            initialXregProvided <- FALSE;
             initialXregEstimate <- TRUE;
             # The function returns an ALM model
             xregInitialiser <- function(Etype,distribution,formulaProvided,otLogical,responseName){
@@ -1044,7 +1158,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             formulaProvided <- formula(testModel);
         }
         else{
-            xregInitialsProvided <- TRUE;
+            initialXregProvided <- TRUE;
 
             xregModel[[1]]$initialXreg <- initialXreg;
             if(Etype=="Z"){
@@ -1067,28 +1181,35 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         }
 
         # Process the persistence for xreg
-        if(!is.null(xregPersistence)){
-            if(length(xregPersistence)!=xregNumber && length(xregPersistence)!=1){
-                warning("The length of the provided xregPersistence variables is wrong. Reverting to the estimation.",
+        if(!is.null(persistenceXreg)){
+            if(length(persistenceXreg)!=xregNumber && length(persistenceXreg)!=1){
+                warning("The length of the provided persistence for the xreg variables is wrong. Reverting to the estimation.",
                         call.=FALSE);
-                xregPersistence <- rep(0.5,xregNumber);
-                xregPersistenceProvided <- FALSE;
-                xregPersistenceEstimate <- TRUE;
+                persistenceXreg <- rep(0.5,xregNumber);
+                persistenceXregProvided <- FALSE;
+                persistenceXregEstimate <- TRUE;
             }
-            else if(length(xregPersistence)==1){
-                xregPersistence <- rep(xregPersistence,xregNumber);
-                xregPersistenceProvided <- TRUE;
-                xregPersistenceEstimate <- FALSE;
+            else if(length(persistenceXreg)==1){
+                persistenceXreg <- rep(persistenceXreg,xregNumber);
+                persistenceXregProvided <- TRUE;
+                persistenceXregEstimate <- FALSE;
             }
             else{
-                xregPersistenceProvided <- TRUE;
-                xregPersistenceEstimate <- FALSE;
+                persistenceXregProvided <- TRUE;
+                persistenceXregEstimate <- FALSE;
             }
         }
         else{
-            xregPersistence <- rep(0.05,xregNumber);
-            xregPersistenceProvided <- FALSE;
-            xregPersistenceEstimate <- TRUE;
+            if(xregDo=="adapt"){
+                persistenceXreg <- rep(0.05,xregNumber);
+                persistenceXregProvided <- FALSE;
+                persistenceXregEstimate <- TRUE;
+            }
+            else{
+                persistenceXreg <- rep(0,xregNumber);
+                persistenceXregProvided <- FALSE;
+                persistenceXregEstimate <- FALSE;
+            }
         }
         lagsModelAll <- matrix(c(lagsModelAll,rep(1,xregNumber)),ncol=1);
         # If there's only one explanatory variable, then there's nothing to select
@@ -1101,10 +1222,10 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         xregNames[] <- gsub("\`","",xregNames,ignore.case=TRUE);
     }
     else{
-        xregInitialsProvided <- FALSE;
+        initialXregProvided <- FALSE;
         initialXregEstimate <- FALSE;
-        xregPersistenceProvided <- FALSE;
-        xregPersistenceEstimate <- FALSE;
+        persistenceXregProvided <- FALSE;
+        persistenceXregEstimate <- FALSE;
         xregModel <- NULL;
         xregData <- NULL;
         xregNumber <- 0;
@@ -1141,7 +1262,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     }
 
     # If we don't need to estimate anything, flag initialEstimate and define initialType
-    if(!any(c(initialLevelEstimate, (initialTrendEstimate & Ttype!="N"),
+    if(!any(c(initialLevelEstimate, (initialTrendEstimate & modelIsTrendy),
               (initialSeasonalEstimate & Stype!="N"),
               (initialArimaEstimate & arimaModel),
               (initialXregEstimate & xregExist)))){
@@ -1200,13 +1321,15 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     #### Checks for the potential number of degrees of freedom ####
     # This is needed in order to make the function work on small samples
     # scale parameter, smoothing parameters and phi
-    nParamMax <- (1 + componentsNumber*persistenceEstimate + phiEstimate +
+    nParamMax <- (1 + persistenceLevelEstimate + persistenceTrendEstimate*modelIsTrendy +
+                      sum(persistenceSeasonalEstimate)*modelIsSeasonal +
+                      phiEstimate +
                       # Number of ETS initials
                       (sum(lagsModelAll)-xregNumber-initialNumberARIMA)*(initialType=="optimal") +
                       # ARIMA components: initials + parameters
                       arimaModel*(initialNumberARIMA*(initialType=="optimal") + sum(arOrders) + sum(maOrders)) +
                       # Xreg initials and smoothing parameters
-                      xregNumber*(initialXregEstimate+xregPersistenceEstimate));
+                      xregNumber*(initialXregEstimate+persistenceXregEstimate));
 
     # If the sample is smaller than the number of parameters
     if(obsNonzero <= nParamMax){
@@ -1222,17 +1345,19 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             lagsModelAll <- lagsModelAll[-c(componentsNumber+c(1:componentsNumberARIMA)),,drop=FALSE];
             lagsModelMax <- max(lagsModelAll);
 
-            nParamMax[] <- (1 + componentsNumber*persistenceEstimate + phiEstimate +
+            nParamMax[] <- (1 + persistenceLevelEstimate + persistenceTrendEstimate*modelIsTrendy +
+                                sum(persistenceSeasonalEstimate)*modelIsSeasonal +
+                                phiEstimate +
                                 # Number of ETS initials
                                 (sum(lagsModelAll)-xregNumber)*(initialType=="optimal") +
                                 # Xreg initials and smoothing parameters
-                                xregNumber*(initialXregEstimate+xregPersistenceEstimate));
+                                xregNumber*(initialXregEstimate+persistenceXregEstimate));
         }
     }
 
     # If the sample is still smaller than the number of parameters
     if(obsNonzero <= nParamMax){
-        nParamExo <- xregNumber*(initialXregEstimate+xregPersistenceEstimate);
+        nParamExo <- xregNumber*(initialXregEstimate+persistenceXregEstimate);
         if(!silent){
             message(paste0("Number of non-zero observations is ",obsNonzero,
                            ", while the maximum number of parameters to estimate is ", nParamMax,".\n",
@@ -1406,7 +1531,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             }
             persistence <- 0;
             names(persistence) <- "level";
-            persistenceEstimate <- FALSE;
+            persistenceEstimate <- persistenceLevelEstimate <- FALSE;
             warning("We did not have enough of non-zero observations, so persistence value was set to zero.",
                     call.=FALSE);
             phiEstimate <- FALSE;
@@ -1416,7 +1541,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             modelsPool <- NULL;
             persistence <- 0;
             names(persistence) <- "level";
-            persistenceEstimate <- FALSE;
+            persistenceEstimate <- persistenceLevelEstimate <- FALSE;
             initialLevel <- mean(yInSample);
             initialType <- "provided";
             initialEstimate <- initialLevelEstimate <- FALSE;
@@ -1436,7 +1561,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             modelsPool <- NULL;
             persistence <- 0;
             names(persistence) <- "level";
-            persistenceEstimate <- FALSE;
+            persistenceEstimate <- persistenceLevelEstimate <- FALSE;
             initialLevel <- yInSample[yInSample!=0];
             initialType <- "provided";
             initialEstimate <- initialLevelEstimate <- FALSE;
@@ -1455,7 +1580,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             modelsPool <- NULL;
             persistence <- 0;
             names(persistence) <- "level";
-            persistenceEstimate <- FALSE;
+            persistenceEstimate <- persistenceLevelEstimate <- FALSE;
             initialLevel <- 0;
             initialType <- "provided";
             initialEstimate <- initialLevelEstimate <- FALSE;
@@ -1563,7 +1688,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
 
     # See if the estimation of the model is not needed
     if(!any(persistenceEstimate,phiEstimate,(initialType!="backcasting")&initialEstimate,
-            xregPersistenceEstimate,lambdaEstimate)){
+            lambdaEstimate)){
         modelDo <- "use";
     }
 
@@ -1598,11 +1723,12 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("model",model,ParentEnvironment);
     assign("Etype",Etype,ParentEnvironment);
     assign("Ttype",Ttype,ParentEnvironment);
+    assign("modelIsTrendy",modelIsTrendy,ParentEnvironment);
     assign("Stype",Stype,ParentEnvironment);
+    assign("modelIsSeasonal",modelIsSeasonal,ParentEnvironment);
     assign("modelsPool",modelsPool,ParentEnvironment);
     assign("damped",damped,ParentEnvironment);
     assign("modelDo",modelDo,ParentEnvironment);
-    assign("modelIsSeasonal",modelIsSeasonal,ParentEnvironment);
     assign("allowMultiplicative",allowMultiplicative,ParentEnvironment);
     assign("componentsNames",componentsNames,ParentEnvironment);
     assign("componentsNumber",componentsNumber,ParentEnvironment);
@@ -1617,9 +1743,20 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     # This is the maximum lag
     assign("lagsModelMax",lagsModelMax,ParentEnvironment);
 
-    # Persistence and phi
+    # Persistence
     assign("persistence",persistence,ParentEnvironment);
     assign("persistenceEstimate",persistenceEstimate,ParentEnvironment);
+    assign("persistenceLevel",persistenceLevel,ParentEnvironment);
+    assign("persistenceLevelEstimate",persistenceLevelEstimate,ParentEnvironment);
+    assign("persistenceTrend",persistenceTrend,ParentEnvironment);
+    assign("persistenceTrendEstimate",persistenceTrendEstimate,ParentEnvironment);
+    assign("persistenceSeasonal",persistenceSeasonal,ParentEnvironment);
+    assign("persistenceSeasonalEstimate",persistenceSeasonalEstimate,ParentEnvironment);
+    assign("persistenceXreg",persistenceXreg,ParentEnvironment);
+    assign("persistenceXregEstimate",persistenceXregEstimate,ParentEnvironment);
+    assign("persistenceXregProvided",persistenceXregProvided,ParentEnvironment);
+
+    # phi
     assign("phi",phi,ParentEnvironment);
     assign("phiEstimate",phiEstimate,ParentEnvironment);
 
@@ -1628,15 +1765,16 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("initialType",initialType,ParentEnvironment);
     assign("initialEstimate",initialEstimate,ParentEnvironment);
     assign("initialLevel",initialLevel,ParentEnvironment);
-    assign("initialTrend",initialTrend,ParentEnvironment);
-    assign("initialSeasonal",initialSeasonal,ParentEnvironment);
-    assign("initialArima",initialArima,ParentEnvironment);
-    assign("initialXreg",initialXreg,ParentEnvironment);
     assign("initialLevelEstimate",initialLevelEstimate,ParentEnvironment);
+    assign("initialTrend",initialTrend,ParentEnvironment);
     assign("initialTrendEstimate",initialTrendEstimate,ParentEnvironment);
+    assign("initialSeasonal",initialSeasonal,ParentEnvironment);
     assign("initialSeasonalEstimate",initialSeasonalEstimate,ParentEnvironment);
+    assign("initialArima",initialArima,ParentEnvironment);
     assign("initialArimaEstimate",initialArimaEstimate,ParentEnvironment);
+    assign("initialXreg",initialXreg,ParentEnvironment);
     assign("initialXregEstimate",initialXregEstimate,ParentEnvironment);
+    assign("initialXregProvided",initialXregProvided,ParentEnvironment);
 
     # Occurrence model
     assign("oesModel",oesModel,ParentEnvironment);
@@ -1679,10 +1817,6 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("xregData",xregData,ParentEnvironment);
     assign("xregNumber",xregNumber,ParentEnvironment);
     assign("xregNames",xregNames,ParentEnvironment);
-    assign("xregInitialsProvided",xregInitialsProvided,ParentEnvironment);
-    assign("xregPersistenceProvided",xregPersistenceProvided,ParentEnvironment);
-    assign("xregPersistenceEstimate",xregPersistenceEstimate,ParentEnvironment);
-    assign("xregPersistence",xregPersistence,ParentEnvironment);
     assign("formula",formulaProvided,ParentEnvironment);
 
     # Ellipsis thingies
