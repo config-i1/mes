@@ -33,8 +33,7 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)),
                                    h=h, holdout=holdout,
                                    persistence=persistence, phi=phi, initial=initial,
                                    occurrence=occurrence, ic=ic, bounds=bounds,
-                                   xreg=xreg, xregDo=xregDo, xregInitial=xregInitial,
-                                   xregPersistence=xregPersistence, silent=TRUE, ...);
+                                   xreg=xreg, xregDo=xregDo, silent=TRUE, ...);
     }
     if(!silent){
         cat("Done!\n");
