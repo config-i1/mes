@@ -14,7 +14,7 @@ adam(y, model = "ZXZ", lags = c(frequency(y)), orders = list(ar = c(0), i
   occurrence = c("none", "auto", "fixed", "general", "odds-ratio",
   "inverse-odds-ratio", "direct"), ic = c("AICc", "AIC", "BIC", "BICc"),
   bounds = c("usual", "admissible", "none"), xreg = NULL,
-  xregDo = c("use", "select"), xregPersistence = 0, silent = TRUE, ...)
+  xregDo = c("use", "select", "adapt"), silent = TRUE, ...)
 
 auto.adam(y, model = "ZXZ", lags = c(frequency(y)),
   distribution = c("dnorm", "dlogis", "dlaplace", "ds", "dlnorm",
@@ -23,8 +23,7 @@ auto.adam(y, model = "ZXZ", lags = c(frequency(y)),
   occurrence = c("none", "auto", "fixed", "general", "odds-ratio",
   "inverse-odds-ratio", "direct"), ic = c("AICc", "AIC", "BIC", "BICc"),
   bounds = c("usual", "admissible", "none"), xreg = NULL,
-  xregDo = c("use", "select"), xregInitial = NULL, xregPersistence = 0,
-  silent = TRUE, ...)
+  xregDo = c("use", "select", "adapt"), silent = TRUE, ...)
 }
 \arguments{
 \item{y}{Vector, containing data needed to be forecasted. If a matrix is
@@ -134,7 +133,11 @@ example:
 is taken from the data (can be used for the model testing purposes.}
 
 \item{persistence}{Persistence vector \eqn{g}, containing smoothing
-parameters. If \code{NULL}, then estimated.}
+parameters. If \code{NULL}, then estimated. Can be also passed as a names list of
+the type: \code{persistence=list(level=0.1, trend=0.05, seasonal=c(0.1,0.2),
+xreg=c(0.1,0.2))}. Dropping some elements from the named list will make the function
+estimate them. e.g. if you don't specify seasonal in the persistence for the ETS(M,N,M)
+model, it will be estimated.}
 
 \item{phi}{Value of damping parameter. If \code{NULL} then it is estimated.
 Only applicable for damped-trend models.}
@@ -185,11 +188,9 @@ function will either trim or extrapolate the data.}
 
 \item{xregDo}{The variable defines what to do with the provided xreg:
 \code{"use"} means that all of the data should be used, while
-\code{"select"} means that a selection using \code{ic} should be done.}
-
-\item{xregPersistence}{The persistence vector \eqn{g_X}, containing smoothing
-parameters for exogenous variables. If \code{NULL}, then estimated. If \code{0}
-then each element of the vector is set to zero. Prerequisite - non-NULL \code{xreg}.}
+\code{"select"} means that a selection using \code{ic} should be done,
+\code{"adapt"} will trigger the mechanism of time varying parameters for the
+explanatory variables.}
 
 \item{silent}{Specifies, whether to provide the progress of the function or not.
 If \code{TRUE}, then the function will print what it does and how much it has
@@ -224,6 +225,10 @@ You can read more about these parameters by running the function
 \link[nloptr]{nloptr.print.options}.
 Finally, the parameter \code{lambda} for LASSO / RIDGE, Asymmetric Laplace and df
 of Student's distribution can be provided here as well.}
+
+\item{xregPersistence}{The persistence vector \eqn{g_X}, containing smoothing
+parameters for exogenous variables. If \code{NULL}, then estimated. If \code{0}
+then each element of the vector is set to zero. Prerequisite - non-NULL \code{xreg}.}
 }
 \value{
 Object of class "adam" is returned. It contains the list of the

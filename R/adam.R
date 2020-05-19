@@ -152,7 +152,11 @@
 #' @param holdout Logical. If \code{TRUE}, then the holdout of the size \code{h}
 #' is taken from the data (can be used for the model testing purposes.
 #' @param persistence Persistence vector \eqn{g}, containing smoothing
-#' parameters. If \code{NULL}, then estimated.
+#' parameters. If \code{NULL}, then estimated. Can be also passed as a names list of
+#' the type: \code{persistence=list(level=0.1, trend=0.05, seasonal=c(0.1,0.2),
+#' xreg=c(0.1,0.2))}. Dropping some elements from the named list will make the function
+#' estimate them. e.g. if you don't specify seasonal in the persistence for the ETS(M,N,M)
+#' model, it will be estimated.
 #' @param phi Value of damping parameter. If \code{NULL} then it is estimated.
 #' Only applicable for damped-trend models.
 #' @param initial Can be either character or a list, or a vector of initial states.
@@ -196,7 +200,9 @@
 #' function will either trim or extrapolate the data.
 #' @param xregDo The variable defines what to do with the provided xreg:
 #' \code{"use"} means that all of the data should be used, while
-#' \code{"select"} means that a selection using \code{ic} should be done.
+#' \code{"select"} means that a selection using \code{ic} should be done,
+#' \code{"adapt"} will trigger the mechanism of time varying parameters for the
+#' explanatory variables.
 #' @param xregPersistence The persistence vector \eqn{g_X}, containing smoothing
 #' parameters for exogenous variables. If \code{NULL}, then estimated. If \code{0}
 #' then each element of the vector is set to zero. Prerequisite - non-NULL \code{xreg}.
@@ -299,8 +305,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                  persistence=NULL, phi=NULL, initial=c("optimal","backcasting"),
                  occurrence=c("none","auto","fixed","general","odds-ratio","inverse-odds-ratio","direct"),
                  ic=c("AICc","AIC","BIC","BICc"), bounds=c("usual","admissible","none"),
-                 xreg=NULL, xregDo=c("use","select","adapt"), xregPersistence=0,
-                 silent=TRUE, ...){
+                 xreg=NULL, xregDo=c("use","select","adapt"), silent=TRUE, ...){
     # Copyright (C) 2019 - Inf  Ivan Svetunkov
 
     # Start measuring the time of calculations

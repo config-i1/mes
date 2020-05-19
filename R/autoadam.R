@@ -7,8 +7,7 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)),
                       persistence=NULL, phi=NULL, initial=c("optimal","backcasting"),
                       occurrence=c("none","auto","fixed","general","odds-ratio","inverse-odds-ratio","direct"),
                       ic=c("AICc","AIC","BIC","BICc"), bounds=c("usual","admissible","none"),
-                      xreg=NULL, xregDo=c("use","select"), xregInitial=NULL, xregPersistence=0,
-                      silent=TRUE, ...){
+                      xreg=NULL, xregDo=c("use","select","adapt"), silent=TRUE, ...){
     # Copyright (C) 2020 - Inf  Ivan Svetunkov
 
     # Start measuring the time of calculations
