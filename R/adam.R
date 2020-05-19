@@ -880,8 +880,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                               (lagsModelMax-lagsModel[componentsNumberNonSeasonal+k])+
                                   lagsModel[componentsNumberNonSeasonal+k]] <-
                             switch(Stype,
-                                   "A"=lagsModel[componentsNumberNonSeasonal+k]-
-                                       sum(B[j+2:(lagsModel[componentsNumberNonSeasonal+k])-1]),
+                                   "A"=-sum(B[j+2:(lagsModel[componentsNumberNonSeasonal+k])-1]),
                                    "M"=1/prod(B[j+2:(lagsModel[componentsNumberNonSeasonal+k])-1]));
                         j[] <- j+lagsModel[componentsNumberNonSeasonal+k]-1;
                     }
