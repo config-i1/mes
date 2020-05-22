@@ -339,27 +339,21 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         arimaModel <- TRUE;
 
         # See if AR is needed
+        arRequired <- FALSE;
         if(sum(arOrders)>0){
-            arRequired <- TRUE;
-        }
-        else{
-            arRequired <- FALSE;
+            arRequired[] <- TRUE;
         }
 
         # See if I is needed
+        iRequired <- FALSE;
         if(sum(iOrders)>0){
-            iRequired <- TRUE;
-        }
-        else{
-            iRequired <- FALSE;
+            iRequired[] <- TRUE;
         }
 
         # See if I is needed
+        maRequired <- FALSE;
         if(sum(maOrders)>0){
-            maRequired <- TRUE;
-        }
-        else{
-            maRequired <- FALSE;
+            maRequired[] <- TRUE;
         }
 
         # Define maxOrder and make all the values look similar (for the polynomials)
@@ -374,29 +368,6 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             maOrders <- c(maOrders,rep(0,maxOrder-length(maOrders)));
         }
 
-        # If zeroes are defined for some orders, drop them.
-        # if(any((arOrders + iOrders + maOrders)==0)){
-        #     orders2leave <- (arOrders + iOrders + maOrders)!=0;
-        #     if(all(!orders2leave)){
-        #         orders2leave <- lags==min(lags);
-        #     }
-        #     arOrders <- arOrders[orders2leave];
-        #     iOrders <- iOrders[orders2leave];
-        #     maOrders <- maOrders[orders2leave];
-        #     lags <- lags[orders2leave];
-        # }
-    }
-    else{
-        arimaModel <- FALSE;
-        arRequired <- arEstimate <- FALSE;
-        iRequired <- FALSE;
-        maRequired <- maEstimate <- FALSE;
-        lagsModelARIMA <- initialNumberARIMA <- 0;
-        componentsNumberARIMA <- 0;
-        componentsNamesARIMA <- NULL;
-    }
-
-    if(arimaModel){
         # Define the non-zero values. This is done via the calculation of orders of polynomials
         ariValues <- list(NA);
         maValues <- list(NA);
@@ -439,32 +410,37 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         ### What are their positions in transition matrix?
         nonZeroARI <- unique(matrix(c(ariPolynomial)[-1],ncol=1));
         nonZeroMA <- unique(matrix(c(maPolynomial)[-1],ncol=1));
+        # Lags for the ARIMA components
         lagsModelARIMA <- matrix(sort(unique(c(nonZeroARI,nonZeroMA))),ncol=1);
         nonZeroARI <- cbind(nonZeroARI,which(lagsModelARIMA %in% nonZeroARI)-1);
         nonZeroMA <- cbind(nonZeroMA,which(lagsModelARIMA %in% nonZeroMA)-1);
 
+        # Number of components
         componentsNumberARIMA <- length(lagsModelARIMA);
-        componentsNamesARIMA <- paste0("State",c(1:componentsNumberARIMA));
-        initialNumberARIMA <- sum(lagsModelARIMA)
+        # Their names
+        componentsNamesARIMA <- paste0("ARIMAState",c(1:componentsNumberARIMA));
+        # Number of initials needed. This is based on the longest one. The others are just its transformations
+        initialArimaNumber <- max(lagsModelARIMA);
 
-        if(obsInSample < componentsNumberARIMA){
+        if(obsInSample < initialArimaNumber){
             warning(paste0("In-sample size is ",obsInSample,", while number of ARIMA components is ",componentsNumberARIMA,
                            ". Cannot fit the model."),call.=FALSE)
             stop("Not enough observations for such a complicated model.",call.=FALSE);
         }
-
-        # Check the provided parameters for AR and MA
-
-        # Check the provided initials
-
     }
     else{
-        componentsNumberARIMA <- 0;
-        nonZeroARI <- NULL;
-        nonZeroMA <- NULL;
         arOrders <- NULL;
         iOrders <- NULL;
         maOrders <- NULL;
+        arimaModel <- FALSE;
+        arRequired <- arEstimate <- FALSE;
+        iRequired <- FALSE;
+        maRequired <- maEstimate <- FALSE;
+        lagsModelARIMA <- initialArimaNumber <- 0;
+        componentsNumberARIMA <- 0;
+        componentsNamesARIMA <- NULL;
+        nonZeroARI <- NULL;
+        nonZeroMA <- NULL;
     }
 
     # If we have a trend add one more lag
@@ -477,6 +453,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     }
 
     # Lags of the model
+    lagsModelSeasonal <- lags[lags>1];
     lagsModel <- matrix(lags,ncol=1);
     lagsModelMax <- max(lagsModel);
     lagsLength <- length(lags);
@@ -647,7 +624,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             }
             if(!is.null(persistenceSeasonal)){
                 if(is.list(persistenceSeasonal)){
-                    persistenceSeasonalEstimate[] <- length(persistenceSeasonal)==lags[lags>1];
+                    persistenceSeasonalEstimate[] <- length(persistenceSeasonal)==length(lagsModelSeasonal);
                 }
                 else{
                     persistenceSeasonalEstimate[] <- FALSE;
@@ -894,21 +871,23 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     # initials of seasonal is a vector, not a scalar, because we can have several lags
     initialSeasonalEstimate <- rep(TRUE,componentsNumberSeasonal);
 
+    # This is an initialisation of the variable
+    initialType <- "optimal"
     # initial type can be: "o" - optimal, "b" - backcasting, "p" - provided.
     if(any(is.character(initial))){
-        initialType <- match.arg(initial, c("optimal","backcasting"));
+        initialType[] <- match.arg(initial, c("optimal","backcasting"));
     }
     else if(is.null(initial)){
         if(!silent){
             message("Initial value is not selected. Switching to optimal.");
         }
-        initialType <- "optimal";
+        initialType[] <- "optimal";
     }
     else if(!is.null(initial)){
         if(modelDo!="estimate"){
             warning(paste0("Predefined initials vector can only be used with preselected ETS model.\n",
                            "Changing to estimation of initials."),call.=FALSE);
-            initialType <- "optimal";
+            initialType[] <- "optimal";
             initialEstimate[] <- initialLevelEstimate[] <- initialTrendEstimate[] <-
                 initialSeasonalEstimate[] <- initialArimaEstimate[] <- initialXregEstimate[] <- TRUE;
         }
@@ -951,39 +930,12 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                         initialXreg <- initial[[5]];
                     }
                 }
-                # Define estimate variables
-                if(!is.null(initialLevel)){
-                    initialLevelEstimate[] <- FALSE;
-                    parametersNumber[2,1] <- parametersNumber[2,1] + 1;
-                }
-                if(!is.null(initialTrend)){
-                    initialTrendEstimate[] <- FALSE;
-                    parametersNumber[2,1] <- parametersNumber[2,1] + 1;
-                }
-                if(!is.null(initialSeasonal)){
-                    if(is.list(initialSeasonal)){
-                        initialSeasonalEstimate[] <- !(sapply(initialSeasonal,length)==lags[lags>1]);
-                    }
-                    else{
-                        initialSeasonalEstimate[] <- FALSE;
-                    }
-                    parametersNumber[2,1] <- parametersNumber[2,1] + length(unlist(initialSeasonal));
-                }
-                if(!is.null(initialArima)){
-                    initialArimaEstimate[] <- FALSE;
-                    parametersNumber[2,1] <- parametersNumber[2,1] + length(initialArima);
-                }
-                if(!is.null(initialXreg)){
-                    initialXregEstimate[] <- FALSE;
-                    parametersNumber[2,1] <- parametersNumber[2,1] + length(initialXreg);
-                }
-                initialType <- "provided";
             }
             else{
                 if(!is.numeric(initial)){
                     warning(paste0("Initial vector is not numeric!\n",
                                    "Values of initial vector will be estimated."),call.=FALSE);
-                    initialType <- "optimal";
+                    initialType[] <- "optimal";
                 }
                 else{
                     # If this is a vector, then it should contain values in the order:
@@ -992,26 +944,47 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                         warning(paste0("Wrong length of the initial vector. Should be ",sum(lagsModelAll),
                                        " instead of ",length(initial),".\n",
                                        "Values of initial vector will be estimated."),call.=FALSE);
-                        initialType <- "optimal";
+                        initialType[] <- "optimal";
                     }
                     else{
-                        initialType <- "provided";
                         j <- 1;
                         initialLevel <- initial[1];
                         if(modelIsTrendy){
                             j <- 2;
-                            initialTrend <- initial[j];
+                            # If there is something in the vector, use it
+                            if(all(!is.na(initial[j]))){
+                                initialTrend <- initial[j];
+                            }
                         }
                         if(Stype!="N"){
-                            initialSeasonal <- initial[j+c(1:sum(lags[lags>1]))];
-                            j <- j+sum(lags[lags>1]);
+                            # If there is something in the vector, use it
+                            if(length(initial[-c(1:j)])>0){
+                                initialSeasonal <- vector("list",componentsNumberSeasonal);
+                                m <- 0;
+                                for(i in 1:componentsNumberSeasonal){
+                                    if(all(!is.na(initial[j+m+1:lagsModelSeasonal[i]]))){
+                                        initialSeasonal[[i]] <- initial[j+m+1:lagsModelSeasonal[i]];
+                                        m <- m + lagsModelSeasonal[i];
+                                    }
+                                    else{
+                                        break;
+                                    }
+                                }
+                                j <- j+m;
+                            }
                         }
                         if(arimaModel){
-                            initialArima <- initial[j+c(1:max(lagsModelARIMA))];
-                            j <- j+max(lagsModelARIMA);
+                            # If there is something else left, this must be ARIMA
+                            if(all(!is.na(initial[j+c(1:initialArimaNumber)]))){
+                                initialArima <- initial[j+c(1:initialArimaNumber)];
+                                j <- j+max(lagsModelARIMA);
+                            }
                         }
                         if(xregExist){
-                            initialXreg <- initial[-c(1:j)];
+                            # Something else? xreg for sure!
+                            if(length(initial[-c(1:j)])>0){
+                                initialXreg <- initial[-c(1:j)];
+                            }
                         }
                         initialLevelEstimate[] <- initialTrendEstimate[] <- initialSeasonalEstimate[] <-
                             initialArimaEstimate[] <- initialXregEstimate[] <- FALSE;
@@ -1021,6 +994,97 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             }
         }
     }
+
+    #### Check the provided initials and define initialEstimate variables ####
+    # Level
+    if(!is.null(initialLevel)){
+        if(length(initialLevel)>1){
+            warning("Initial level contains more than one value! Using the first one.",
+                    call.=FALSE);
+            initialLevel <- initialLevel[1];
+        }
+        initialLevelEstimate[] <- FALSE;
+        parametersNumber[2,1] <- parametersNumber[2,1] + 1;
+    }
+    # Trend
+    if(!is.null(initialTrend)){
+        if(length(initialTrend)>1){
+            warning("Initial trend contains more than one value! Using the first one.",
+                    call.=FALSE);
+            initialTrend <- initialTrend[1];
+        }
+        initialTrendEstimate[] <- FALSE;
+        parametersNumber[2,1] <- parametersNumber[2,1] + 1;
+    }
+    # Seasonal
+    if(!is.null(initialSeasonal)){
+        # The list means several seasonal lags
+        if(is.list(initialSeasonal)){
+            # Is the number of seasonal initials correct? If it is bigger, then remove redundant
+            if(length(initialSeasonal)>componentsNumberSeasonal){
+                warning("Initial seasonals contained more elements than needed! Removing redundant ones.",
+                        call.=FALSE);
+                initialSeasonal <- initialSeasonal[1:componentsNumberSeasonal];
+            }
+            # Is the number of initials in each season correct? Use the correct ones only
+            if(any(!(sapply(initialSeasonal,length) %in% lagsModelSeasonal))){
+                warning(paste0("Some of initial seasonals have a wrong length, ",
+                               "not corresponding to the provided lags. We will estimate them."),
+                        call.=FALSE);
+                initialSeasonalToUse <- sapply(initialSeasonal,length) %in% lagsModelSeasonal;
+                initialSeasonal <- initialSeasonal[initialSeasonalToUse];
+            }
+            initialSeasonalEstimate[] <- !(lagsModelSeasonal %in% sapply(initialSeasonal,length));
+            # If there are some gaps in what to estimate, reform initialSeason to make sense in the future creator function
+            if(!all(initialSeasonalEstimate) && !all(!initialSeasonalEstimate)){
+                initialSeasonalCorrect <- vector("list",componentsNumberSeasonal);
+                initialSeasonalCorrect[which(!initialSeasonalEstimate)] <- initialSeasonal;
+                initialSeasonal <- initialSeasonalCorrect;
+            }
+        }
+        # The vector implies only one seasonal
+        else{
+            if(all(length(initialSeasonal)!=lagsModelSeasonal)){
+                warning(paste0("Wrong length of seasonal initial: ",length(initialSeasonal),
+                               "Instead of ",lagsModelSeasonal,". Switching to estimation."),
+                        call.=FALSE)
+                initialSeasonalEstimate[] <- TRUE;
+            }
+            else{
+                initialSeasonalEstimate[] <- FALSE;
+            }
+            # Create a list from the vector for consistency purposes
+            initialSeasonal <- list(initialSeasonal);
+        }
+        parametersNumber[2,1] <- parametersNumber[2,1] + length(unlist(initialSeasonal));
+    }
+    # ARIMA
+    if(!is.null(initialArima)){
+        if(length(initialArima)!=initialArimaNumber){
+            warning(paste0("The length of ARIMA initials is ",length(initialArima),
+                           " instead of ",initialArimaNumber,". Estimating initials instead!"),
+                    call.=FALSE);
+            initialArimaEstimate[] <- TRUE;
+        }
+        else{
+            initialArimaEstimate[] <- FALSE;
+            parametersNumber[2,1] <- parametersNumber[2,1] + length(initialArima);
+        }
+    }
+    # xreg
+    if(!is.null(initialXreg)){
+        initialXregEstimate[] <- FALSE;
+        parametersNumber[2,1] <- parametersNumber[2,1] + length(initialXreg);
+    }
+
+
+    #### Prepare ARIMA components ####
+    if(arimaModel){
+        # Check the provided parameters for AR and MA
+
+        # Check the provided initials
+    }
+    else{}
 
 
     #### xreg preparation ####
@@ -1261,7 +1325,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         initialXreg <- NULL;
     }
 
-    # If we don't need to estimate anything, flag initialEstimate and define initialType
+    # If we don't need to estimate anything, flag initialEstimate
     if(!any(c(initialLevelEstimate, (initialTrendEstimate & modelIsTrendy),
               (initialSeasonalEstimate & Stype!="N"),
               (initialArimaEstimate & arimaModel),
@@ -1270,6 +1334,13 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     }
     else{
         initialEstimate[] <- TRUE;
+    }
+    # If at least something is provided, flag it as "provided"
+    if(!all(c(initialLevelEstimate, (initialTrendEstimate & modelIsTrendy),
+              (initialSeasonalEstimate & Stype!="N"),
+              (initialArimaEstimate & arimaModel),
+              (initialXregEstimate & xregExist)))){
+        initialType[] <- "provided";
     }
 
     # Observations in the states matrix
@@ -1325,9 +1396,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                       sum(persistenceSeasonalEstimate)*modelIsSeasonal +
                       phiEstimate +
                       # Number of ETS initials
-                      (sum(lagsModelAll)-xregNumber-initialNumberARIMA)*(initialType=="optimal") +
+                      (sum(lagsModelAll)-xregNumber-initialArimaNumber)*(initialType=="optimal") +
                       # ARIMA components: initials + parameters
-                      arimaModel*(initialNumberARIMA*(initialType=="optimal") + sum(arOrders) + sum(maOrders)) +
+                      arimaModel*(initialArimaNumber*(initialType=="optimal") + sum(arOrders) + sum(maOrders)) +
                       # Xreg initials and smoothing parameters
                       xregNumber*(initialXregEstimate+persistenceXregEstimate));
 
@@ -1341,7 +1412,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             arOrders <- iOrders <- maOrders <- NULL;
             nonZeroARI <- nonZeroMA <- lagsModelARIMA <- NULL;
             componentsNamesARIMA <- NULL;
-            initialNumberARIMA <- componentsNumberARIMA <- 0;
+            initialArimaNumber <- componentsNumberARIMA <- 0;
             lagsModelAll <- lagsModelAll[-c(componentsNumber+c(1:componentsNumberARIMA)),,drop=FALSE];
             lagsModelMax <- max(lagsModelAll);
 
@@ -1723,8 +1794,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("model",model,ParentEnvironment);
     assign("Etype",Etype,ParentEnvironment);
     assign("Ttype",Ttype,ParentEnvironment);
-    assign("modelIsTrendy",modelIsTrendy,ParentEnvironment);
     assign("Stype",Stype,ParentEnvironment);
+    assign("modelIsTrendy",modelIsTrendy,ParentEnvironment);
     assign("modelIsSeasonal",modelIsSeasonal,ParentEnvironment);
     assign("modelsPool",modelsPool,ParentEnvironment);
     assign("damped",damped,ParentEnvironment);
@@ -1734,10 +1805,17 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("componentsNumber",componentsNumber,ParentEnvironment);
     assign("componentsNumberNonSeasonal",componentsNumber-componentsNumberSeasonal,ParentEnvironment);
     assign("componentsNumberSeasonal",componentsNumberSeasonal,ParentEnvironment);
-    # This is the original vector of lags
+    # The number and names of ARIMA components
+    assign("componentsNumberARIMA",componentsNumberARIMA,ParentEnvironment);
+    assign("componentsNamesARIMA",componentsNamesARIMA,ParentEnvironment);
+    # This is the original vector of lags, modified for the level / trend components
     assign("lags",lags,ParentEnvironment);
     # This is the vector of lags of ETS components
     assign("lagsModel",lagsModel,ParentEnvironment);
+    # This is the vector of seasonal lags
+    assign("lagsModelSeasonal",lagsModelSeasonal,ParentEnvironment);
+    # This is the vector of lags for ARIMA components
+    assign("lagsModelARIMA",lagsModelARIMA,ParentEnvironment);
     # This is the vector of all the lags of model (ETS + ARIMA + X)
     assign("lagsModelAll",lagsModelAll,ParentEnvironment);
     # This is the maximum lag
@@ -1772,6 +1850,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("initialSeasonalEstimate",initialSeasonalEstimate,ParentEnvironment);
     assign("initialArima",initialArima,ParentEnvironment);
     assign("initialArimaEstimate",initialArimaEstimate,ParentEnvironment);
+    # Number of initials that the ARIMA has (either provided or to estimate)
+    assign("initialArimaNumber",initialArimaNumber,ParentEnvironment);
     assign("initialXreg",initialXreg,ParentEnvironment);
     assign("initialXregEstimate",initialXregEstimate,ParentEnvironment);
     assign("initialXregProvided",initialXregProvided,ParentEnvironment);
@@ -1802,10 +1882,6 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("maRequired",maRequired,ParentEnvironment);
     assign("nonZeroARI",nonZeroARI,ParentEnvironment);
     assign("nonZeroMA",nonZeroMA,ParentEnvironment);
-    assign("lagsModelARIMA",lagsModelARIMA,ParentEnvironment);
-    assign("componentsNumberARIMA",componentsNumberARIMA,ParentEnvironment);
-    assign("componentsNamesARIMA",componentsNamesARIMA,ParentEnvironment);
-    assign("initialNumberARIMA",initialNumberARIMA,ParentEnvironment);
     assign("arOrders",arOrders,ParentEnvironment);
     assign("iOrders",iOrders,ParentEnvironment);
     assign("maOrders",maOrders,ParentEnvironment);

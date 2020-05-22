@@ -257,6 +257,8 @@
 #' in columns,
 #' \item \code{initial} - the named list of initial values, including level, trend, seasonal, ARIMA
 #' and xreg components,
+#' \item \code{initialEstimated} - the named vector, defining which of the initials were estimated in
+#' the model,
 #' \item \code{initialType} - the type of initialisation used ("optimal" / "backcasting" / "provided"),
 #' \item \code{nParam} - the matrix of the estimated / provided parameters,
 #' \item \code{occurrence} - the oes model used for the occurrence part of the model,
@@ -328,10 +330,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
         # else{
         persistence <- model$persistence;
         initial <- model$initial;
-        #     if(any(model$iprob!=1)){
-        #         occurrence <- "a";
-        #     }
-        # }
+        initialEstimated <- model$initialEstimated;
         lags <- model$lags;
         distribution <- model$distribution;
         loss <- model$loss;
@@ -448,7 +447,8 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
     rm(xreg);
 
     #### The function creates the technical variables (lags etc) based on the type of the model ####
-    architector <- function(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType,
+    architector <- function(Etype, Ttype, Stype, lags, lagsModelSeasonal,
+                            xregNumber, obsInSample, initialType,
                             arimaModel, lagsModelARIMA){
         modelIsTrendy <- Ttype!="N";
         if(modelIsTrendy){
@@ -464,8 +464,8 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
         modelIsSeasonal <- Stype!="N";
         if(modelIsSeasonal){
             # If the lags are for the non-seasonal model
-            lagsModel <- matrix(c(lagsModel,lags[lags>1]),ncol=1);
-            componentsNumberSeasonal <- sum(lags>1);
+            lagsModel <- matrix(c(lagsModel,lagsModelSeasonal),ncol=1);
+            componentsNumberSeasonal <- length(lagsModelSeasonal);
             if(componentsNumberSeasonal>1){
                 componentsNames <- c(componentsNames,paste0("seasonal",c(1:componentsNumberSeasonal)));
             }
@@ -554,7 +554,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                 vecG[j+which(!persistenceSeasonalEstimate),] <- persistenceSeasonal;
             }
             if(componentsNumberSeasonal>1){
-                rownames(vecG)[j+which(!persistenceSeasonalEstimate)] <- paste0("gamma",c(1:componentsNumberSeasonal));
+                rownames(vecG)[j+c(1:componentsNumberSeasonal)] <- paste0("gamma",c(1:componentsNumberSeasonal));
             }
             else{
                 rownames(vecG)[j+1] <- "gamma";
@@ -907,7 +907,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
 
     #### The function initialises the vector B for ETS ####
     initialiser <- function(Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, componentsNumberSeasonal,
-                            componentsNumber, lagsModel, lagsModelMax, matVt,
+                            componentsNumber, lagsModel, lagsModelSeasonal, lagsModelMax, matVt,
                             persistenceEstimate, persistenceLevelEstimate, persistenceTrendEstimate,
                             persistenceSeasonalEstimate, persistenceXregEstimate,
                             phiEstimate, initialType, initialEstimate,
@@ -929,7 +929,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                                     ####!!!! componentsNumberARIMA is not the correct thing here !!!!####
                                     (sum(arOrders)+sum(maOrders)+componentsNumberARIMA*initialArimaEstimate)*arimaModel+
                                     (initialType!="backcasting")*(initialLevelEstimate+(modelIsTrendy*initialTrendEstimate)+
-                                    (modelIsSeasonal*sum(initialSeasonalEstimate*(lags[lags>1]-1))))+
+                                    (modelIsSeasonal*sum(initialSeasonalEstimate*(lagsModelSeasonal-1))))+
                                     xregExist*initialXregEstimate*xregNumber+lambdaEstimate);
 
         j <- 0;
@@ -1524,7 +1524,9 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                           bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate){
 
         # Create the basic variables
-        adamArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType, arimaModel, lagsModelARIMA);
+        adamArchitect <- architector(Etype, Ttype, Stype, lags, lagsModelSeasonal,
+                                     xregNumber, obsInSample, initialType,
+                                     arimaModel, lagsModelARIMA);
         list2env(adamArchitect, environment());
 
         # Create the matrices for the specific ETS model
@@ -1547,7 +1549,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
 
         if(is.null(B) && is.null(lb) && is.null(ub)){
             BValues <- initialiser(Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, componentsNumberSeasonal,
-                                   componentsNumber, lagsModel, lagsModelMax, adamCreated$matVt,
+                                   componentsNumber, lagsModel, lagsModelSeasonal, lagsModelMax, adamCreated$matVt,
                                    persistenceEstimate, persistenceLevelEstimate, persistenceTrendEstimate,
                                    persistenceSeasonalEstimate, persistenceXregEstimate,
                                    phiEstimate, initialType, initialEstimate,
@@ -2144,49 +2146,72 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
             }
         }
 
-        # Initial values to return
+        #### Initial values to return ####
         initialValue <- vector("list", 1+modelIsTrendy+modelIsSeasonal+arimaModel+xregExist);
         initialValueETS <- vector("list", length(lagsModel));
         initialValueNames <- vector("character", 1+modelIsTrendy+modelIsSeasonal+arimaModel+xregExist);
+        # The vector that defines what was estimated in the model
+        initialEstimated <- vector("logical", 1+modelIsTrendy+modelIsSeasonal*componentsNumberSeasonal+
+                                       arimaModel+xregExist);
+
         # Write down level, trend and seasonal
         for(i in 1:length(lagsModel)){
             initialValueETS[[i]] <- tail(matVt[i,1:lagsModelMax],lagsModel[i]);
         }
         j <- 1;
         # Write down level in the final list
+        initialEstimated[j] <- initialLevelEstimate;
         initialValue[[j]] <- initialValueETS[[j]];
         initialValueNames[j] <- c("level");
+        names(initialEstimated)[j] <- initialValueNames[j];
         if(modelIsTrendy){
             j <- 2;
+            initialEstimated[j] <- initialTrendEstimate;
             # Write down trend in the final list
             initialValue[[j]] <- initialValueETS[[j]];
+            # Remove the trend from ETS list
             initialValueETS[[j]] <- NULL;
             initialValueNames[j] <- c("trend");
+            names(initialEstimated)[j] <- initialValueNames[j];
         }
+        # Write down the initial seasonals
         if(modelIsSeasonal){
+            initialEstimated[j+c(1:componentsNumberSeasonal)] <- initialSeasonalEstimate;
+            # Remove the level from ETS list
             initialValueETS[[1]] <- NULL;
             j <- j+1;
             if(length(initialSeasonalEstimate)>1){
                 initialValue[[j]] <- initialValueETS;
                 initialValueNames[[j]] <- "seasonal";
+                names(initialEstimated)[j+0:(componentsNumberSeasonal-1)] <-
+                    paste0(initialValueNames[j],c(1:componentsNumberSeasonal));
             }
             else{
                 initialValue[[j]] <- initialValueETS[[1]];
                 initialValueNames[[j]] <- "seasonal";
+                names(initialEstimated)[j] <- initialValueNames[j];
             }
+
         }
+        # Write down the ARIMA initials
         if(arimaModel){
             j <- j+1;
-            initialValueNames[j] <- "ARIMA";
+            initialEstimated[j] <- initialArimaEstimate;
             initialValue[[j]] <- tail(matVt[componentsNumber+1:componentsNumberARIMA,],max(lagsModelARIMA));
+            initialValueNames[j] <- "ARIMA";
+            names(initialEstimated)[j] <- initialValueNames[j];
         }
+        # Write down the xreg initials
         if(xregExist){
             j <- j+1;
-            initialValueNames[j] <- "xreg";
+            initialEstimated[j] <- initialXregEstimate;
             initialValue[[j]] <- matVt[-c(1:(componentsNumber+componentsNumberARIMA)),lagsModelMax];
+            initialValueNames[j] <- "xreg";
+            names(initialEstimated)[j] <- initialValueNames[j];
         }
         names(initialValue) <- initialValueNames;
 
+        #### Persistence to return ####
         if(xregExist && xregDo=="adapt"){
             persistence <- as.vector(vecG);
             names(persistence) <- rownames(vecG);
@@ -2213,6 +2238,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                     forecast=yForecast, states=matVt,
                     persistence=persistence, phi=phi, transition=matF,
                     measurement=matWt, initial=initialValue, initialType=initialType,
+                    initialEstimated=initialEstimated,
                     nParam=parametersNumber, occurrence=oesModel, xreg=xregData,
                     formula=formula, xregDo=xregDo,
                     loss=loss, lossValue=CFValue, logLik=logLikADAMValue, distribution=distribution,
@@ -2303,7 +2329,9 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
 
         #### This part is needed in order for the filler to do its job later on
         # Create the basic variables based on the estimated model
-        adamArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType, arimaModel, lagsModelARIMA);
+        adamArchitect <- architector(Etype, Ttype, Stype, lags, lagsModelSeasonal,
+                                     xregNumber, obsInSample, initialType,
+                                     arimaModel, lagsModelARIMA);
         list2env(adamArchitect, environment());
 
         # Create the matrices for the specific ETS model
@@ -2329,9 +2357,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
 
         ####!!! If the occurrence is auto, then compare this with the model with no occurrence !!!####
 
-        parametersNumber[1,1] <- (sum(lagsModel)*(initialType=="optimal") + phiEstimate +
-                                      componentsNumber*persistenceEstimate + xregNumber*initialXregEstimate +
-                                      xregNumber*persistenceXregEstimate + 1);
+        parametersNumber[1,1] <- nParamEstimated;
         if(xregExist){
             parametersNumber[1,2] <- xregNumber*initialXregEstimate + xregNumber*persistenceXregEstimate;
         }
@@ -2361,7 +2387,9 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
 
         #### This part is needed in order for the filler to do its job later on
         # Create the basic variables based on the estimated model
-        adamArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType, arimaModel, lagsModelARIMA);
+        adamArchitect <- architector(Etype, Ttype, Stype, lags, lagsModelSeasonal,
+                                     xregNumber, obsInSample, initialType,
+                                     arimaModel, lagsModelARIMA);
         list2env(adamArchitect, environment());
 
         # Create the matrices for the specific ETS model
@@ -2383,9 +2411,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
                                xregExist, xregModel, xregData, xregNumber, xregNames);
         list2env(adamCreated, environment());
 
-        parametersNumber[1,1] <- (sum(lagsModel)*(initialType=="optimal") + phiEstimate +
-                                      componentsNumber*persistenceEstimate + xregNumber*initialXregEstimate +
-                                      xregNumber*persistenceXregEstimate + 1);
+        parametersNumber[1,1] <- nParamEstimated;
         if(xregExist){
             parametersNumber[1,2] <- xregNumber*initialXregEstimate + xregNumber*persistenceXregEstimate;
         }
@@ -2477,7 +2503,9 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
 
             #### This part is needed in order for the filler to do its job later on
             # Create the basic variables based on the estimated model
-            adamArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType, arimaModel, lagsModelARIMA);
+            adamArchitect <- architector(Etype, Ttype, Stype, lags, lagsModelSeasonal,
+                                         xregNumber, obsInSample, initialType,
+                                         arimaModel, lagsModelARIMA);
             list2env(adamArchitect, environment());
 
             adamSelected$results[[i]]$modelIsTrendy <- adamArchitect$modelIsTrendy;
@@ -2513,9 +2541,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
             adamSelected$results[[i]]$matF <- adamCreated$matF;
             adamSelected$results[[i]]$vecG <- adamCreated$vecG;
 
-            parametersNumber[1,1] <- (sum(lagsModel)*(initialType=="optimal") + phiEstimate +
-                                          componentsNumber*persistenceEstimate + xregNumber*initialXregEstimate +
-                                          xregNumber*persistenceXregEstimate + 1);
+            parametersNumber[1,1] <- adamSelected$results[[i]]$nParamEstimated;
             if(xregExist){
                 parametersNumber[1,2] <- xregNumber*initialXregEstimate + xregNumber*persistenceXregEstimate;
             }
@@ -2545,7 +2571,9 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
         }
 
         # Create the basic variables
-        adamArchitect <- architector(Etype, Ttype, Stype, lags, xregNumber, obsInSample, initialType, arimaModel, lagsModelARIMA);
+        adamArchitect <- architector(Etype, Ttype, Stype, lags, lagsModelSeasonal,
+                                     xregNumber, obsInSample, initialType,
+                                     arimaModel, lagsModelARIMA);
         list2env(adamArchitect, environment());
 
         # Create the matrices for the specific ETS model
@@ -2609,7 +2637,7 @@ adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0
             # If B is not provided, then use the standard thing
             if(is.null(B)){
                 BValues <- initialiser(Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, componentsNumberSeasonal,
-                                       componentsNumber, lagsModel, lagsModelMax, adamCreated$matVt,
+                                       componentsNumber, lagsModel, lagsModelSeasonal, lagsModelMax, adamCreated$matVt,
                                        TRUE, TRUE, modelIsTrendy, rep(modelIsSeasonal,componentsNumberSeasonal), FALSE,
                                        damped, "optimal", TRUE,
                                        TRUE, TRUE, rep(modelIsSeasonal,componentsNumberSeasonal),

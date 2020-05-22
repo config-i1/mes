@@ -249,6 +249,8 @@ following values:
 in columns,
 \item \code{initial} - the named list of initial values, including level, trend, seasonal, ARIMA
 and xreg components,
+\item \code{initialEstimated} - the named vector, defining which of the initials were estimated in
+the model,
 \item \code{initialType} - the type of initialisation used ("optimal" / "backcasting" / "provided"),
 \item \code{nParam} - the matrix of the estimated / provided parameters,
 \item \code{occurrence} - the oes model used for the occurrence part of the model,
