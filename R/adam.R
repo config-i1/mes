@@ -3848,6 +3848,12 @@ print.adam <- function(x, digits=4, ...){
         }
     }
 
+    # If this is ARIMA model
+    if(any(unlist(gregexpr("ARIMA",x$model))!=-1)){
+        cat(paste0("ARMA parameters of the model:\n"));
+        print(round(x$B[substr(names(x$B),1,4)=="phi_" | substr(names(x$B),1,5)=="theta"],digits));
+    }
+
     cat(paste0("\nLoss function type: ",x$loss));
     if(!is.null(x$lossValue)){
         cat(paste0("; Loss function value: ",round(x$lossValue,digits)));
