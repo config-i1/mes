@@ -1694,7 +1694,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         }
         # This is heuristic. If you have higher seasonal lags, use more iterations.
         if(lagsModelMax>12){
-            maxeval[] <- maxeval/30 * lagsModelMax;
+            maxeval[] <- maxeval/20 * lagsModelMax;
         }
     }
     else{
