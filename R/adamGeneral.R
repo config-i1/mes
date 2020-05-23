@@ -285,8 +285,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     modelIsTrendy <- (Ttype!="N");
 
     #### Check the components of model ####
-    componentsNames <- "level";
-    componentsNumber <- 1;
+    componentsNamesETS <- "level";
+    componentsNumberETS <- 1;
     ### Check error type
     if(all(Etype!=c("Z","X","Y","A","M","C"))){
         warning(paste0("Wrong error type: ",Etype,". Should be 'Z', 'X', 'Y', 'A' or 'M'. ",
@@ -303,8 +303,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         modelDo <- "select";
     }
     if(modelIsTrendy){
-        componentsNames <- c(componentsNames,"trend");
-        componentsNumber[] <- componentsNumber+1;
+        componentsNamesETS <- c(componentsNamesETS,"trend");
+        componentsNumberETS[] <- componentsNumberETS+1;
     }
 
     #### Check the lags vector ####
@@ -412,8 +412,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         nonZeroMA <- unique(matrix(c(maPolynomial)[-1],ncol=1));
         # Lags for the ARIMA components
         lagsModelARIMA <- matrix(sort(unique(c(nonZeroARI,nonZeroMA))),ncol=1);
-        nonZeroARI <- cbind(nonZeroARI,which(lagsModelARIMA %in% nonZeroARI)-1);
-        nonZeroMA <- cbind(nonZeroMA,which(lagsModelARIMA %in% nonZeroMA)-1);
+        nonZeroARI <- cbind(nonZeroARI+1,which(lagsModelARIMA %in% nonZeroARI));
+        nonZeroMA <- cbind(nonZeroMA+1,which(lagsModelARIMA %in% nonZeroMA));
 
         # Number of components
         componentsNumberARIMA <- length(lagsModelARIMA);
@@ -443,22 +443,25 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         nonZeroMA <- NULL;
     }
 
+    modelIsSeasonal <- Stype!="N";
+
+    # Lags of the model used inside the functions
+    lagsModel <- matrix(lags,ncol=1);
+
     # If we have a trend add one more lag
     if(modelIsTrendy){
-        lags <- c(1,lags);
+        lagsModel <- rbind(1,lagsModel);
     }
     # If we don't have seasonality, remove seasonal lag
-    if(Stype=="N" & any(lags>1)){
-        lags <- lags[lags==1];
+    if(!modelIsSeasonal & any(lagsModel>1)){
+        lagsModel <- lagsModel[lagsModel==1,,drop=FALSE];
     }
 
     # Lags of the model
-    lagsModelSeasonal <- lags[lags>1];
-    lagsModel <- matrix(lags,ncol=1);
+    lagsModelSeasonal <- lagsModel[lagsModel>1];
     lagsModelMax <- max(lagsModel);
-    lagsLength <- length(lags);
+    lagsLength <- length(lagsModel);
 
-    modelIsSeasonal <- Stype!="N";
     #### Check the seasonal model vs lags ####
     if(all(Stype!=c("Z","X","Y","N","A","M","C"))){
         warning(paste0("Wrong seasonality type: ",Stype,". Should be 'Z', 'X', 'Y', 'C', 'N', 'A' or 'M'. ",
@@ -489,28 +492,28 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
 
     # Check the type of seasonal
     if(Stype!="N"){
-        componentsNames <- c(componentsNames,"seasonal");
-        componentsNumber[] <- componentsNumber+1;
-        componentsNumberSeasonal <- 1;
+        componentsNamesETS <- c(componentsNamesETS,"seasonal");
+        componentsNumberETS[] <- componentsNumberETS+1;
+        componentsNumberETSSeasonal <- 1;
     }
     else{
-        componentsNumberSeasonal <- 0;
+        componentsNumberETSSeasonal <- 0;
     }
 
     # Check, whether the number of lags and the number of components are the same
-    if(lagsLength>componentsNumber){
+    if(lagsLength>componentsNumberETS){
         if(Stype!="N"){
-            componentsNames <- c(componentsNames[-length(componentsNames)],paste0("seasonal",c(1:(lagsLength-componentsNumber-1))));
-            componentsNumberSeasonal[] <- lagsLength-componentsNumber+1;
-            componentsNumber[] <- lagsLength;
+            componentsNamesETS <- c(componentsNamesETS[-length(componentsNamesETS)],paste0("seasonal",c(1:(lagsLength-componentsNumberETS-1))));
+            componentsNumberETSSeasonal[] <- lagsLength-componentsNumberETS+1;
+            componentsNumberETS[] <- lagsLength;
         }
         else{
-            lagsModel <- matrix(lags[1:componentsNumber],ncol=1);
+            lagsModel <- lagsModel[1:componentsNumberETS,,drop=FALSE];
             lagsModelMax <- max(lagsModel);
             lagsLength <- length(lagsModel);
         }
     }
-    else if(lagsLength<componentsNumber){
+    else if(lagsLength<componentsNumberETS){
         stop("The number of components of the model is smaller than the number of provided lags", call.=FALSE);
     }
 
@@ -568,7 +571,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     persistenceEstimate <- persistenceLevelEstimate <- persistenceTrendEstimate <-
         persistenceXregEstimate <- TRUE;
     # persistence of seasonal is a vector, not a scalar, because we can have several lags
-    persistenceSeasonalEstimate <- rep(TRUE,componentsNumberSeasonal);
+    persistenceSeasonalEstimate <- rep(TRUE,componentsNumberETSSeasonal);
     if(!is.null(persistence)){
         # If it is a list
         if(is.list(persistence)){
@@ -869,7 +872,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     initialEstimate <- initialLevelEstimate <- initialTrendEstimate <-
         initialArimaEstimate <- initialXregEstimate <- TRUE;
     # initials of seasonal is a vector, not a scalar, because we can have several lags
-    initialSeasonalEstimate <- rep(TRUE,componentsNumberSeasonal);
+    initialSeasonalEstimate <- rep(TRUE,componentsNumberETSSeasonal);
 
     # This is an initialisation of the variable
     initialType <- "optimal"
@@ -959,9 +962,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                         if(Stype!="N"){
                             # If there is something in the vector, use it
                             if(length(initial[-c(1:j)])>0){
-                                initialSeasonal <- vector("list",componentsNumberSeasonal);
+                                initialSeasonal <- vector("list",componentsNumberETSSeasonal);
                                 m <- 0;
-                                for(i in 1:componentsNumberSeasonal){
+                                for(i in 1:componentsNumberETSSeasonal){
                                     if(all(!is.na(initial[j+m+1:lagsModelSeasonal[i]]))){
                                         initialSeasonal[[i]] <- initial[j+m+1:lagsModelSeasonal[i]];
                                         m <- m + lagsModelSeasonal[i];
@@ -1021,10 +1024,10 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         # The list means several seasonal lags
         if(is.list(initialSeasonal)){
             # Is the number of seasonal initials correct? If it is bigger, then remove redundant
-            if(length(initialSeasonal)>componentsNumberSeasonal){
+            if(length(initialSeasonal)>componentsNumberETSSeasonal){
                 warning("Initial seasonals contained more elements than needed! Removing redundant ones.",
                         call.=FALSE);
-                initialSeasonal <- initialSeasonal[1:componentsNumberSeasonal];
+                initialSeasonal <- initialSeasonal[1:componentsNumberETSSeasonal];
             }
             # Is the number of initials in each season correct? Use the correct ones only
             if(any(!(sapply(initialSeasonal,length) %in% lagsModelSeasonal))){
@@ -1037,7 +1040,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             initialSeasonalEstimate[] <- !(lagsModelSeasonal %in% sapply(initialSeasonal,length));
             # If there are some gaps in what to estimate, reform initialSeason to make sense in the future creator function
             if(!all(initialSeasonalEstimate) && !all(!initialSeasonalEstimate)){
-                initialSeasonalCorrect <- vector("list",componentsNumberSeasonal);
+                initialSeasonalCorrect <- vector("list",componentsNumberETSSeasonal);
                 initialSeasonalCorrect[which(!initialSeasonalEstimate)] <- initialSeasonal;
                 initialSeasonal <- initialSeasonalCorrect;
             }
@@ -1078,11 +1081,16 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     }
 
 
-    #### Prepare ARIMA components ####
+    #### Check ARIMA parameters, if they are provided ####
     if(arimaModel){
+        arEstimate <- maEstimate <- FALSE;
+        if(any(arOrders>0)){
+            arEstimate[] <- TRUE;
+        }
+        if(any(maOrders>0)){
+            maEstimate[] <- TRUE;
+        }
         # Check the provided parameters for AR and MA
-
-        # Check the provided initials
     }
     else{}
 
@@ -1413,7 +1421,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             nonZeroARI <- nonZeroMA <- lagsModelARIMA <- NULL;
             componentsNamesARIMA <- NULL;
             initialArimaNumber <- componentsNumberARIMA <- 0;
-            lagsModelAll <- lagsModelAll[-c(componentsNumber+c(1:componentsNumberARIMA)),,drop=FALSE];
+            lagsModelAll <- lagsModelAll[-c(componentsNumberETS+c(1:componentsNumberARIMA)),,drop=FALSE];
             lagsModelMax <- max(lagsModelAll);
 
             nParamMax[] <- (1 + persistenceLevelEstimate + persistenceTrendEstimate*modelIsTrendy +
@@ -1672,11 +1680,13 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
             stop("Not enough observations... Even for fitting of ETS('ANN')!",call.=FALSE);
         }
     }
+    # Reset the maximum lag. This is in order to take potential changes into account
+    lagsModelMax[] <- max(lagsModelAll);
 
     #### Process ellipsis ####
     # Parameters for the optimiser
     if(is.null(ellipsis$maxeval)){
-        if(lagsModelMax>12){
+        if(lagsModelMax>12 || arimaModel){
             maxeval <- 1000;
         }
         else{
@@ -1764,12 +1774,13 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     }
 
     #### Return the values to the previous environment ####
-    # Actuals
+    ### Actuals
     assign("y",y,ParentEnvironment);
     assign("yHoldout",yHoldout,ParentEnvironment);
     assign("yInSample",yInSample,ParentEnvironment);
     assign("yNAValues",yNAValues,ParentEnvironment);
-    # Index and all related structure variables
+
+    ### Index and all related structure variables
     assign("yClasses",yClasses,ParentEnvironment);
     assign("yIndex",yIndex,ParentEnvironment);
     assign("yInSampleIndex",yInSampleIndex,ParentEnvironment);
@@ -1777,12 +1788,13 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("yFrequency",yFrequency,ParentEnvironment);
     assign("yStart",yStart,ParentEnvironment);
     assign("yForecastStart",yForecastStart,ParentEnvironment);
+
     # The rename of the variable is needed for the hessian to work
     assign("horizon",h,ParentEnvironment);
     assign("h",h,ParentEnvironment);
     assign("holdout",holdout,ParentEnvironment);
 
-    # Number of observations and parameters
+    ### Number of observations and parameters
     assign("obsInSample",obsInSample,ParentEnvironment);
     assign("obsAll",obsAll,ParentEnvironment);
     assign("obsStates",obsStates,ParentEnvironment);
@@ -1790,7 +1802,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("obsZero",obsZero,ParentEnvironment);
     assign("parametersNumber",parametersNumber,ParentEnvironment);
 
-    # Model type and lags
+    ### Model type
     assign("model",model,ParentEnvironment);
     assign("Etype",Etype,ParentEnvironment);
     assign("Ttype",Ttype,ParentEnvironment);
@@ -1801,27 +1813,32 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("damped",damped,ParentEnvironment);
     assign("modelDo",modelDo,ParentEnvironment);
     assign("allowMultiplicative",allowMultiplicative,ParentEnvironment);
-    assign("componentsNames",componentsNames,ParentEnvironment);
-    assign("componentsNumber",componentsNumber,ParentEnvironment);
-    assign("componentsNumberNonSeasonal",componentsNumber-componentsNumberSeasonal,ParentEnvironment);
-    assign("componentsNumberSeasonal",componentsNumberSeasonal,ParentEnvironment);
+
+    ### Numbers and names of components
+    assign("componentsNumberETS",componentsNumberETS,ParentEnvironment);
+    assign("componentsNamesETS",componentsNamesETS,ParentEnvironment);
+    assign("componentsNumberETSNonSeasonal",componentsNumberETS-componentsNumberETSSeasonal,ParentEnvironment);
+    assign("componentsNumberETSSeasonal",componentsNumberETSSeasonal,ParentEnvironment);
     # The number and names of ARIMA components
     assign("componentsNumberARIMA",componentsNumberARIMA,ParentEnvironment);
     assign("componentsNamesARIMA",componentsNamesARIMA,ParentEnvironment);
-    # This is the original vector of lags, modified for the level / trend components
+
+    ### Lags
+    # This is the original vector of lags, modified for the level components.
+    # This can be used in ARIMA
     assign("lags",lags,ParentEnvironment);
     # This is the vector of lags of ETS components
     assign("lagsModel",lagsModel,ParentEnvironment);
     # This is the vector of seasonal lags
     assign("lagsModelSeasonal",lagsModelSeasonal,ParentEnvironment);
-    # This is the vector of lags for ARIMA components
+    # This is the vector of lags for ARIMA components (not lags of ARIMA)
     assign("lagsModelARIMA",lagsModelARIMA,ParentEnvironment);
     # This is the vector of all the lags of model (ETS + ARIMA + X)
     assign("lagsModelAll",lagsModelAll,ParentEnvironment);
     # This is the maximum lag
     assign("lagsModelMax",lagsModelMax,ParentEnvironment);
 
-    # Persistence
+    ### Persistence
     assign("persistence",persistence,ParentEnvironment);
     assign("persistenceEstimate",persistenceEstimate,ParentEnvironment);
     assign("persistenceLevel",persistenceLevel,ParentEnvironment);
@@ -1834,11 +1851,11 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("persistenceXregEstimate",persistenceXregEstimate,ParentEnvironment);
     assign("persistenceXregProvided",persistenceXregProvided,ParentEnvironment);
 
-    # phi
+    ### phi
     assign("phi",phi,ParentEnvironment);
     assign("phiEstimate",phiEstimate,ParentEnvironment);
 
-    # Initials
+    ### Initials
     assign("initial",initial,ParentEnvironment);
     assign("initialType",initialType,ParentEnvironment);
     assign("initialEstimate",initialEstimate,ParentEnvironment);
@@ -1856,7 +1873,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("initialXregEstimate",initialXregEstimate,ParentEnvironment);
     assign("initialXregProvided",initialXregProvided,ParentEnvironment);
 
-    # Occurrence model
+    ### Occurrence model
     assign("oesModel",oesModel,ParentEnvironment);
     assign("occurrenceModel",occurrenceModel,ParentEnvironment);
     assign("occurrenceModelProvided",occurrenceModelProvided,ParentEnvironment);
@@ -1866,7 +1883,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("ot",ot,ParentEnvironment);
     assign("otLogical",otLogical,ParentEnvironment);
 
-    # Distribution, loss, bounds and IC
+    ### Distribution, loss, bounds and IC
     assign("distribution",distribution,ParentEnvironment);
     assign("loss",loss,ParentEnvironment);
     assign("lossFunction",lossFunction,ParentEnvironment);
@@ -1875,18 +1892,20 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("ICFunction",ICFunction,ParentEnvironment);
     assign("bounds",bounds,ParentEnvironment);
 
-    # ARIMA components
+    ### ARIMA components
+    assign("arOrders",arOrders,ParentEnvironment);
+    assign("iOrders",iOrders,ParentEnvironment);
+    assign("maOrders",maOrders,ParentEnvironment);
     assign("arimaModel",arimaModel,ParentEnvironment);
     assign("arRequired",arRequired,ParentEnvironment);
     assign("iRequired",iRequired,ParentEnvironment);
     assign("maRequired",maRequired,ParentEnvironment);
+    assign("arEstimate",arEstimate,ParentEnvironment);
+    assign("maEstimate",maEstimate,ParentEnvironment);
     assign("nonZeroARI",nonZeroARI,ParentEnvironment);
     assign("nonZeroMA",nonZeroMA,ParentEnvironment);
-    assign("arOrders",arOrders,ParentEnvironment);
-    assign("iOrders",iOrders,ParentEnvironment);
-    assign("maOrders",maOrders,ParentEnvironment);
 
-    # Explanatory variables
+    ### Explanatory variables
     assign("xregDo",xregDo,ParentEnvironment);
     assign("xregExist",xregExist,ParentEnvironment);
     assign("xregModel",xregModel,ParentEnvironment);
@@ -1895,7 +1914,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("xregNames",xregNames,ParentEnvironment);
     assign("formula",formulaProvided,ParentEnvironment);
 
-    # Ellipsis thingies
+    ### Ellipsis thingies
+    # Optimisation related
     assign("maxeval",maxeval,ParentEnvironment);
     assign("maxtime",maxtime,ParentEnvironment);
     assign("xtol_rel",xtol_rel,ParentEnvironment);
@@ -1905,6 +1925,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("B",B,ParentEnvironment);
     assign("lb",lb,ParentEnvironment);
     assign("ub",ub,ParentEnvironment);
+    # Additional parameters
     assign("lambda",lambda,ParentEnvironment);
     assign("lambdaEstimate",lambdaEstimate,ParentEnvironment);
     assign("FI",FI,ParentEnvironment);
