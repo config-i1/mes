@@ -943,20 +943,20 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                 else{
                     # If this is a vector, then it should contain values in the order:
                     # level, trend, seasonal1, seasonal2, ..., ARIMA, xreg
-                    if(length(initial)<(sum(lagsModelAll))){
-                        warning(paste0("Wrong length of the initial vector. Should be ",sum(lagsModelAll),
-                                       " instead of ",length(initial),".\n",
-                                       "Values of initial vector will be estimated."),call.=FALSE);
-                        initialType[] <- "optimal";
-                    }
-                    else{
+                    # if(length(initial)<(sum(lagsModelAll))){
+                    #     warning(paste0("The vector of initials contains only values for several components. ",
+                    #                    "We will use what we can."),call.=FALSE);
+                    # }
+                    # else{
                         j <- 1;
                         initialLevel <- initial[1];
+                        initialLevelEstimate[] <- FALSE;
                         if(modelIsTrendy){
                             j <- 2;
                             # If there is something in the vector, use it
                             if(all(!is.na(initial[j]))){
                                 initialTrend <- initial[j];
+                                initialTrendEstimate[] <- FALSE;
                             }
                         }
                         if(Stype!="N"){
@@ -974,6 +974,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                                     }
                                 }
                                 j <- j+m;
+                                initialSeasonalEstimate[] <- FALSE;
                             }
                         }
                         if(arimaModel){
@@ -981,19 +982,19 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
                             if(all(!is.na(initial[j+c(1:initialArimaNumber)]))){
                                 initialArima <- initial[j+c(1:initialArimaNumber)];
                                 j <- j+max(lagsModelARIMA);
+                                initialArimaEstimate[] <- FALSE;
                             }
                         }
                         if(xregExist){
                             # Something else? xreg for sure!
                             if(length(initial[-c(1:j)])>0){
                                 initialXreg <- initial[-c(1:j)];
+                                initialXregEstimate[] <- FALSE
                             }
                         }
-                        initialLevelEstimate[] <- initialTrendEstimate[] <- initialSeasonalEstimate[] <-
-                            initialArimaEstimate[] <- initialXregEstimate[] <- FALSE;
                         parametersNumber[2,1] <- parametersNumber[2,1] + j;
                     }
-                }
+                # }
             }
         }
     }
@@ -1079,7 +1080,6 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
         initialXregEstimate[] <- FALSE;
         parametersNumber[2,1] <- parametersNumber[2,1] + length(initialXreg);
     }
-
 
     #### Check ARIMA parameters, if they are provided ####
     if(arimaModel){
@@ -1686,11 +1686,15 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     #### Process ellipsis ####
     # Parameters for the optimiser
     if(is.null(ellipsis$maxeval)){
-        if(lagsModelMax>12 || arimaModel){
+        if(arimaModel){
             maxeval <- 1000;
         }
         else{
             maxeval <- 200;
+        }
+        # This is heuristic. If you have higher seasonal lags, use more iterations.
+        if(lagsModelMax>12){
+            maxeval[] <- maxeval/30 * lagsModelMax;
         }
     }
     else{
@@ -1768,8 +1772,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     }
 
     # See if the estimation of the model is not needed
-    if(!any(persistenceEstimate,phiEstimate,(initialType!="backcasting")&initialEstimate,
-            lambdaEstimate)){
+    if(!any(persistenceEstimate,phiEstimate, (initialType!="backcasting")&initialEstimate,
+            arimaModel, lambdaEstimate)){
         modelDo <- "use";
     }
 

@@ -796,10 +796,16 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         # If ARIMA orders are specified, prepare initials
         if(arimaModel){
             if(initialArimaEstimate){
-                for(i in 1:componentsNumberARIMA){
-                    matVt[componentsNumberETS+i, 1:lagsModelARIMA[i]+(lagsModelMax-lagsModelARIMA[i])] <-
-                        switch(Etype,"A"=yInSample,"M"=log(yInSample))[1:lagsModelARIMA[i]];
-                }
+                matVt[componentsNumberETS+componentsNumberARIMA, 1:lagsModelARIMA[componentsNumberARIMA]+
+                          (lagsModelMax-lagsModelARIMA[componentsNumberARIMA])] <-
+                    # If there is ETS model, then do 0 / 1. Otherwise, take actuals
+                    switch(Etype,"A"=0,"M"=1);
+                    # (switch(Etype,"A"=yInSample,"M"=log(yInSample))[1:lagsModelARIMA[componentsNumberARIMA]];
+            }
+            else{
+                matVt[componentsNumberETS+componentsNumberARIMA, 1:lagsModelARIMA[componentsNumberARIMA]+
+                          (lagsModelMax-lagsModelARIMA[componentsNumberARIMA])] <-
+                    initialArima[1:initialArimaNumber];
             }
         }
 
@@ -1009,25 +1015,40 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                     }
                 }
             }
+        }
 
-            # Initials of ARIMA
-            if(initialArimaEstimate){
+        # Initials of ARIMA
+        if(arimaModel){
+            if((initialType!="backcasting") && initialArimaEstimate){
                 if(nrow(nonZeroARI)>0 && nrow(nonZeroARI)>=nrow(nonZeroMA)){
-                    matVt[componentsNumberETS+1:componentsNumberARIMA,1:lagsModelMax] <-
+                    matVt[componentsNumberETS+1:componentsNumberARIMA,lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
                         arimaPolynomials$ariPolynomial[nonZeroARI[,1]] %*% t(B[j+1:initialArimaNumber]) /
                         tail(arimaPolynomials$ariPolynomial,1);
                 }
                 else{
-                    matVt[componentsNumberETS+1:componentsNumberARIMA,1:lagsModelMax] <-
+                    matVt[componentsNumberETS+1:componentsNumberARIMA,lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
                         arimaPolynomials$maPolynomial[nonZeroMA[,1]] %*% t(B[j+1:initialArimaNumber]) /
                         tail(arimaPolynomials$maPolynomial,1);
                 }
             }
-
-            # Initials of the xreg
-            if(initialXregEstimate){
-                matVt[componentsNumberETS+1:xregNumber,1:lagsModelMax] <- B[j+1:xregNumber];
+            # This is needed in order to propagate initials of ARIMA to all components
+            else if(initialType!="backcasting"){
+                if(nrow(nonZeroARI)>0 && nrow(nonZeroARI)>=nrow(nonZeroMA)){
+                    matVt[componentsNumberETS+1:componentsNumberARIMA,lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
+                        arimaPolynomials$ariPolynomial[nonZeroARI[,1]] %*% t(matVt[componentsNumberETS+componentsNumberARIMA,1:lagsModelMax]) /
+                        tail(arimaPolynomials$ariPolynomial,1);
+                }
+                else{
+                    matVt[componentsNumberETS+1:componentsNumberARIMA,lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
+                        arimaPolynomials$maPolynomial[nonZeroMA[,1]] %*% t(matVt[componentsNumberETS+componentsNumberARIMA,1:lagsModelMax]) /
+                        tail(arimaPolynomials$maPolynomial,1);
+                }
             }
+        }
+
+        # Initials of the xreg
+        if((initialType!="backcasting") && initialEstimate && initialXregEstimate){
+            matVt[componentsNumberETS+1:xregNumber,1:lagsModelMax] <- B[j+1:xregNumber];
         }
 
         return(list(matVt=matVt, matWt=matWt, matF=matF, vecG=vecG));
@@ -1361,12 +1382,14 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 if((adamElements$vecG[2]>adamElements$vecG[1])){
                     return(1E+300);
                 }
-                if(modelIsSeasonal && any(adamElements$vecG[-c(1,2)]>(1-adamElements$vecG[1]))){
+                if(modelIsSeasonal && any(adamElements$vecG[componentsNumberETSNonSeasonal+c(1:componentsNumberETSSeasonal)]>
+                                          (1-adamElements$vecG[1]))){
                     return(1E+300);
                 }
             }
             else{
-                if(modelIsSeasonal && any(adamElements$vecG[-1]>(1-adamElements$vecG[1]))){
+                if(modelIsSeasonal && any(adamElements$vecG[componentsNumberETSNonSeasonal+c(1:componentsNumberETSSeasonal)]>
+                                          (1-adamElements$vecG[1]))){
                     return(1E+300);
                 }
             }
@@ -2388,7 +2411,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         if(arimaModel){
             j <- j+1;
             initialEstimated[j] <- initialArimaEstimate;
-            initialValue[[j]] <- tail(matVt[componentsNumberETS+1:componentsNumberARIMA,],max(lagsModelARIMA));
+            initialValue[[j]] <- head(matVt[componentsNumberETS+componentsNumberARIMA,],initialArimaNumber);
             initialValueNames[j] <- "ARIMA";
             names(initialEstimated)[j] <- initialValueNames[j];
         }
@@ -2983,6 +3006,24 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         }
         if(componentsNumberETSSeasonal>1){
             modelName <- paste0(modelName,"[",paste0(lags[lags!=1], collapse=", "),"]");
+        }
+
+        if(arimaModel){
+            # Either the lags are non-seasonal, or there are no orders for seasonal lags
+            if(all(lags==1) || (all(arOrders[lags>1]==0) && all(iOrders[lags>1]==0) && all(maOrders[lags>1]==0))){
+                modelName <- paste0(modelName,"+ARIMA(",arOrders[1],",",iOrders[1],",",maOrders[1],")");
+            }
+            else{
+                modelName <- paste0(modelName,"+SARIMA");
+                for(i in 1:length(arOrders)){
+                    if(all(arOrders[i]==0) && all(iOrders[i]==0) && all(maOrders[i]==0)){
+                        next;
+                    }
+                    modelName <- paste0(modelName,"(",arOrders[i],",");
+                    modelName <- paste0(modelName,iOrders[i],",");
+                    modelName <- paste0(modelName,maOrders[i],")[",lags[i],"]");
+                }
+            }
         }
 
         modelReturned$model <- modelName;
@@ -3677,7 +3718,7 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
                     if(is.null(ellipsisMain)){
                         ellipsis$main <- paste0("States of ",x$model,", part ",i);
                     }
-                    ellipsis$x <- x$states[,(1+(i-1)*10):min(i*10,ncol(x$states))];
+                    ellipsis$x <- x$states[,(1+(i-1)*10):min(i*10,ncol(x$states)),drop=FALSE];
                     do.call(plot, ellipsis);
                 }
             }
