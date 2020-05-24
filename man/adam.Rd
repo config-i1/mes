@@ -5,12 +5,13 @@
 \alias{auto.adam}
 \title{ADAM is Dynamic Adaptive Model}
 \usage{
-adam(y, model = "ZXZ", lags = c(frequency(y)), orders = list(ar = c(0), i
-  = c(0), ma = c(0)), formula = NULL, distribution = c("default", "dnorm",
-  "dlogis", "dlaplace", "dt", "ds", "dalaplace", "dlnorm", "dllaplace", "dls",
-  "dinvgauss"), loss = c("likelihood", "MSE", "MAE", "HAM", "LASSO", "RIDGE",
-  "MSEh", "TMSE", "GTMSE", "MSCE"), h = 0, holdout = FALSE,
-  persistence = NULL, phi = NULL, initial = c("optimal", "backcasting"),
+adam(y, model = "ZXZ", lags = c(1, frequency(y)), orders = list(ar =
+  c(0), i = c(0), ma = c(0)), formula = NULL, distribution = c("default",
+  "dnorm", "dlogis", "dlaplace", "dt", "ds", "dalaplace", "dlnorm",
+  "dllaplace", "dls", "dinvgauss"), loss = c("likelihood", "MSE", "MAE",
+  "HAM", "LASSO", "RIDGE", "MSEh", "TMSE", "GTMSE", "MSCE"), h = 0,
+  holdout = FALSE, persistence = NULL, phi = NULL,
+  initial = c("optimal", "backcasting"), arma = NULL,
   occurrence = c("none", "auto", "fixed", "general", "odds-ratio",
   "inverse-odds-ratio", "direct"), ic = c("AICc", "AIC", "BIC", "BICc"),
   bounds = c("usual", "admissible", "none"), xreg = NULL,
@@ -149,10 +150,14 @@ produced using backcasting procedure (advised for data with high frequency). In
 case of the list, it is recommended to use the named one and to provide those
 initial components that are available. For example:
 \code{initial=list(level=1000,trend=10,seasonal=list(c(1,2),c(1,2,3,4)),
-ARIMA=1,xreg=100)}. If some of the components are needed by the model, but are
+arima=1,xreg=100)}. If some of the components are needed by the model, but are
 not provided in the list, they will be estimated. If the vector is provided,
 then it is expected that the components will be provided one after another
 without any gaps.}
+
+\item{arma}{Either the named list or a vector with AR / MA parameters ordered lag-wise.
+The number of elements should correspond to the specified orders e.g.
+\code{orders=list(ar=c(1,1),ma=c(1,1)), lags=c(1,4), arma=list(ar=c(0.9,0.8),ma=c(-0.3,0.3))}}
 
 \item{occurrence}{The type of model used in probability estimation. Can be
 \code{"none"} - none,
@@ -252,6 +257,8 @@ and xreg components,
 \item \code{initialEstimated} - the named vector, defining which of the initials were estimated in
 the model,
 \item \code{initialType} - the type of initialisation used ("optimal" / "backcasting" / "provided"),
+\item \code{orders} - the orders of ARIMA used in the estimation,
+\item \code{arma} - the list of AR / MA parameters used in the model,
 \item \code{nParam} - the matrix of the estimated / provided parameters,
 \item \code{occurrence} - the oes model used for the occurrence part of the model,
 \item \code{xreg} - the matrix of explanatory variables after all expansions and transformations,

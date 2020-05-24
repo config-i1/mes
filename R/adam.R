@@ -166,7 +166,7 @@
 #' case of the list, it is recommended to use the named one and to provide those
 #' initial components that are available. For example:
 #' \code{initial=list(level=1000,trend=10,seasonal=list(c(1,2),c(1,2,3,4)),
-#' ARIMA=1,xreg=100)}. If some of the components are needed by the model, but are
+#' arima=1,xreg=100)}. If some of the components are needed by the model, but are
 #' not provided in the list, they will be estimated. If the vector is provided,
 #' then it is expected that the components will be provided one after another
 #' without any gaps.
@@ -299,7 +299,7 @@
 #' @importFrom stats dnorm dlogis dt dlnorm frequency
 #' @importFrom statmod dinvgauss
 #' @importFrom nloptr nloptr
-#' @importFrom pracma hessian roots
+#' @importFrom pracma hessian
 #' @importFrom zoo zoo
 #' @useDynLib mes
 #' @rdname adam
@@ -1080,7 +1080,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 }
             }
             # This is needed in order to propagate initials of ARIMA to all components
-            else if(initialType!="backcasting" && !initialArimaEstimate && any(c(arEstimate,maEstimate))){
+            else if(any(c(arEstimate,maEstimate))){
                 if(nrow(nonZeroARI)>0 && nrow(nonZeroARI)>=nrow(nonZeroMA)){
                     matVt[componentsNumberETS+1:componentsNumberARIMA,lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
                         arimaPolynomials$ariPolynomial[nonZeroARI[,1]] %*% t(matVt[componentsNumberETS+componentsNumberARIMA,1:lagsModelMax]) /
@@ -2468,7 +2468,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             j <- j+1;
             initialEstimated[j] <- initialArimaEstimate;
             initialValue[[j]] <- head(matVt[componentsNumberETS+componentsNumberARIMA,],initialArimaNumber);
-            initialValueNames[j] <- "ARIMA";
+            initialValueNames[j] <- "arima";
             names(initialEstimated)[j] <- initialValueNames[j];
         }
         # Write down the xreg initials

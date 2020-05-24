@@ -909,8 +909,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                     if(!is.null(initial$seasonal)){
                         initialSeasonal <- initial$seasonal;
                     }
-                    if(!is.null(initial$ARIMA)){
-                        initialArima <- initial$ARIMA;
+                    if(!is.null(initial$arima)){
+                        initialArima <- initial$arima;
                     }
                     if(!is.null(initial$xreg)){
                         initialXreg <- initial$xreg;
