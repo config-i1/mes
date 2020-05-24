@@ -1,4 +1,4 @@
-parametersChecker <- function(y, model, lags, formulaProvided, orders,
+parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                               persistence, phi, initial,
                               distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
                                              "dlnorm","dllaplace","dls","dinvgauss"),
@@ -1083,16 +1083,96 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
 
     #### Check ARIMA parameters, if they are provided ####
     if(arimaModel){
-        arEstimate <- maEstimate <- FALSE;
-        if(any(arOrders>0)){
-            arEstimate[] <- TRUE;
-        }
-        if(any(maOrders>0)){
-            maEstimate[] <- TRUE;
-        }
         # Check the provided parameters for AR and MA
+        if(!is.null(arma)){
+            arEstimate <- maEstimate <- FALSE;
+            # If this is a proper list, extract parameters separately
+            if(is.list(arma)){
+                armaParameters <- vector("numeric",sum(sapply(arma,length)));
+                j <- arIndex <- maIndex <- 0;
+                # The named list (proper thing)
+                if(!is.null(names(arma))){
+                    # Check if the length of the provided parameters is correct
+                    if(arRequired && !is.null(arma$ar) && length(arma$ar)!=sum(arOrders)){
+                        warning(paste0("The number of provided AR parameters is ",length(arma$ar),
+                                       "while we need ",sum(arOrders),". ",
+                                       "Switching to estimation."),call.=FALSE);
+                        arEstimate[] <- TRUE;
+                    }
+                    if(maRequired && !is.null(arma$ma) && length(arma$ma)!=sum(maOrders)){
+                        warning(paste0("The number of provided MA parameters is ",length(arma$ma),
+                                       "while we need ",sum(maOrders),". ",
+                                       "Switching to estimation."),call.=FALSE);
+                        maEstimate[] <- TRUE;
+                    }
+                    for(i in 1:length(lags)){
+                        if(arRequired && !arEstimate && !is.null(arma$ar)){
+                            armaParameters[j+c(1:arOrders[i])] <- arma$ar[arIndex+c(1:arOrders[i])]
+                            names(armaParameters)[j+c(1:arOrders[i])] <- paste0("phi",1:arOrders[i],"[",lags[i],"]");
+                            j[] <- j+arOrders[i];
+                            arIndex[] <- arIndex+arOrders[i];
+                            arEstimate[] <- FALSE;
+                        }
+                        if(maRequired && !maEstimate && !is.null(arma$ma)){
+                            armaParameters[j+c(1:maOrders[i])] <- arma$ma[maIndex+c(1:maOrders[i])]
+                            names(armaParameters)[j+c(1:maOrders[i])] <- paste0("theta",1:maOrders[i],"[",lags[i],"]");
+                            j[] <- j+maOrders[i];
+                            maIndex[] <- maIndex+maOrders[i];
+                            arEstimate[] <- FALSE;
+                        }
+                    }
+                }
+                # Just a list. Assume that the first element is ar, and the second is ma
+                else{
+                    for(i in 1:length(lags)){
+                        if(arRequired && !is.null(arma[[1]])){
+                            armaParameters[j+c(1:arOrders[i])] <- arma[[1]][arIndex+c(1:arOrders[i])]
+                            names(armaParameters)[j+c(1:arOrders[i])] <- paste0("phi",1:arOrders[i],"[",lags[i],"]");
+                            j[] <- j+arOrders[i];
+                            arIndex[] <- arIndex+arOrders[i];
+                            arEstimate[] <- FALSE;
+                        }
+                        if(maRequired && !is.null(arma[[2]])){
+                            armaParameters[j+c(1:maOrders[i])] <- arma[[2]][maIndex+c(1:maOrders[i])]
+                            names(armaParameters)[j+c(1:maOrders[i])] <- paste0("theta",1:maOrders[i],"[",lags[i],"]");
+                            j[] <- j+maOrders[i];
+                            maIndex[] <- maIndex+maOrders[i];
+                            arEstimate[] <- FALSE;
+                        }
+                    }
+                    # Check if the length of the provided parameters is correct
+                    if(length(armaParameters)!=sum(arOrders)+sum(maOrders)){
+                        warning(paste0("The number of provided ARMA parameters is ",length(armaParameters),
+                                       "while we need ",sum(arOrders)+sum(maOrders),". ",
+                                       "Switching to estimation."),call.=FALSE);
+                        maEstimate <- arEstimate[] <- TRUE;
+                        armaParameters <- NULL;
+                    }
+                }
+            }
+            else if(is.vector(arma)){
+                # Check the length of the vector
+                if(length(arma)!=sum(arOrders)+sum(maOrders)){
+                    warning(paste0("The number of provided ARMA parameters is ",length(arma),
+                                   "while we need ",sum(arOrders)+sum(maOrders),". ",
+                                   "Switching to estimation."),call.=FALSE);
+                    maEstimate <- arEstimate[] <- TRUE;
+                    armaParameters <- NULL;
+                }
+                else{
+                    armaParameters <- arma;
+                }
+            }
+        }
+        else{
+            arEstimate <- arRequired;
+            maEstimate <- maRequired;
+            armaParameters <- NULL;
+        }
     }
-    else{}
+    else{
+        armaParameters <- NULL;
+    }
 
 
     #### xreg preparation ####
@@ -1687,7 +1767,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     # Parameters for the optimiser
     if(is.null(ellipsis$maxeval)){
         if(arimaModel){
-            maxeval <- 1000;
+            maxeval <- 500;
         }
         else{
             maxeval <- 200;
@@ -1906,6 +1986,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders,
     assign("maRequired",maRequired,ParentEnvironment);
     assign("arEstimate",arEstimate,ParentEnvironment);
     assign("maEstimate",maEstimate,ParentEnvironment);
+    assign("armaParameters",armaParameters,ParentEnvironment);
     assign("nonZeroARI",nonZeroARI,ParentEnvironment);
     assign("nonZeroMA",nonZeroMA,ParentEnvironment);
 
