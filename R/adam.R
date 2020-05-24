@@ -971,7 +971,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                        initialType, initialEstimate,
                        initialLevelEstimate, initialTrendEstimate, initialSeasonalEstimate,
                        initialArimaEstimate, initialXregEstimate,
-                       arimaModel, nonZeroARI, nonZeroMA, arimaPolynomials,
+                       arimaModel, arEstimate, maEstimate, nonZeroARI, nonZeroMA, arimaPolynomials,
                        xregExist, xregNumber){
 
         j <- 0;
@@ -1396,7 +1396,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                initialType, initialEstimate,
                                initialLevelEstimate, initialTrendEstimate, initialSeasonalEstimate,
                                initialArimaEstimate, initialXregEstimate,
-                               arimaModel, nonZeroARI, nonZeroMA, arimaPolynomials,
+                               arimaModel, arEstimate, maEstimate, nonZeroARI, nonZeroMA, arimaPolynomials,
                                xregExist, xregNumber);
 
         # If we estimate lambda, take it from the B vector
@@ -1901,7 +1901,6 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         # 1. Some smoothing parameters are zero or one;
         # 2. The cost function value is -Inf (due to no variability in the sample);
 
-        print(res)
         # Prepare the values to return
         B[] <- res$solution;
         CFValue <- res$objective;
@@ -1940,7 +1939,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                    initialType, initialEstimate,
                                    initialLevelEstimate, initialTrendEstimate, initialSeasonalEstimate,
                                    initialArimaEstimate, initialXregEstimate,
-                                   arimaModel, nonZeroARI, nonZeroMA, arimaPolynomials,
+                                   arimaModel, arEstimate, maEstimate, nonZeroARI, nonZeroMA, arimaPolynomials,
                                    xregExist, xregNumber);
 
             # Fit the model to the data
@@ -2326,7 +2325,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                initialType, initialEstimate,
                                initialLevelEstimate, initialTrendEstimate, initialSeasonalEstimate,
                                initialArimaEstimate, initialXregEstimate,
-                               arimaModel, nonZeroARI, nonZeroMA, arimaPolynomials,
+                               arimaModel, arEstimate, maEstimate, nonZeroARI, nonZeroMA, arimaPolynomials,
                                xregExist, xregNumber);
         list2env(adamElements, environment());
 
@@ -3025,8 +3024,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             lambdaEstimateFI <- any(names(B)=="lambda");
 
             if(arimaModel){
-                maEstimateFI
-                arEstimateFI
+                maEstimateFI <- maRequired;
+                arEstimateFI <- arRequired;
             }
 
             FI <- -hessian(logLikADAM, B, Etype=Etype, Ttype=Ttype, Stype=Stype, modelIsTrendy=modelIsTrendy,
@@ -5565,5 +5564,9 @@ pointLik.adam <- function(object, ...){
 ##### Other methods to implement #####
 # accuracy.adam <- function(object, holdout, ...){}
 # simulate.adam <- function(object, nsim=1, seed=NULL, obs=NULL, ...){}
-# modelType.adam <- function(object, ...){}
+modelType.adam <- function(object, ...){
+    model <- object$model;
+    modelType <- substring(model,unlist(gregexpr("\\(",model))+1,unlist(gregexpr("\\)",model))-1)[1];
+    return(modelType)
+}
 # orders.adam <- function(object, ...){}

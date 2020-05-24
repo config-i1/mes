@@ -1852,8 +1852,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     }
 
     # See if the estimation of the model is not needed
-    if(!any(persistenceEstimate,phiEstimate, (initialType!="backcasting")&initialEstimate,
-            arimaModel, lambdaEstimate)){
+    if(!any(persistenceEstimate,phiEstimate,(initialType!="backcasting")&initialEstimate,
+            arimaModel&any(c(arEstimate,maEstimate)), lambdaEstimate)){
         modelDo <- "use";
     }
 
