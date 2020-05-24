@@ -1378,6 +1378,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
             warning("It looks like there are no suitable explanatory variables. Check the xreg! We dropped them out.",
                     call.=FALSE);
             xregExist[] <- FALSE;
+            xregData <- NULL;
         }
     }
     else{
