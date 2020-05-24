@@ -1423,11 +1423,13 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     else{
         initialEstimate[] <- TRUE;
     }
+
     # If at least something is provided, flag it as "provided"
-    if(!all(c(initialLevelEstimate, (initialTrendEstimate & modelIsTrendy),
-              (initialSeasonalEstimate & Stype!="N"),
-              (initialArimaEstimate & arimaModel),
-              (initialXregEstimate & xregExist)))){
+    if(!initialLevelEstimate ||
+       (modelIsTrendy && !initialTrendEstimate) ||
+       (modelIsSeasonal && !initialSeasonalEstimate) ||
+       (arimaModel && !initialArimaEstimate) ||
+       (xregExist && !initialXregEstimate)){
         initialType[] <- "provided";
     }
 

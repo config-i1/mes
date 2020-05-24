@@ -1134,9 +1134,9 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                     (initialType!="backcasting")*(initialLevelEstimate + (modelIsTrendy*initialTrendEstimate) +
                                     (modelIsSeasonal*sum(initialSeasonalEstimate*(lagsModelSeasonal-1)))) +
                                     # initials of ARIMA
-                                    arimaModel*initialArimaNumber*initialArimaEstimate +
+                                    (initialType!="backcasting")*arimaModel*initialArimaNumber*initialArimaEstimate +
                                     # initials of xreg
-                                    xregExist*initialXregEstimate*xregNumber+lambdaEstimate);
+                                    (initialType!="backcasting")*xregExist*initialXregEstimate*xregNumber+lambdaEstimate);
 
         j <- 0;
         # Fill in persistence
@@ -1308,14 +1308,14 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         }
 
         # ARIMA initials
-        if(arimaModel && initialArimaEstimate){
+        if(initialType!="backcasting" && arimaModel && initialArimaEstimate){
             B[j+1:initialArimaNumber] <- tail(matVt[componentsNumberETS+componentsNumberARIMA,1:lagsModelMax],initialArimaNumber);
             names(B)[j+1:initialArimaNumber] <- paste0("ARIMAState",1:initialArimaNumber);
             j <- j+initialArimaNumber;
         }
 
         # Initials of the xreg
-        if(initialXregEstimate){
+        if(initialType!="backcasting" && initialXregEstimate){
             B[j+1:xregNumber] <- matVt[componentsNumberETS+componentsNumberARIMA+1:xregNumber,lagsModelMax];
             names(B)[j+1:xregNumber] <- rownames(matVt)[componentsNumberETS+componentsNumberARIMA+1:xregNumber];
             if(Etype=="A"){
@@ -2978,15 +2978,14 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 }
 
                 if(arimaModel){
-                    initialArimaEstimateFI <- TRUE;
+                    initialArimaEstimateFI <- any(substr(names(B),1,10)=="ARIMAState");
                 }
                 else{
                     initialArimaEstimateFI <- FALSE;
                 }
 
-                #### This will not work in cases, when initials for xreg were provided from the beginning!
                 if(xregExist){
-                    initialXregEstimateFI <- TRUE;
+                    initialXregEstimateFI <- any(substr(names(B),1,4)=="xreg");
                 }
                 else{
                     initialXregEstimateFI <- FALSE;
