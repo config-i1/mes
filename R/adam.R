@@ -1083,12 +1083,14 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             else if(any(c(arEstimate,maEstimate))){
                 if(nrow(nonZeroARI)>0 && nrow(nonZeroARI)>=nrow(nonZeroMA)){
                     matVt[componentsNumberETS+1:componentsNumberARIMA,lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
-                        arimaPolynomials$ariPolynomial[nonZeroARI[,1]] %*% t(matVt[componentsNumberETS+componentsNumberARIMA,1:lagsModelMax]) /
+                        arimaPolynomials$ariPolynomial[nonZeroARI[,1]] %*%
+                        t(matVt[componentsNumberETS+componentsNumberARIMA,lagsModelMax-initialArimaNumber+1:initialArimaNumber]) /
                         tail(arimaPolynomials$ariPolynomial,1);
                 }
                 else{
                     matVt[componentsNumberETS+1:componentsNumberARIMA,lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
-                        arimaPolynomials$maPolynomial[nonZeroMA[,1]] %*% t(matVt[componentsNumberETS+componentsNumberARIMA,1:lagsModelMax]) /
+                        arimaPolynomials$maPolynomial[nonZeroMA[,1]] %*%
+                        t(matVt[componentsNumberETS+componentsNumberARIMA,lagsModelMax-initialArimaNumber+1:initialArimaNumber]) /
                         tail(arimaPolynomials$maPolynomial,1);
                 }
             }
