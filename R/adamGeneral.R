@@ -1106,14 +1106,14 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                         maEstimate[] <- TRUE;
                     }
                     for(i in 1:length(lags)){
-                        if(arRequired && !arEstimate && !is.null(arma$ar)){
+                        if(arRequired && !arEstimate && !is.null(arma$ar) && arOrders[i]>0){
                             armaParameters[j+c(1:arOrders[i])] <- arma$ar[arIndex+c(1:arOrders[i])]
                             names(armaParameters)[j+c(1:arOrders[i])] <- paste0("phi",1:arOrders[i],"[",lags[i],"]");
                             j[] <- j+arOrders[i];
                             arIndex[] <- arIndex+arOrders[i];
                             arEstimate[] <- FALSE;
                         }
-                        if(maRequired && !maEstimate && !is.null(arma$ma)){
+                        if(maRequired && !maEstimate && !is.null(arma$ma) && maOrders[i]>0){
                             armaParameters[j+c(1:maOrders[i])] <- arma$ma[maIndex+c(1:maOrders[i])]
                             names(armaParameters)[j+c(1:maOrders[i])] <- paste0("theta",1:maOrders[i],"[",lags[i],"]");
                             j[] <- j+maOrders[i];
@@ -1125,15 +1125,17 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                 # Just a list. Assume that the first element is ar, and the second is ma
                 else{
                     for(i in 1:length(lags)){
-                        if(arRequired && !is.null(arma[[1]])){
+                        k <- 1;
+                        if(arRequired && !is.null(arma[[1]]) && arOrders[i]>0){
                             armaParameters[j+c(1:arOrders[i])] <- arma[[1]][arIndex+c(1:arOrders[i])]
                             names(armaParameters)[j+c(1:arOrders[i])] <- paste0("phi",1:arOrders[i],"[",lags[i],"]");
                             j[] <- j+arOrders[i];
                             arIndex[] <- arIndex+arOrders[i];
                             arEstimate[] <- FALSE;
+                            k[] <- 2;
                         }
-                        if(maRequired && !is.null(arma[[2]])){
-                            armaParameters[j+c(1:maOrders[i])] <- arma[[2]][maIndex+c(1:maOrders[i])]
+                        if(maRequired && !is.null(arma[[k]]) && maOrders[i]>0){
+                            armaParameters[j+c(1:maOrders[i])] <- arma[[k]][maIndex+c(1:maOrders[i])]
                             names(armaParameters)[j+c(1:maOrders[i])] <- paste0("theta",1:maOrders[i],"[",lags[i],"]");
                             j[] <- j+maOrders[i];
                             maIndex[] <- maIndex+maOrders[i];
@@ -1161,6 +1163,17 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                 }
                 else{
                     armaParameters <- arma;
+                    j <- 0;
+                    for(i in 1:length(lags)){
+                        if(arOrders[i]>0){
+                            names(armaParameters)[j+1:arOrders[i]] <- paste0("phi",1:arOrders[i],"[",lags[i],"]");
+                            j <- j + arOrders[i];
+                        }
+                        if(maOrders[i]>0){
+                            names(armaParameters)[j+1:maOrders[i]] <- paste0("theta",1:maOrders[i],"[",lags[i],"]");
+                            j <- j + maOrders[i];
+                        }
+                    }
                 }
             }
         }

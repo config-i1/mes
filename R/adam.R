@@ -832,7 +832,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                           (lagsModelMax-lagsModelARIMA[componentsNumberARIMA])] <-
                     # If there is ETS model, then do 0 / 1. Otherwise, take actuals
                     switch(Etype,"A"=0,"M"=1);
-                    # (switch(Etype,"A"=yInSample,"M"=log(yInSample))[1:lagsModelARIMA[componentsNumberARIMA]];
+                    # switch(Etype,"A"=yInSample,"M"=log(yInSample))[1:lagsModelARIMA[componentsNumberARIMA]];
             }
             else{
                 # Insert the provided initials
