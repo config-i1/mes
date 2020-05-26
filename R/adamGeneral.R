@@ -1519,12 +1519,12 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         if(arimaModel){
             warning("We don't have enough observations to fit ETS with ARIMA terms. We will construct the simple ETS.",
                     call.=FALSE);
+            lagsModelAll <- lagsModelAll[-c(componentsNumberETS+c(1:componentsNumberARIMA)),,drop=FALSE];
             arRequired <- iRequired <- maRequired <- arimaModel <- FALSE;
             arOrders <- iOrders <- maOrders <- NULL;
             nonZeroARI <- nonZeroMA <- lagsModelARIMA <- NULL;
             componentsNamesARIMA <- NULL;
             initialArimaNumber <- componentsNumberARIMA <- 0;
-            lagsModelAll <- lagsModelAll[-c(componentsNumberETS+c(1:componentsNumberARIMA)),,drop=FALSE];
             lagsModelMax <- max(lagsModelAll);
 
             nParamMax[] <- (1 + persistenceLevelEstimate + persistenceTrendEstimate*modelIsTrendy +

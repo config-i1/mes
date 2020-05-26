@@ -54,6 +54,7 @@ arma::vec errorfVector(arma::vec yact, arma::vec yfit, char const &E){
 List adamFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const &matrixF, arma::vec const &vectorG,
                 arma::uvec &lags, char const &E, char const &T, char const &S,
                 unsigned int const &nNonSeasonal, unsigned int const &nSeasonal,
+                unsigned int const &nArima, unsigned int const &nXreg,
                 arma::vec const &vectorYt, arma::vec const &vectorOt, bool const &backcast){
     /* # matrixVt should have a length of obs + lagsModelMax.
      * # matrixWt is a matrix with nrows = obs
@@ -97,7 +98,7 @@ List adamFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const 
 
             /* # Measurement equation and the error term */
             vecYfit(i-lagsModelMax) = wvalue(matrixVt(lagrows), matrixWt.row(i-lagsModelMax), E, T, S,
-                    nNonSeasonal, nSeasonal, nComponents);
+                    nNonSeasonal, nSeasonal, nArima, nXreg, nComponents);
 
             // Failsafe for fitted becoming negative in mixed models
             // if((E=='M') && (vecYfit(i-lagsModelMax)<0)){
@@ -113,9 +114,9 @@ List adamFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const 
             }
 
             /* # Transition equation */
-            matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, T, S, nComponents) +
+            matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, E, T, S, nNonSeasonal, nSeasonal, nArima, nComponents) +
             gvalue(matrixVt(lagrows), matrixF, matrixWt.row(i-lagsModelMax), E, T, S,
-                   nNonSeasonal, nSeasonal, nComponents) % vectorG * vecErrors(i-lagsModelMax);
+                   nNonSeasonal, nSeasonal, nArima, nXreg, nComponents, vectorG, vecErrors(i-lagsModelMax));
 
             // Failsafe for cases, when nan values appear
             if(matrixVt.col(i).has_nan()){
@@ -144,7 +145,7 @@ List adamFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const 
             // Fill in the tail of the series - this is needed for backcasting
             for (int i=obs+lagsModelMax; i<obsall; i=i+1) {
                 lagrows = i * nComponents - (lagsInternal + lagsModifier) + nComponents - 1;
-                matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, T, S, nComponents);
+                matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, E, T, S, nNonSeasonal, nSeasonal, nArima, nComponents);
 
                 // /* Failsafe for cases when unreasonable value for state vector was produced */
                 // if(!matrixVt.col(i).is_finite()){
@@ -166,7 +167,7 @@ List adamFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const 
 
                 /* # Measurement equation and the error term */
                 vecYfit(i-lagsModelMax) = wvalue(matrixVt(lagrows), matrixWt.row(i-lagsModelMax), E, T, S,
-                        nNonSeasonal, nSeasonal, nComponents);
+                        nNonSeasonal, nSeasonal, nArima, nXreg, nComponents);
 
                 // Failsafe for fitted becoming negative in mixed models
                 // if((E=='M') && (vecYfit(i-lagsModelMax)<0)){
@@ -182,9 +183,9 @@ List adamFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const 
                 }
 
                 /* # Transition equation */
-                matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, T, S, nComponents) +
+                matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, E, T, S, nNonSeasonal, nSeasonal, nArima, nComponents) +
                 gvalue(matrixVt(lagrows), matrixF, matrixWt.row(i-lagsModelMax), E, T, S,
-                       nNonSeasonal, nSeasonal, nComponents) % vectorG * vecErrors(i-lagsModelMax);
+                   nNonSeasonal, nSeasonal, nArima, nXreg, nComponents, vectorG, vecErrors(i-lagsModelMax));
 
                 // Failsafe for cases, when nan values appear
                 if(matrixVt.col(i).has_nan()){
@@ -214,7 +215,7 @@ List adamFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const 
             // Fill in the head of the series
             for (int i=lagsModelMax-1; i>=0; i=i-1) {
                 lagrows = i * nComponents + lagsInternal - lagsModifier + nComponents - 1;
-                matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, T, S, nComponents);
+                matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, E, T, S, nNonSeasonal, nSeasonal, nArima, nComponents);
 
                 // /* Failsafe for cases when unreasonable value for state vector was produced */
                 // if(!matrixVt.col(i).is_finite()){
@@ -241,7 +242,8 @@ List adamFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const 
 // [[Rcpp::export]]
 RcppExport SEXP adamFitterWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP vecG,
                                SEXP lagsModelAll, SEXP Etype, SEXP Ttype, SEXP Stype,
-                               SEXP componentsNumber, SEXP componentsNumberSeasonal,
+                               SEXP componentsNumberETS, SEXP componentsNumberETSSeasonal,
+                               SEXP componentsNumberArima, SEXP xregNumber,
                                SEXP yInSample, SEXP ot, SEXP backcasting){
 
     NumericMatrix matvt_n(matVt);
@@ -263,8 +265,10 @@ RcppExport SEXP adamFitterWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP vecG,
     char T = as<char>(Ttype);
     char S = as<char>(Stype);
 
-    unsigned int nSeasonal = as<int>(componentsNumberSeasonal);
-    unsigned int nNonSeasonal = as<int>(componentsNumber) - nSeasonal;
+    unsigned int nSeasonal = as<int>(componentsNumberETSSeasonal);
+    unsigned int nNonSeasonal = as<int>(componentsNumberETS) - nSeasonal;
+    unsigned int nArima = as<int>(componentsNumberArima);
+    unsigned int nXreg = as<int>(xregNumber);
 
     NumericMatrix yt_n(yInSample);
     arma::vec vectorYt(yt_n.begin(), yt_n.nrow(), false);
@@ -276,7 +280,7 @@ RcppExport SEXP adamFitterWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP vecG,
 
     return wrap(adamFitter(matrixVt, matrixWt, matrixF, vectorG,
                            lags, E, T, S,
-                           nNonSeasonal, nSeasonal,
+                           nNonSeasonal, nSeasonal, nArima, nXreg,
                            vectorYt, vectorOt, backcast));
 }
 
@@ -284,7 +288,9 @@ RcppExport SEXP adamFitterWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP vecG,
 /* # Function produces the point forecasts for the specified model */
 arma::vec adamForecaster(arma::mat const &matrixVt, arma::mat const &matrixWt, arma::mat const &matrixF,
                          arma::uvec lags, char const &E, char const &T, char const &S,
-                         unsigned int const &nNonSeasonal, unsigned int const &nSeasonal, unsigned int const &horizon){
+                         unsigned int const &nNonSeasonal, unsigned int const &nSeasonal,
+                         unsigned int const &nArima, unsigned int const &nXreg,
+                         unsigned int const &horizon){
     unsigned int lagslength = lags.n_rows;
     unsigned int lagsModelMax = max(lags);
     unsigned int hh = horizon + lagsModelMax;
@@ -305,10 +311,10 @@ arma::vec adamForecaster(arma::mat const &matrixVt, arma::mat const &matrixWt, a
     /* # Fill in the new xt matrix using F. Do the forecasts. */
     for (unsigned int i=lagsModelMax; i<hh; i=i+1) {
         lagrows = i * nComponents - lags + nComponents - 1;
-        matrixVtnew.col(i) = fvalue(matrixVtnew(lagrows), matrixF, T, S, nComponents);
+        matrixVtnew.col(i) = fvalue(matrixVtnew(lagrows), matrixF, E, T, S, nNonSeasonal, nSeasonal, nArima, nComponents);
 
         vecYfor.row(i-lagsModelMax) = (wvalue(matrixVtnew(lagrows), matrixWt.row(i-lagsModelMax), E, T, S,
-                                       nNonSeasonal, nSeasonal, nComponents));
+                                       nNonSeasonal, nSeasonal, nArima, nXreg, nComponents));
     }
 
     // return List::create(Named("matVt") = matrixVtnew, Named("yForecast") = vecYfor);
@@ -319,7 +325,9 @@ arma::vec adamForecaster(arma::mat const &matrixVt, arma::mat const &matrixWt, a
 // [[Rcpp::export]]
 RcppExport SEXP adamForecasterWrap(SEXP matVt, SEXP matWt, SEXP matF,
                                    SEXP lagsModelAll, SEXP Etype, SEXP Ttype, SEXP Stype,
-                                   SEXP componentsNumber, SEXP componentsNumberSeasonal, SEXP h){
+                                   SEXP componentsNumberETS, SEXP componentsNumberETSSeasonal,
+                                   SEXP componentsNumberArima, SEXP xregNumber,
+                                   SEXP h){
 
     NumericMatrix matvt_n(matVt);
     arma::mat matrixVt(matvt_n.begin(), matvt_n.nrow(), matvt_n.ncol(), false);
@@ -337,20 +345,26 @@ RcppExport SEXP adamForecasterWrap(SEXP matVt, SEXP matWt, SEXP matF,
     char T = as<char>(Ttype);
     char S = as<char>(Stype);
 
-    unsigned int nSeasonal = as<int>(componentsNumberSeasonal);
-    unsigned int nNonSeasonal = as<int>(componentsNumber) - nSeasonal;
+    unsigned int nSeasonal = as<int>(componentsNumberETSSeasonal);
+    unsigned int nNonSeasonal = as<int>(componentsNumberETS) - nSeasonal;
+    unsigned int nArima = as<int>(componentsNumberArima);
+    unsigned int nXreg = as<int>(xregNumber);
 
     unsigned int horizon = as<int>(h);
 
     return wrap(adamForecaster(matrixVt, matrixWt, matrixF,
                                lags, E, T, S,
-                               nNonSeasonal, nSeasonal, horizon));
+                               nNonSeasonal, nSeasonal,
+                               nArima, nXreg,
+                               horizon));
 }
 
 /* # Function produces matrix of errors based on multisteps forecast */
 arma::mat adamErrorer(arma::mat const &matrixVt, arma::mat const &matrixWt, arma::mat const &matrixF,
                       arma::uvec &lags, char const &E, char const &T, char const &S,
-                      unsigned int const &nNonSeasonal, unsigned int const &nSeasonal, unsigned int const &horizon,
+                      unsigned int const &nNonSeasonal, unsigned int const &nSeasonal,
+                      unsigned int const &nArima, unsigned int const &nXreg,
+                      unsigned int const &horizon,
                       arma::vec const &vectorYt, arma::vec const &vectorOt){
     unsigned int obs = vectorYt.n_rows;
     // This is needed for cases, when hor>obs
@@ -363,7 +377,7 @@ arma::mat adamErrorer(arma::mat const &matrixVt, arma::mat const &matrixWt, arma
         // matErrors.submat(0, i, hh-1, i) = (vectorOt.rows(i, i+hh-1) % errorfVector(vectorYt.rows(i, i+hh-1),
         matErrors.submat(0, i, hh-1, i) = (errorfVector(vectorYt.rows(i, i+hh-1),
                                            adamForecaster(matrixVt.cols(i,i+lagsModelMax-1), matrixWt.rows(i,i+hh-1),
-                                                          matrixF, lags, E, T, S, nNonSeasonal, nSeasonal, hh), E));
+                                                          matrixF, lags, E, T, S, nNonSeasonal, nSeasonal, nArima, nXreg, hh), E));
     }
 
     // Cut-off the redundant last part
@@ -383,8 +397,9 @@ arma::mat adamErrorer(arma::mat const &matrixVt, arma::mat const &matrixWt, arma
 // [[Rcpp::export]]
 RcppExport SEXP adamErrorerWrap(SEXP matVt, SEXP matWt, SEXP matF,
                                 SEXP lagsModelAll, SEXP Etype, SEXP Ttype, SEXP Stype,
-                                SEXP componentsNumber, SEXP componentsNumberSeasonal, SEXP h,
-                                SEXP yInSample, SEXP ot){
+                                SEXP componentsNumberETS, SEXP componentsNumberETSSeasonal,
+                                SEXP componentsNumberArima, SEXP xregNumber,
+                                SEXP h, SEXP yInSample, SEXP ot){
 
     NumericMatrix matvt_n(matVt);
     arma::mat matrixVt(matvt_n.begin(), matvt_n.nrow(), matvt_n.ncol(), false);
@@ -402,8 +417,10 @@ RcppExport SEXP adamErrorerWrap(SEXP matVt, SEXP matWt, SEXP matF,
     char T = as<char>(Ttype);
     char S = as<char>(Stype);
 
-    unsigned int nSeasonal = as<int>(componentsNumberSeasonal);
-    unsigned int nNonSeasonal = as<int>(componentsNumber) - nSeasonal;
+    unsigned int nSeasonal = as<int>(componentsNumberETSSeasonal);
+    unsigned int nNonSeasonal = as<int>(componentsNumberETS) - nSeasonal;
+    unsigned int nArima = as<int>(componentsNumberArima);
+    unsigned int nXreg = as<int>(xregNumber);
 
     unsigned int horizon = as<int>(h);
 
@@ -415,6 +432,6 @@ RcppExport SEXP adamErrorerWrap(SEXP matVt, SEXP matWt, SEXP matF,
 
     return wrap(adamErrorer(matrixVt, matrixWt, matrixF,
                             lags, E, T, S,
-                            nNonSeasonal, nSeasonal, horizon,
-                            vectorYt, vectorOt));
+                            nNonSeasonal, nSeasonal, nArima, nXreg,
+                            horizon, vectorYt, vectorOt));
 }

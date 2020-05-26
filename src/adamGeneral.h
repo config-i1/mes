@@ -21,6 +21,7 @@ inline arma::mat matrixPower(arma::mat const &A, int const &power){
 inline double wvalue(arma::vec const &vecVt, arma::rowvec const &rowvecW,
                      char const &E, char const &T, char const &S,
                      unsigned int const &nNonSeasonal, unsigned int const &nSeasonal,
+                     unsigned int const &nArima, unsigned int const &nXreg,
                      unsigned int const &nComponents){
     // vecVt is a vector here!
     double yfit = 0;
@@ -66,21 +67,37 @@ inline double wvalue(arma::vec const &vecVt, arma::rowvec const &rowvecW,
         }
         break;
     }
+    yfit = as_scalar(vecYfit);
 
-    // Explanatory variables
-    if(nComponents > (nNonSeasonal+nSeasonal)){
+    // ARIMA components
+    if(nArima > 0){
         // If error is additive, add explanatory variables. Otherwise multiply by exp(ax)
         switch(E){
         case 'A':
-            yfit = as_scalar(vecYfit + rowvecW.cols(nNonSeasonal+nSeasonal,nComponents-1) * vecVt.rows(nNonSeasonal+nSeasonal,nComponents-1));
+            yfit += as_scalar(rowvecW.cols(nNonSeasonal+nSeasonal,nNonSeasonal+nSeasonal+nArima-1) *
+                vecVt.rows(nNonSeasonal+nSeasonal,nNonSeasonal+nSeasonal+nArima-1));
             break;
         case 'M':
-            yfit = as_scalar(vecYfit * exp(rowvecW.cols(nNonSeasonal+nSeasonal,nComponents-1) * vecVt.rows(nNonSeasonal+nSeasonal,nComponents-1)));
+
+            yfit = yfit * as_scalar(exp(rowvecW.cols(nNonSeasonal+nSeasonal,nNonSeasonal+nSeasonal+nArima-1) *
+                log(vecVt.rows(nNonSeasonal+nSeasonal,nNonSeasonal+nSeasonal+nArima-1))));
             break;
         }
     }
-    else{
-        yfit = as_scalar(vecYfit);
+
+    // Explanatory variables
+    if(nXreg > 0){
+        // If error is additive, add explanatory variables. Otherwise multiply by exp(ax)
+        switch(E){
+        case 'A':
+            yfit += as_scalar(rowvecW.cols(nNonSeasonal+nSeasonal+nArima,nComponents-1) *
+                vecVt.rows(nNonSeasonal+nSeasonal+nArima,nComponents-1));
+            break;
+        case 'M':
+            yfit = yfit * as_scalar(exp(rowvecW.cols(nNonSeasonal+nSeasonal+nArima,nComponents-1) *
+                vecVt.rows(nNonSeasonal+nSeasonal+nArima,nComponents-1)));
+            break;
+        }
     }
 
     return yfit;
@@ -91,12 +108,13 @@ inline double wvalue(arma::vec const &vecVt, arma::rowvec const &rowvecW,
 inline double rvalue(arma::vec const &vecVt, arma::rowvec const &rowvecW,
                      char const &E, char const &T, char const &S,
                      unsigned int const &nNonSeasonal, unsigned int const &nSeasonal,
+                     unsigned int const &nArima, unsigned int const &nXreg,
                      unsigned int const &nComponents){
 
     switch(E){
     // MZZ
     case 'M':
-        return wvalue(vecVt, rowvecW, E, T, S, nNonSeasonal, nSeasonal, nComponents);
+        return wvalue(vecVt, rowvecW, E, T, S, nNonSeasonal, nSeasonal, nArima, nXreg, nComponents);
         break;
         // AZZ
     case 'A':
@@ -106,7 +124,10 @@ inline double rvalue(arma::vec const &vecVt, arma::rowvec const &rowvecW,
 }
 
 /* # Function returns value of f() -- new states without the update -- used in the transition equation */
-inline arma::vec fvalue(arma::vec const &matrixVt, arma::mat const &matrixF, char const T, char const S,
+inline arma::vec fvalue(arma::vec const &matrixVt, arma::mat const &matrixF,
+                        char const E, char const T, char const S,
+                        unsigned int const &nNonSeasonal, unsigned int const &nSeasonal,
+                        unsigned int const &nArima,
                         unsigned int const &nComponents){
     arma::vec matrixVtnew = matrixVt;
 
@@ -124,6 +145,14 @@ inline arma::vec fvalue(arma::vec const &matrixVt, arma::mat const &matrixF, cha
         break;
     }
 
+    // If there is ARIMA, fix the states for E='M'
+    if(nArima>0 && E=='M'){
+        matrixVtnew.rows(nNonSeasonal+nSeasonal,nNonSeasonal+nSeasonal+nArima-1) =
+            exp(matrixF.submat(nNonSeasonal+nSeasonal,nNonSeasonal+nSeasonal,
+                               nNonSeasonal+nSeasonal+nArima-1,nNonSeasonal+nSeasonal+nArima-1) *
+                                   log(matrixVt.rows(nNonSeasonal+nSeasonal,nNonSeasonal+nSeasonal+nArima-1)));
+    }
+
     return matrixVtnew;
 }
 
@@ -131,7 +160,9 @@ inline arma::vec fvalue(arma::vec const &matrixVt, arma::mat const &matrixF, cha
 inline arma::vec gvalue(arma::vec const &matrixVt, arma::mat const &matrixF, arma::mat const &rowvecW,
                         char const &E, char const &T, char const &S,
                         unsigned int const &nNonSeasonal, unsigned int const &nSeasonal,
-                        unsigned int const &nComponents){
+                        unsigned int const &nArima, unsigned int const &nXreg,
+                        unsigned int const &nComponents,
+                        arma::vec const &vectorG, double const error){
     arma::vec g(matrixVt.n_rows, arma::fill::ones);
 
     // AZZ
@@ -245,10 +276,21 @@ inline arma::vec gvalue(arma::vec const &matrixVt, arma::mat const &matrixF, arm
     }
 
     // Explanatory variables. Needed in order to update the parameters
-    if(nComponents > (nSeasonal+nNonSeasonal)){
-        arma::vec rowvecWtxreg(1/rowvecW.cols(nSeasonal+nNonSeasonal,nComponents-1).t());
+    if(nXreg > 0){
+        arma::vec rowvecWtxreg(1/rowvecW.cols(nSeasonal+nNonSeasonal+nArima,nComponents-1).t());
         rowvecWtxreg.rows(find_nonfinite(rowvecWtxreg)).fill(0);
-        g.rows(nSeasonal+nNonSeasonal,nComponents-1) = rowvecWtxreg % g.rows(nSeasonal+nNonSeasonal,nComponents-1);
+        g.rows(nSeasonal+nNonSeasonal+nArima,nComponents-1) = rowvecWtxreg % g.rows(nSeasonal+nNonSeasonal+nArima,nComponents-1);
+    }
+
+    // Do the multiplication in order to get the correct g(v) value
+    g = g % vectorG * error;
+
+    // If there are arima components, make sure that the g is correct for multiplicative error type
+    if(nArima>0 && E=='M'){
+        g.rows(nSeasonal+nNonSeasonal,nSeasonal+nNonSeasonal+nArima-1) =
+            fvalue(matrixVt, matrixF, E, T, S, nNonSeasonal, nSeasonal, nArima, nComponents).rows(nSeasonal+nNonSeasonal,
+                   nSeasonal+nNonSeasonal+nArima-1) %
+            (exp(vectorG.rows(nSeasonal+nNonSeasonal,nSeasonal+nNonSeasonal+nArima-1)*log(1+error)) - 1);
     }
 
     return g;
