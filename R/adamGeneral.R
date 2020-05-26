@@ -1698,8 +1698,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                 Ttype <- "N";
                 Stype <- "N";
             }
-            persistence <- 0;
-            names(persistence) <- "level";
+            persistenceLevel <- 0;
             persistenceEstimate <- persistenceLevelEstimate <- FALSE;
             warning("We did not have enough of non-zero observations, so persistence value was set to zero.",
                     call.=FALSE);
@@ -1708,8 +1707,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         # Can it be even smaller?
         else if(obsNonzero==2){
             modelsPool <- NULL;
-            persistence <- 0;
-            names(persistence) <- "level";
+            persistenceLevel <- 0;
             persistenceEstimate <- persistenceLevelEstimate <- FALSE;
             initialLevel <- mean(yInSample);
             initialType <- "provided";
@@ -1728,8 +1726,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         # And how about now?!
         else if(obsNonzero==1){
             modelsPool <- NULL;
-            persistence <- 0;
-            names(persistence) <- "level";
+            persistenceLevel <- 0;
             persistenceEstimate <- persistenceLevelEstimate <- FALSE;
             initialLevel <- yInSample[yInSample!=0];
             initialType <- "provided";
@@ -1747,8 +1744,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         # Only zeroes in the data...
         else if(obsNonzero==0 && obsInSample>1){
             modelsPool <- NULL;
-            persistence <- 0;
-            names(persistence) <- "level";
+            persistenceLevel <- 0;
             persistenceEstimate <- persistenceLevelEstimate <- FALSE;
             initialLevel <- 0;
             initialType <- "provided";
