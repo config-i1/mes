@@ -10,7 +10,8 @@ using namespace Rcpp;
 List adamSimulator(arma::cube &arrayVt, arma::mat const &matrixErrors, arma::mat const &matrixOt,
                    arma::cube const &arrayF, arma::mat const &matrixWt, arma::mat const &matrixG,
                    char const &E, char const &T, char const &S, arma::uvec &lags,
-                   unsigned int const &nNonSeasonal, unsigned int const &nSeasonal) {
+                   unsigned int const &nNonSeasonal, unsigned int const &nSeasonal,
+                   unsigned int const &nArima, unsigned int const &nXreg) {
 
     unsigned int obs = matrixErrors.n_rows;
     unsigned int nSeries = matrixErrors.n_cols;
@@ -41,15 +42,15 @@ List adamSimulator(arma::cube &arrayVt, arma::mat const &matrixErrors, arma::mat
             lagrows = j * nComponents - (lagsInternal + lagsModifier) + nComponents - 1;
             /* # Measurement equation and the error term */
             matY(j-lagsModelMax,i) = matrixOt(j-lagsModelMax,i) * (wvalue(matrixVt(lagrows), matrixWt.row(j-lagsModelMax), E, T, S,
-                                              nNonSeasonal, nSeasonal, nComponents) +
+                                              nNonSeasonal, nSeasonal, nArima, nXreg, nComponents) +
                                                   rvalue(matrixVt(lagrows), matrixWt.row(j-lagsModelMax), E, T, S,
-                                                         nNonSeasonal, nSeasonal, nComponents) *
+                                                         nNonSeasonal, nSeasonal, nArima, nXreg, nComponents) *
                                                              matrixErrors(j-lagsModelMax,i));
 
             /* # Transition equation */
-            matrixVt.col(j) = fvalue(matrixVt(lagrows), matrixF, T, S, nComponents) +
+            matrixVt.col(j) = fvalue(matrixVt(lagrows), matrixF, E, T, S, nNonSeasonal, nSeasonal, nArima, nComponents) +
             gvalue(matrixVt(lagrows), matrixF, matrixWt.row(j-lagsModelMax), E, T, S,
-                   nNonSeasonal, nSeasonal, nComponents) % matrixG.col(i) * matrixErrors(j-lagsModelMax,i);
+                   nNonSeasonal, nSeasonal, nArima, nXreg, nComponents, matrixG.col(i), matrixErrors(j-lagsModelMax,i));
 
             /* Failsafe for cases when unreasonable value for state vector was produced */
             if(!matrixVt.col(j).is_finite()){
@@ -78,7 +79,8 @@ List adamSimulator(arma::cube &arrayVt, arma::mat const &matrixErrors, arma::mat
 // [[Rcpp::export]]
 RcppExport SEXP adamSimulatorwrap(SEXP arrVt, SEXP matErrors, SEXP matOt, SEXP matF, SEXP matWt, SEXP matG,
                                   SEXP Etype, SEXP Ttype, SEXP Stype, SEXP lagsModelAll,
-                                  SEXP componentsNumberSeasonal, SEXP componentsNumber){
+                                  SEXP componentsNumberSeasonal, SEXP componentsNumber,
+                                  SEXP componentsNumberArima, SEXP xregNumber){
 
     // ### arrvt should contain array of obs x ncomponents x nSeries elements.
     NumericVector arrVt_n(arrVt);
@@ -111,7 +113,9 @@ RcppExport SEXP adamSimulatorwrap(SEXP arrVt, SEXP matErrors, SEXP matOt, SEXP m
 
     unsigned int nSeasonal = as<int>(componentsNumberSeasonal);
     unsigned int nNonSeasonal = as<int>(componentsNumber) - nSeasonal;
+    unsigned int nArima = as<int>(componentsNumberArima);
+    unsigned int nXreg = as<int>(xregNumber);
 
     return wrap(adamSimulator(arrayVt, matrixErrors, matrixOt, arrayF, matrixWt, matrixG,
-                              E, T, S, lags, nNonSeasonal, nSeasonal));
+                              E, T, S, lags, nNonSeasonal, nSeasonal, nArima, nXreg));
 }

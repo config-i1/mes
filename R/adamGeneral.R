@@ -453,8 +453,13 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         lagsModel <- rbind(1,lagsModel);
     }
     # If we don't have seasonality, remove seasonal lag
-    if(!modelIsSeasonal & any(lagsModel>1)){
+    if(!modelIsSeasonal && any(lagsModel>1)){
         lagsModel <- lagsModel[lagsModel==1,,drop=FALSE];
+    }
+
+    # If this is non-seasonal model and there are no seasonal ARIMA lags, trim the original lags
+    if(!modelIsSeasonal && all(c(arOrders[lags>1],iOrders[lags>1],maOrders[lags>1])==0) && any(lags>1)){
+        lags <- lags[lags==1];
     }
 
     # Lags of the model

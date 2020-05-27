@@ -277,7 +277,8 @@
 #' \item \code{scale} - the value of the scale parameter,
 #' \item \code{lambda} - the value of the parameter used in LASSO / dalaplace / dt,
 #' \item \code{B} - the vector of all estimated parameters,
-#' \item \code{lags} - the vector of lags used in the model construction.
+#' \item \code{lags} - the vector of lags used in the model construction,
+#' \item \code{lagsAll} - the vector of the internal lags used in the model.
 #' }
 #'
 #' @seealso \code{\link[forecast]{ets}, \link[smooth]{es}}
@@ -578,6 +579,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             else{
                 rownames(vecG)[j+1:componentsNumberARIMA] <- "psi";
             }
+            j <- j+componentsNumberARIMA;
         }
         if(xregExist){
             if(persistenceXregProvided && !persistenceXregEstimate){
@@ -1085,6 +1087,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                "M"=exp(arimaPolynomials$maPolynomial[nonZeroMA[,1]] %*% t(log(B[j+1:initialArimaNumber])) /
                                            tail(arimaPolynomials$maPolynomial,1)));
                 }
+                j[] <- j+componentsNumberARIMA;
             }
             # This is needed in order to propagate initials of ARIMA to all components
             else if(any(c(arEstimate,maEstimate))){
@@ -1117,7 +1120,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
         # Initials of the xreg
         if((initialType!="backcasting") && initialEstimate && initialXregEstimate){
-            matVt[componentsNumberETS+1:xregNumber,1:lagsModelMax] <- B[j+1:xregNumber];
+            matVt[componentsNumberETS+componentsNumberARIMA+1:xregNumber,1:lagsModelMax] <- B[j+1:xregNumber];
         }
 
         return(list(matVt=matVt, matWt=matWt, matF=matF, vecG=vecG));
@@ -1683,7 +1686,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                            initialArimaEstimate, initialXregEstimate,
                            arimaModel, nonZeroARI, nonZeroMA, arEstimate, maEstimate, arimaPolynomials,
                            xregExist, xregNumber,
-                           bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate){
+                           bounds, loss, lossFunction, distribution, horizon, multisteps, lambda, lambdaEstimate){
 
         if(!multisteps){
             if(any(loss==c("LASSO","RIDGE"))){
@@ -1955,7 +1958,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                                 arimaModel, nonZeroARI, nonZeroMA, arEstimate, maEstimate,
                                                 adamCreated$arimaPolynomials,
                                                 xregExist, xregNumber,
-                                                bounds, loss, distributionNew, horizon, multisteps, lambda, lambdaEstimate),
+                                                bounds, loss, lossFunction, distributionNew, horizon, multisteps,
+                                                lambda, lambdaEstimate),
                                      nobs=obsInSample,df=nParamEstimated,class="logLik");
 
         #### If we do variables selection, do it here, then reestimate the model. ####
@@ -2533,14 +2537,16 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         names(initialValue) <- initialValueNames;
 
         #### Persistence to return ####
-        if(xregExist && xregDo=="adapt"){
-            persistence <- as.vector(vecG);
-            names(persistence) <- rownames(vecG);
-        }
-        else{
-            persistence <- vecG[1:componentsNumberETS,];
-            names(persistence) <- rownames(vecG)[1:componentsNumberETS];
-        }
+        persistence <- as.vector(vecG);
+        names(persistence) <- rownames(vecG);
+        # if(xregExist && xregDo=="adapt"){
+        #     persistence <- as.vector(vecG);
+        #     names(persistence) <- rownames(vecG);
+        # }
+        # else{
+        #     persistence <- vecG[1:componentsNumberETS,];
+        #     names(persistence) <- rownames(vecG)[1:componentsNumberETS];
+        # }
 
         if(arimaModel){
             armaParametersList <- vector("list",arRequired+maRequired);
@@ -2592,7 +2598,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                     nParam=parametersNumber, occurrence=oesModel, xreg=xregData,
                     formula=formula, xregDo=xregDo,
                     loss=loss, lossValue=CFValue, logLik=logLikADAMValue, distribution=distribution,
-                    scale=scale, lambda=lambda, B=B, lags=lags, FI=FI));
+                    scale=scale, lambda=lambda, B=B, lags=lags, lagsAll=lagsModelAll, FI=FI));
     }
 
     #### Deal with occurrence model ####
@@ -2961,7 +2967,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                       componentsNumberETSNonSeasonal=componentsNumberETSNonSeasonal,
                       componentsNumberARIMA=componentsNumberARIMA,
                       lags=lags, lagsModel=lagsModel, lagsModelAll=lagsModelAll, lagsModelMax=lagsModelMax,
-                      matVt=adamCreated$matVt, matWt=adamCreated$matWt, matF=adamCreated$matF, vecG=adamCreated$vecG,
+                      matVt=matVt, matWt=matWt, matF=matF, vecG=vecG,
                       persistenceEstimate=persistenceEstimate,
                       persistenceLevelEstimate=persistenceLevelEstimate,
                       persistenceTrendEstimate=persistenceTrendEstimate,
@@ -2972,7 +2978,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                       initialTrendEstimate=initialTrendEstimate, initialSeasonalEstimate=initialSeasonalEstimate,
                       initialArimaEstimate=initialArimaEstimate, initialXregEstimate=initialXregEstimate,
                       arimaModel=arimaModel, nonZeroARI=nonZeroARI, nonZeroMA=nonZeroMA,
-                      arimaPolynomials=adamCreated$arimaPolynomials,
+                      arimaPolynomials=arimaPolynomials,
                       arEstimate=arEstimate, maEstimate=maEstimate,
                       xregExist=xregExist, xregNumber=xregNumber,
                       bounds=bounds, loss=loss, lossFunction=lossFunction, distribution=distributionNew,
@@ -2993,7 +2999,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                                 initialArimaEstimate, initialXregEstimate,
                                                 arimaModel, nonZeroARI, nonZeroMA, arEstimate, maEstimate, arimaPolynomials,
                                                 xregExist, xregNumber,
-                                                bounds, loss, distributionNew, horizon, multisteps, lambda, lambdaEstimate)
+                                                bounds, loss, lossFunction, distributionNew, horizon,
+                                                multisteps, lambda, lambdaEstimate)
                                      ,nobs=obsInSample,df=parametersNumber[1,4],class="logLik")
 
         icSelection <- ICFunction(logLikADAMValue);
@@ -3003,7 +3010,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             if(is.null(B)){
                 BValues <- initialiser(Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, componentsNumberETSSeasonal,
                                        componentsNumberETS, lags, lagsModel, lagsModelSeasonal, lagsModelARIMA, lagsModelMax,
-                                       adamCreated$matVt,
+                                       matVt,
                                        TRUE, TRUE, modelIsTrendy, rep(modelIsSeasonal,componentsNumberETSSeasonal), FALSE,
                                        damped, "optimal", TRUE,
                                        TRUE, TRUE, rep(modelIsSeasonal,componentsNumberETSSeasonal),
@@ -3043,7 +3050,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 }
 
                 if(xregExist){
-                    initialXregEstimateFI <- any(substr(names(B),1,4)=="xreg");
+                    initialXregEstimateFI <- any(colnames(xregData) %in% names(B));
                 }
                 else{
                     initialXregEstimateFI <- FALSE;
@@ -3104,7 +3111,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                            arimaModel=arimaModel, nonZeroARI=nonZeroARI, nonZeroMA=nonZeroMA,
                            arEstimate=arEstimateFI, maEstimate=maEstimateFI, arimaPolynomials=arimaPolynomials,
                            xregExist=xregExist, xregNumber=xregNumber,
-                           bounds=bounds, loss=loss, distribution=distribution, horizon=horizon, multisteps=multisteps,
+                           bounds=bounds, loss=loss, lossFunction=lossFunction, distribution=distribution,
+                           horizon=horizon, multisteps=multisteps,
                            lambda=lambda, lambdaEstimate=lambdaEstimateFI);
 
             colnames(FI) <- names(B);
@@ -3315,12 +3323,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 #### Technical methods ####
 #' @export
 lags.adam <- function(object, ...){
-    if(!is.null(object$xreg)){
-        return(c(object$lags,rep(1,ncol(object$xreg))));
-    }
-    else{
-        return(object$lags);
-    }
+    return(object$lags);
 }
 
 #' @rdname plot.smooth
@@ -4376,18 +4379,29 @@ rmultistep.default <- function(object, h=10, ...){
 rmultistep.adam <- function(object, h=10, ...){
     yClasses <- class(actuals(object));
 
-    # Technical parameters
-    lagsModelAll <- lags(object);
-    componentsNumberETS <- length(object$persistence);
-    componentsNumberETSSeasonal <- sum(lagsModelAll>1);
-    lagsModelMax <- max(lagsModelAll);
-    obsInSample <- nobs(object);
-
     # Model type
     model <- modelType(object);
     Etype <- errorType(object);
     Ttype <- substr(model,2,2);
     Stype <- substr(model,nchar(model),nchar(model));
+
+    # Technical parameters
+    lagsModelAll <- modelLags(object);
+    lagsModelMax <- max(lagsModelAll);
+    lagsOriginal <- lags(object);
+    if(Ttype!="N"){
+        lagsOriginal <- c(1,lagsOriginal);
+    }
+    componentsNumberETS <- length(lagsOriginal);
+    componentsNumberETSSeasonal <- sum(lagsOriginal>1);
+    componentsNumberARIMA <- length(object$initial$arima);
+    if(!is.null(object$xreg)){
+        xregNumber <- ncol(object$xreg);
+    }
+    else{
+        xregNumber <- 0;
+    }
+    obsInSample <- nobs(object);
 
     # Function returns the matrix with multi-step errors
     if(is.occurrence(object$occurrence)){
@@ -4804,19 +4818,26 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
     }
     side <- match.arg(side);
 
-    # Technical parameters
-    lagsModelAll <- lags(object);
-    componentsNumberETS <- length(lagsModelAll);
-    componentsNumberETSSeasonal <- sum(lagsModelAll>1);
-    lagsModelMax <- max(lagsModelAll);
-    obsStates <- nrow(object$states);
-    obsInSample <- nobs(object);
-
     # Model type
     model <- modelType(object);
     Etype <- errorType(object);
     Ttype <- substr(model,2,2);
     Stype <- substr(model,nchar(model),nchar(model));
+
+    # Technical parameters
+    lagsModelAll <- modelLags(object);
+    lagsModelMax <- max(lagsModelAll);
+    lagsOriginal <- lags(object);
+    if(Ttype!="N"){
+        lagsOriginal <- c(1,lagsOriginal);
+    }
+
+    componentsNumberETS <- length(lagsOriginal);
+    componentsNumberETSSeasonal <- sum(lagsOriginal>1);
+    componentsNumberARIMA <- length(object$initial$arima);
+
+    obsStates <- nrow(object$states);
+    obsInSample <- nobs(object);
 
     yClasses <- class(actuals(object));
 
@@ -4834,6 +4855,9 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
     # All the important matrices
     matVt <- t(object$states[obsStates-(lagsModelMax:1)+1,,drop=FALSE]);
     matWt <- tail(object$measurement,h);
+    vecG <- matrix(object$persistence, ncol=1);
+
+    # Deal with explanatory variables
     if(!is.null(object$xreg)){
         xregNumber <- ncol(object$xreg);
         if(is.null(newxreg)){
@@ -4881,12 +4905,9 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
             rm(xreg);
         }
 
-        componentsNumberETS[] <- componentsNumberETS - xregNumber;
-        matWt[,componentsNumberETS+c(1:xregNumber)] <- newxreg;
-        vecG <- matrix(c(object$persistence,object$xregPersistence), ncol=1);
+        matWt[,componentsNumberETS+componentsNumberARIMA+c(1:xregNumber)] <- newxreg;
     }
     else{
-        vecG <- matrix(object$persistence, ncol=1);
         xregNumber <- 0;
     }
     matF <- object$transition;
@@ -4999,7 +5020,7 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
 
     #### Simulated interval ####
     if(interval=="simulated"){
-        arrVt <- array(NA, c(componentsNumberETS+xregNumber, h+lagsModelMax, nsim));
+        arrVt <- array(NA, c(componentsNumberETS+componentsNumberARIMA+xregNumber, h+lagsModelMax, nsim));
         arrVt[,1:lagsModelMax,] <- rep(matVt,nsim);
         sigmaValue <- sigma(object);
         matErrors <- matrix(switch(object$distribution,
@@ -5028,9 +5049,10 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                                         # matrix(rep(1,h*nsim), h, nsim),
                                         matrix(rbinom(h*nsim, 1, pForecast), h, nsim),
                                         array(matF,c(dim(matF),nsim)), matWt,
-                                        matrix(vecG, componentsNumberETS+xregNumber, nsim),
+                                        matrix(vecG, componentsNumberETS+componentsNumberARIMA+xregNumber, nsim),
                                         EtypeModified, Ttype, Stype, lagsModelAll,
-                                        componentsNumberETSSeasonal, componentsNumberETS)$matrixYt;
+                                        componentsNumberETSSeasonal, componentsNumberETS,
+                                        componentsNumberARIMA, xregNumber)$matrixYt;
 
         #### Note that the cumulative doesn't work with oes at the moment!
         if(cumulative){
@@ -5516,23 +5538,31 @@ plot.adam.forecast <- function(x, ...){
 multicov.adam <- function(object, type=c("analytical","empirical","simulated"), ...){
     type <- match.arg(type);
 
+    # Model type
+    Ttype <- substr(modelType(object),2,2);
+
     h <- length(object$holdout);
-    lagsModelAll <- lags(object);
-    componentsNumberETS <- length(lagsModelAll);
+    lagsModelAll <- modelLags(object);
+    lagsModelMax <- max(lagsModelAll);
+    lagsOriginal <- lags(object);
+    if(Ttype!="N"){
+        lagsOriginal <- c(1,lagsOriginal);
+    }
+    componentsNumberETS <- length(lagsOriginal);
+    componentsNumberETSSeasonal <- sum(lagsOriginal>1);
+    componentsNumberARIMA <- length(object$initial$arima);
+
     s2 <- sigma(object)^2;
     matWt <- tail(object$measurement,h);
     vecG <- matrix(object$persistence, ncol=1);
     if(!is.null(object$xreg)){
         xregNumber <- ncol(object$xreg);
-        lagsModelAll <- rbind(lagsModelAll,rep(1,xregNumber));
-        matWt[,componentsNumberETS+c(1:xregNumber)] <- newxreg[1:h,];
-        vecG <- rbind(vecG,object$xregPersistence);
+        # matWt[,componentsNumberETS+componentsNumberARIMA+c(1:xregNumber)] <- newxreg[1:h,];
     }
     else{
         xregNumber <- 0;
     }
-    matF <- diag(componentsNumberETS+xregNumber);
-    matF[1:componentsNumberETS,1:componentsNumberETS] <- object$transition;
+    matF <- object$transition;
 
     if(type=="analytical"){
         covarMat <- covarAnal(lagsModelAll, h, matWt[1,,drop=FALSE], matF, vecG, s2);
@@ -5626,9 +5656,15 @@ pointLik.adam <- function(object, ...){
 ##### Other methods to implement #####
 # accuracy.adam <- function(object, holdout, ...){}
 # simulate.adam <- function(object, nsim=1, seed=NULL, obs=NULL, ...){}
+#' @export
 modelType.adam <- function(object, ...){
     model <- object$model;
     modelType <- substring(model,unlist(gregexpr("\\(",model))+1,unlist(gregexpr("\\)",model))-1)[1];
     return(modelType)
+}
+
+# This is an internal function, no need to export it
+modelLags.adam <- function(object, ...){
+    return(object$lagsAll);
 }
 # orders.adam <- function(object, ...){}
