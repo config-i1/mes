@@ -1433,8 +1433,10 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         if(bounds=="usual"){
             if(arimaModel && any(c(arEstimate,maEstimate))){
                 # Extract polynomials
-                arimaPolynomials <- polynomialiser(B[sum(c(persistenceLevelEstimate, persistenceTrendEstimate,
-                                                           persistenceSeasonalEstimate, persistenceXregEstimate))+
+                arimaPolynomials <- polynomialiser(B[sum(c(persistenceLevelEstimate,
+                                                           modelIsTrendy*persistenceTrendEstimate,
+                                                           modelIsSeasonal*persistenceSeasonalEstimate,
+                                                           xregExist*persistenceXregEstimate))+
                                                          phiEstimate+1:sum(c(arOrders,maOrders))],
                                                    arOrders, iOrders, maOrders, lags);
 
@@ -1807,7 +1809,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                           componentsNumberARIMA, componentsNamesARIMA,
                           xregExist, xregModel, xregData, xregNumber, xregNames, xregDo,
                           ot, otLogical, occurrenceModel, pFitted,
-                          bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate){
+                          bounds, loss, lossFunction, distribution,
+                          horizon, multisteps, lambda, lambdaEstimate){
 
         # Create the basic variables
         adamArchitect <- architector(Etype, Ttype, Stype, lags, lagsModelSeasonal,
@@ -2022,7 +2025,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                  componentsNumberARIMA, componentsNamesARIMA,
                                  xregExist, xregModel, xregData, xregNumber, xregNames, xregDo="use",
                                  ot, otLogical, occurrenceModel, pFitted,
-                                 bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate));
+                                 bounds, loss, lossFunction, distribution,
+                                 horizon, multisteps, lambda, lambdaEstimate));
 
             }
         }
@@ -2036,18 +2040,25 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
     #### The function creates a pool of models and selects the best of them ####
     selector <- function(model, modelsPool, allowMultiplicative,
                          Etype, Ttype, Stype, damped, lags,
+                         lagsModelSeasonal, lagsModelARIMA,
                          obsStates, obsInSample,
-                         yInSample, persistence, persistenceEstimate, phi, phiEstimate,
+                         yInSample, persistence, persistenceEstimate,
+                         persistenceLevel, persistenceLevelEstimate,
+                         persistenceTrend, persistenceTrendEstimate,
+                         persistenceSeasonal, persistenceSeasonalEstimate,
+                         persistenceXreg, persistenceXregEstimate, persistenceXregProvided,
+                         phi, phiEstimate,
                          initialType, initialLevel, initialTrend, initialSeasonal,
                          initialArima, initialXreg,
                          initialEstimate,
                          initialLevelEstimate, initialTrendEstimate, initialSeasonalEstimate,
-                         initialArimaEstimate, initialXregEstimate,
-                         xregExist, initialXregProvided,
-                         xregPersistence, persistenceXregEstimate,
-                         xregModel, xregData, xregNumber, xregNames,
+                         initialArimaEstimate, initialXregEstimate, initialXregProvided,
+                         arimaModel, arRequired, iRequired, maRequired, armaParameters,
+                         componentsNumberARIMA, componentsNamesARIMA,
+                         xregExist, xregModel, xregData, xregNumber, xregNames, xregDo,
                          ot, otLogical, occurrenceModel, pFitted, ICFunction,
-                         bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate){
+                         bounds, loss, lossFunction, distribution,
+                         horizon, multisteps, lambda, lambdaEstimate){
 
         # Check if the pool was provided. In case of "no", form the big and the small ones
         if(is.null(modelsPool)){
@@ -2183,7 +2194,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                           componentsNumberARIMA, componentsNamesARIMA,
                                           xregExist, xregModel, xregData, xregNumber, xregNames, xregDo,
                                           ot, otLogical, occurrenceModel, pFitted,
-                                          bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
+                                          bounds, loss, lossFunction, distribution,
+                                          horizon, multisteps, lambda, lambdaEstimate);
                 results[[i]]$IC <- ICFunction(results[[i]]$logLikADAMValue);
                 results[[i]]$Etype <- Etype;
                 results[[i]]$Ttype <- Ttype;
@@ -2310,7 +2322,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                       componentsNumberARIMA, componentsNamesARIMA,
                                       xregExist, xregModel, xregData, xregNumber, xregNames, xregDo,
                                       ot, otLogical, occurrenceModel, pFitted,
-                                      bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
+                                      bounds, loss, lossFunction, distribution,
+                                      horizon, multisteps, lambda, lambdaEstimate);
             results[[j]]$IC <- ICFunction(results[[j]]$logLikADAMValue);
             results[[j]]$Etype <- Etype;
             results[[j]]$Ttype <- Ttype;
@@ -2685,7 +2698,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                    componentsNumberARIMA, componentsNamesARIMA,
                                    xregExist, xregModel, xregData, xregNumber, xregNames, xregDo,
                                    ot, otLogical, occurrenceModel, pFitted,
-                                   bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
+                                   bounds, loss, lossFunction, distribution,
+                                   horizon, multisteps, lambda, lambdaEstimate);
         list2env(adamEstimated, environment());
 
         #### This part is needed in order for the filler to do its job later on
@@ -2730,18 +2744,25 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
     else if(modelDo=="select"){
         adamSelected <-  selector(model, modelsPool, allowMultiplicative,
                                   Etype, Ttype, Stype, damped, lags,
+                                  lagsModelSeasonal, lagsModelARIMA,
                                   obsStates, obsInSample,
-                                  yInSample, persistence, persistenceEstimate, phi, phiEstimate,
+                                  yInSample, persistence, persistenceEstimate,
+                                  persistenceLevel, persistenceLevelEstimate,
+                                  persistenceTrend, persistenceTrendEstimate,
+                                  persistenceSeasonal, persistenceSeasonalEstimate,
+                                  persistenceXreg, persistenceXregEstimate, persistenceXregProvided,
+                                  phi, phiEstimate,
                                   initialType, initialLevel, initialTrend, initialSeasonal,
                                   initialArima, initialXreg,
                                   initialEstimate,
                                   initialLevelEstimate, initialTrendEstimate, initialSeasonalEstimate,
-                                  initialArimaEstimate, initialXregEstimate,
-                                  xregExist, initialXregProvided,
-                                  xregPersistence, persistenceXregEstimate,
-                                  xregModel, xregData, xregNumber, xregNames,
+                                  initialArimaEstimate, initialXregEstimate, initialXregProvided,
+                                  arimaModel, arRequired, iRequired, maRequired, armaParameters,
+                                  componentsNumberARIMA, componentsNamesARIMA,
+                                  xregExist, xregModel, xregData, xregNumber, xregNames, xregDo,
                                   ot, otLogical, occurrenceModel, pFitted, ICFunction,
-                                  bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
+                                  bounds, loss, lossFunction, distribution,
+                                  horizon, multisteps, lambda, lambdaEstimate);
 
         icSelection <- adamSelected$icSelection;
         # Take the parameters of the best model
@@ -2836,18 +2857,25 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
         adamSelected <-  selector(model, modelsPool, allowMultiplicative,
                                   Etype, Ttype, Stype, damped, lags,
+                                  lagsModelSeasonal, lagsModelARIMA,
                                   obsStates, obsInSample,
-                                  yInSample, persistence, persistenceEstimate, phi, phiEstimate,
+                                  yInSample, persistence, persistenceEstimate,
+                                  persistenceLevel, persistenceLevelEstimate,
+                                  persistenceTrend, persistenceTrendEstimate,
+                                  persistenceSeasonal, persistenceSeasonalEstimate,
+                                  persistenceXreg, persistenceXregEstimate, persistenceXregProvided,
+                                  phi, phiEstimate,
                                   initialType, initialLevel, initialTrend, initialSeasonal,
                                   initialArima, initialXreg,
                                   initialEstimate,
                                   initialLevelEstimate, initialTrendEstimate, initialSeasonalEstimate,
-                                  initialArimaEstimate, initialXregEstimate,
-                                  xregExist, initialXregProvided,
-                                  xregPersistence, persistenceXregEstimate,
-                                  xregModel, xregData, xregNumber, xregNames,
+                                  initialArimaEstimate, initialXregEstimate, initialXregProvided,
+                                  arimaModel, arRequired, iRequired, maRequired, armaParameters,
+                                  componentsNumberARIMA, componentsNamesARIMA,
+                                  xregExist, xregModel, xregData, xregNumber, xregNames, xregDo,
                                   ot, otLogical, occurrenceModel, pFitted, ICFunction,
-                                  bounds, loss, distribution, horizon, multisteps, lambda, lambdaEstimate);
+                                  bounds, loss, lossFunction, distribution,
+                                  horizon, multisteps, lambda, lambdaEstimate);
 
         icSelection <- adamSelected$icSelection;
 
