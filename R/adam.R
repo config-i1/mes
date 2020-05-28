@@ -3280,6 +3280,24 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             if(componentsNumberETSSeasonal>1){
                 modelName <- paste0(modelName,"[",paste0(lags[lags!=1], collapse=", "),"]");
             }
+            if(arimaModel){
+                # Either the lags are non-seasonal, or there are no orders for seasonal lags
+                if(all(lags==1) || (all(arOrders[lags>1]==0) && all(iOrders[lags>1]==0) && all(maOrders[lags>1]==0))){
+                    modelName <- paste0(modelName,"+ARIMA(",arOrders[1],",",iOrders[1],",",maOrders[1],")");
+                }
+                else{
+                    modelName <- paste0(modelName,"+SARIMA");
+                    for(i in 1:length(arOrders)){
+                        if(all(arOrders[i]==0) && all(iOrders[i]==0) && all(maOrders[i]==0)){
+                            next;
+                        }
+                        modelName <- paste0(modelName,"(",arOrders[i],",");
+                        modelName <- paste0(modelName,iOrders[i],",");
+                        modelName <- paste0(modelName,maOrders[i],")[",lags[i],"]");
+                    }
+                }
+            }
+
             modelReturned$models[[i]]$model <- modelName;
             modelReturned$models[[i]]$timeElapsed <- Sys.time()-startTime;
             parametersNumberOverall[1,1] <- parametersNumber[1,1] + parametersNumber[1,1] * adamSelected$icWeights[i];
@@ -3310,6 +3328,23 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         }
         if(componentsNumberETSSeasonal>1){
             modelName <- paste0(modelName,"[",paste0(lags[lags!=1], collapse=", "),"]");
+        }
+        if(arimaModel){
+            # Either the lags are non-seasonal, or there are no orders for seasonal lags
+            if(all(lags==1) || (all(arOrders[lags>1]==0) && all(iOrders[lags>1]==0) && all(maOrders[lags>1]==0))){
+                modelName <- paste0(modelName,"+ARIMA(",arOrders[1],",",iOrders[1],",",maOrders[1],")");
+            }
+            else{
+                modelName <- paste0(modelName,"+SARIMA");
+                for(i in 1:length(arOrders)){
+                    if(all(arOrders[i]==0) && all(iOrders[i]==0) && all(maOrders[i]==0)){
+                        next;
+                    }
+                    modelName <- paste0(modelName,"(",arOrders[i],",");
+                    modelName <- paste0(modelName,iOrders[i],",");
+                    modelName <- paste0(modelName,maOrders[i],")[",lags[i],"]");
+                }
+            }
         }
         modelReturned$model <- modelName;
         modelReturned$timeElapsed <- Sys.time()-startTime;
