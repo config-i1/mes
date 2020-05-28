@@ -3184,34 +3184,34 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                     arEstimate, maEstimate, armaParameters);
 
         # Prepare the name of the model
+        modelName <- "";
         if(xregExist){
-            modelName <- "ETSX";
+            modelName[] <- "ETSX";
         }
         else{
-            modelName <- "ETS";
+            modelName[] <- "ETS";
         }
-        modelName <- paste0(modelName,"(",model,")");
+        modelName[] <- paste0(modelName,"(",model,")");
         if(all(occurrence!=c("n","none"))){
-            modelName <- paste0("i",modelName);
+            modelName[] <- paste0("i",modelName);
         }
         if(componentsNumberETSSeasonal>1){
-            modelName <- paste0(modelName,"[",paste0(lags[lags!=1], collapse=", "),"]");
+            modelName[] <- paste0(modelName,"[",paste0(lags[lags!=1], collapse=", "),"]");
         }
-
         if(arimaModel){
             # Either the lags are non-seasonal, or there are no orders for seasonal lags
             if(all(lags==1) || (all(arOrders[lags>1]==0) && all(iOrders[lags>1]==0) && all(maOrders[lags>1]==0))){
-                modelName <- paste0(modelName,"+ARIMA(",arOrders[1],",",iOrders[1],",",maOrders[1],")");
+                modelName[] <- paste0(modelName,"+ARIMA(",arOrders[1],",",iOrders[1],",",maOrders[1],")");
             }
             else{
-                modelName <- paste0(modelName,"+SARIMA");
+                modelName[] <- paste0(modelName,"+SARIMA");
                 for(i in 1:length(arOrders)){
                     if(all(arOrders[i]==0) && all(iOrders[i]==0) && all(maOrders[i]==0)){
                         next;
                     }
-                    modelName <- paste0(modelName,"(",arOrders[i],",");
-                    modelName <- paste0(modelName,iOrders[i],",");
-                    modelName <- paste0(modelName,maOrders[i],")[",lags[i],"]");
+                    modelName[] <- paste0(modelName,"(",arOrders[i],",");
+                    modelName[] <- paste0(modelName,iOrders[i],",");
+                    modelName[] <- paste0(modelName,maOrders[i],")[",lags[i],"]");
                 }
             }
         }
@@ -3267,33 +3267,34 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             }
 
             # Prepare the name of the model
+            modelName <- "";
             if(xregExist){
-                modelName <- "ETSX";
+                modelName[] <- "ETSX";
             }
             else{
-                modelName <- "ETS";
+                modelName[] <- "ETS";
             }
-            modelName <- paste0(modelName,"(",model,")");
+            modelName[] <- paste0(modelName,"(",model,")");
             if(all(occurrence!=c("n","none"))){
-                modelName <- paste0("i",modelName);
+                modelName[] <- paste0("i",modelName);
             }
             if(componentsNumberETSSeasonal>1){
-                modelName <- paste0(modelName,"[",paste0(lags[lags!=1], collapse=", "),"]");
+                modelName[] <- paste0(modelName,"[",paste0(lags[lags!=1], collapse=", "),"]");
             }
             if(arimaModel){
                 # Either the lags are non-seasonal, or there are no orders for seasonal lags
                 if(all(lags==1) || (all(arOrders[lags>1]==0) && all(iOrders[lags>1]==0) && all(maOrders[lags>1]==0))){
-                    modelName <- paste0(modelName,"+ARIMA(",arOrders[1],",",iOrders[1],",",maOrders[1],")");
+                    modelName[] <- paste0(modelName,"+ARIMA(",arOrders[1],",",iOrders[1],",",maOrders[1],")");
                 }
                 else{
-                    modelName <- paste0(modelName,"+SARIMA");
+                    modelName[] <- paste0(modelName,"+SARIMA");
                     for(i in 1:length(arOrders)){
                         if(all(arOrders[i]==0) && all(iOrders[i]==0) && all(maOrders[i]==0)){
                             next;
                         }
-                        modelName <- paste0(modelName,"(",arOrders[i],",");
-                        modelName <- paste0(modelName,iOrders[i],",");
-                        modelName <- paste0(modelName,maOrders[i],")[",lags[i],"]");
+                        modelName[] <- paste0(modelName,"(",arOrders[i],",");
+                        modelName[] <- paste0(modelName,iOrders[i],",");
+                        modelName[] <- paste0(modelName,maOrders[i],")[",lags[i],"]");
                     }
                 }
             }
@@ -3316,33 +3317,34 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         # Record the original name of the model.
         model[] <- modelOriginal;
         # Prepare the name of the model
+        modelName <- "";
         if(xregExist){
-            modelName <- "ETSX";
+            modelName[] <- "ETSX";
         }
         else{
-            modelName <- "ETS";
+            modelName[] <- "ETS";
         }
-        modelName <- paste0(modelName,"(",model,")");
+        modelName[] <- paste0(modelName,"(",model,")");
         if(all(occurrence!=c("n","none"))){
-            modelName <- paste0("i",modelName);
+            modelName[] <- paste0("i",modelName);
         }
         if(componentsNumberETSSeasonal>1){
-            modelName <- paste0(modelName,"[",paste0(lags[lags!=1], collapse=", "),"]");
+            modelName[] <- paste0(modelName,"[",paste0(lags[lags!=1], collapse=", "),"]");
         }
         if(arimaModel){
             # Either the lags are non-seasonal, or there are no orders for seasonal lags
             if(all(lags==1) || (all(arOrders[lags>1]==0) && all(iOrders[lags>1]==0) && all(maOrders[lags>1]==0))){
-                modelName <- paste0(modelName,"+ARIMA(",arOrders[1],",",iOrders[1],",",maOrders[1],")");
+                modelName[] <- paste0(modelName,"+ARIMA(",arOrders[1],",",iOrders[1],",",maOrders[1],")");
             }
             else{
-                modelName <- paste0(modelName,"+SARIMA");
+                modelName[] <- paste0(modelName,"+SARIMA");
                 for(i in 1:length(arOrders)){
                     if(all(arOrders[i]==0) && all(iOrders[i]==0) && all(maOrders[i]==0)){
                         next;
                     }
-                    modelName <- paste0(modelName,"(",arOrders[i],",");
-                    modelName <- paste0(modelName,iOrders[i],",");
-                    modelName <- paste0(modelName,maOrders[i],")[",lags[i],"]");
+                    modelName[] <- paste0(modelName,"(",arOrders[i],",");
+                    modelName[] <- paste0(modelName,iOrders[i],",");
+                    modelName[] <- paste0(modelName,maOrders[i],")[",lags[i],"]");
                 }
             }
         }
