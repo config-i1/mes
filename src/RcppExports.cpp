@@ -19,8 +19,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // adamFitterWrap
-RcppExport SEXP adamFitterWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP vecG, SEXP lagsModelAll, SEXP Etype, SEXP Ttype, SEXP Stype, SEXP componentsNumber, SEXP componentsNumberSeasonal, SEXP yInSample, SEXP ot, SEXP backcasting);
-RcppExport SEXP _mes_adamFitterWrap(SEXP matVtSEXP, SEXP matWtSEXP, SEXP matFSEXP, SEXP vecGSEXP, SEXP lagsModelAllSEXP, SEXP EtypeSEXP, SEXP TtypeSEXP, SEXP StypeSEXP, SEXP componentsNumberSEXP, SEXP componentsNumberSeasonalSEXP, SEXP yInSampleSEXP, SEXP otSEXP, SEXP backcastingSEXP) {
+RcppExport SEXP adamFitterWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP vecG, SEXP lagsModelAll, SEXP Etype, SEXP Ttype, SEXP Stype, SEXP componentsNumberETS, SEXP componentsNumberETSSeasonal, SEXP componentsNumberArima, SEXP xregNumber, SEXP yInSample, SEXP ot, SEXP backcasting);
+RcppExport SEXP _mes_adamFitterWrap(SEXP matVtSEXP, SEXP matWtSEXP, SEXP matFSEXP, SEXP vecGSEXP, SEXP lagsModelAllSEXP, SEXP EtypeSEXP, SEXP TtypeSEXP, SEXP StypeSEXP, SEXP componentsNumberETSSEXP, SEXP componentsNumberETSSeasonalSEXP, SEXP componentsNumberArimaSEXP, SEXP xregNumberSEXP, SEXP yInSampleSEXP, SEXP otSEXP, SEXP backcastingSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -32,18 +32,20 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< SEXP >::type Etype(EtypeSEXP);
     Rcpp::traits::input_parameter< SEXP >::type Ttype(TtypeSEXP);
     Rcpp::traits::input_parameter< SEXP >::type Stype(StypeSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type componentsNumber(componentsNumberSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type componentsNumberSeasonal(componentsNumberSeasonalSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type componentsNumberETS(componentsNumberETSSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type componentsNumberETSSeasonal(componentsNumberETSSeasonalSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type componentsNumberArima(componentsNumberArimaSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type xregNumber(xregNumberSEXP);
     Rcpp::traits::input_parameter< SEXP >::type yInSample(yInSampleSEXP);
     Rcpp::traits::input_parameter< SEXP >::type ot(otSEXP);
     Rcpp::traits::input_parameter< SEXP >::type backcasting(backcastingSEXP);
-    rcpp_result_gen = Rcpp::wrap(adamFitterWrap(matVt, matWt, matF, vecG, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, yInSample, ot, backcasting));
+    rcpp_result_gen = Rcpp::wrap(adamFitterWrap(matVt, matWt, matF, vecG, lagsModelAll, Etype, Ttype, Stype, componentsNumberETS, componentsNumberETSSeasonal, componentsNumberArima, xregNumber, yInSample, ot, backcasting));
     return rcpp_result_gen;
 END_RCPP
 }
 // adamForecasterWrap
-RcppExport SEXP adamForecasterWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP lagsModelAll, SEXP Etype, SEXP Ttype, SEXP Stype, SEXP componentsNumber, SEXP componentsNumberSeasonal, SEXP h);
-RcppExport SEXP _mes_adamForecasterWrap(SEXP matVtSEXP, SEXP matWtSEXP, SEXP matFSEXP, SEXP lagsModelAllSEXP, SEXP EtypeSEXP, SEXP TtypeSEXP, SEXP StypeSEXP, SEXP componentsNumberSEXP, SEXP componentsNumberSeasonalSEXP, SEXP hSEXP) {
+RcppExport SEXP adamForecasterWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP lagsModelAll, SEXP Etype, SEXP Ttype, SEXP Stype, SEXP componentsNumberETS, SEXP componentsNumberETSSeasonal, SEXP componentsNumberArima, SEXP xregNumber, SEXP h);
+RcppExport SEXP _mes_adamForecasterWrap(SEXP matVtSEXP, SEXP matWtSEXP, SEXP matFSEXP, SEXP lagsModelAllSEXP, SEXP EtypeSEXP, SEXP TtypeSEXP, SEXP StypeSEXP, SEXP componentsNumberETSSEXP, SEXP componentsNumberETSSeasonalSEXP, SEXP componentsNumberArimaSEXP, SEXP xregNumberSEXP, SEXP hSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -54,16 +56,18 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< SEXP >::type Etype(EtypeSEXP);
     Rcpp::traits::input_parameter< SEXP >::type Ttype(TtypeSEXP);
     Rcpp::traits::input_parameter< SEXP >::type Stype(StypeSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type componentsNumber(componentsNumberSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type componentsNumberSeasonal(componentsNumberSeasonalSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type componentsNumberETS(componentsNumberETSSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type componentsNumberETSSeasonal(componentsNumberETSSeasonalSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type componentsNumberArima(componentsNumberArimaSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type xregNumber(xregNumberSEXP);
     Rcpp::traits::input_parameter< SEXP >::type h(hSEXP);
-    rcpp_result_gen = Rcpp::wrap(adamForecasterWrap(matVt, matWt, matF, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, h));
+    rcpp_result_gen = Rcpp::wrap(adamForecasterWrap(matVt, matWt, matF, lagsModelAll, Etype, Ttype, Stype, componentsNumberETS, componentsNumberETSSeasonal, componentsNumberArima, xregNumber, h));
     return rcpp_result_gen;
 END_RCPP
 }
 // adamErrorerWrap
-RcppExport SEXP adamErrorerWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP lagsModelAll, SEXP Etype, SEXP Ttype, SEXP Stype, SEXP componentsNumber, SEXP componentsNumberSeasonal, SEXP h, SEXP yInSample, SEXP ot);
-RcppExport SEXP _mes_adamErrorerWrap(SEXP matVtSEXP, SEXP matWtSEXP, SEXP matFSEXP, SEXP lagsModelAllSEXP, SEXP EtypeSEXP, SEXP TtypeSEXP, SEXP StypeSEXP, SEXP componentsNumberSEXP, SEXP componentsNumberSeasonalSEXP, SEXP hSEXP, SEXP yInSampleSEXP, SEXP otSEXP) {
+RcppExport SEXP adamErrorerWrap(SEXP matVt, SEXP matWt, SEXP matF, SEXP lagsModelAll, SEXP Etype, SEXP Ttype, SEXP Stype, SEXP componentsNumberETS, SEXP componentsNumberETSSeasonal, SEXP componentsNumberArima, SEXP xregNumber, SEXP h, SEXP yInSample, SEXP ot);
+RcppExport SEXP _mes_adamErrorerWrap(SEXP matVtSEXP, SEXP matWtSEXP, SEXP matFSEXP, SEXP lagsModelAllSEXP, SEXP EtypeSEXP, SEXP TtypeSEXP, SEXP StypeSEXP, SEXP componentsNumberETSSEXP, SEXP componentsNumberETSSeasonalSEXP, SEXP componentsNumberArimaSEXP, SEXP xregNumberSEXP, SEXP hSEXP, SEXP yInSampleSEXP, SEXP otSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -74,18 +78,20 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< SEXP >::type Etype(EtypeSEXP);
     Rcpp::traits::input_parameter< SEXP >::type Ttype(TtypeSEXP);
     Rcpp::traits::input_parameter< SEXP >::type Stype(StypeSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type componentsNumber(componentsNumberSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type componentsNumberSeasonal(componentsNumberSeasonalSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type componentsNumberETS(componentsNumberETSSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type componentsNumberETSSeasonal(componentsNumberETSSeasonalSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type componentsNumberArima(componentsNumberArimaSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type xregNumber(xregNumberSEXP);
     Rcpp::traits::input_parameter< SEXP >::type h(hSEXP);
     Rcpp::traits::input_parameter< SEXP >::type yInSample(yInSampleSEXP);
     Rcpp::traits::input_parameter< SEXP >::type ot(otSEXP);
-    rcpp_result_gen = Rcpp::wrap(adamErrorerWrap(matVt, matWt, matF, lagsModelAll, Etype, Ttype, Stype, componentsNumber, componentsNumberSeasonal, h, yInSample, ot));
+    rcpp_result_gen = Rcpp::wrap(adamErrorerWrap(matVt, matWt, matF, lagsModelAll, Etype, Ttype, Stype, componentsNumberETS, componentsNumberETSSeasonal, componentsNumberArima, xregNumber, h, yInSample, ot));
     return rcpp_result_gen;
 END_RCPP
 }
 // adamSimulatorwrap
-RcppExport SEXP adamSimulatorwrap(SEXP arrVt, SEXP matErrors, SEXP matOt, SEXP matF, SEXP matWt, SEXP matG, SEXP Etype, SEXP Ttype, SEXP Stype, SEXP lagsModelAll, SEXP componentsNumberSeasonal, SEXP componentsNumber);
-RcppExport SEXP _mes_adamSimulatorwrap(SEXP arrVtSEXP, SEXP matErrorsSEXP, SEXP matOtSEXP, SEXP matFSEXP, SEXP matWtSEXP, SEXP matGSEXP, SEXP EtypeSEXP, SEXP TtypeSEXP, SEXP StypeSEXP, SEXP lagsModelAllSEXP, SEXP componentsNumberSeasonalSEXP, SEXP componentsNumberSEXP) {
+RcppExport SEXP adamSimulatorwrap(SEXP arrVt, SEXP matErrors, SEXP matOt, SEXP matF, SEXP matWt, SEXP matG, SEXP Etype, SEXP Ttype, SEXP Stype, SEXP lagsModelAll, SEXP componentsNumberSeasonal, SEXP componentsNumber, SEXP componentsNumberArima, SEXP xregNumber);
+RcppExport SEXP _mes_adamSimulatorwrap(SEXP arrVtSEXP, SEXP matErrorsSEXP, SEXP matOtSEXP, SEXP matFSEXP, SEXP matWtSEXP, SEXP matGSEXP, SEXP EtypeSEXP, SEXP TtypeSEXP, SEXP StypeSEXP, SEXP lagsModelAllSEXP, SEXP componentsNumberSeasonalSEXP, SEXP componentsNumberSEXP, SEXP componentsNumberArimaSEXP, SEXP xregNumberSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -101,17 +107,19 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< SEXP >::type lagsModelAll(lagsModelAllSEXP);
     Rcpp::traits::input_parameter< SEXP >::type componentsNumberSeasonal(componentsNumberSeasonalSEXP);
     Rcpp::traits::input_parameter< SEXP >::type componentsNumber(componentsNumberSEXP);
-    rcpp_result_gen = Rcpp::wrap(adamSimulatorwrap(arrVt, matErrors, matOt, matF, matWt, matG, Etype, Ttype, Stype, lagsModelAll, componentsNumberSeasonal, componentsNumber));
+    Rcpp::traits::input_parameter< SEXP >::type componentsNumberArima(componentsNumberArimaSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type xregNumber(xregNumberSEXP);
+    rcpp_result_gen = Rcpp::wrap(adamSimulatorwrap(arrVt, matErrors, matOt, matF, matWt, matG, Etype, Ttype, Stype, lagsModelAll, componentsNumberSeasonal, componentsNumber, componentsNumberArima, xregNumber));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
     {"_mes_matrixPowerWrap", (DL_FUNC) &_mes_matrixPowerWrap, 2},
-    {"_mes_adamFitterWrap", (DL_FUNC) &_mes_adamFitterWrap, 13},
-    {"_mes_adamForecasterWrap", (DL_FUNC) &_mes_adamForecasterWrap, 10},
-    {"_mes_adamErrorerWrap", (DL_FUNC) &_mes_adamErrorerWrap, 12},
-    {"_mes_adamSimulatorwrap", (DL_FUNC) &_mes_adamSimulatorwrap, 12},
+    {"_mes_adamFitterWrap", (DL_FUNC) &_mes_adamFitterWrap, 15},
+    {"_mes_adamForecasterWrap", (DL_FUNC) &_mes_adamForecasterWrap, 12},
+    {"_mes_adamErrorerWrap", (DL_FUNC) &_mes_adamErrorerWrap, 14},
+    {"_mes_adamSimulatorwrap", (DL_FUNC) &_mes_adamSimulatorwrap, 14},
     {NULL, NULL, 0}
 };
 
