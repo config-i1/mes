@@ -282,29 +282,44 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         }
     }
 
-    modelIsTrendy <- (Ttype!="N");
-
     #### Check the components of model ####
-    componentsNamesETS <- "level";
-    componentsNumberETS <- 1;
     ### Check error type
-    if(all(Etype!=c("Z","X","Y","A","M","C"))){
-        warning(paste0("Wrong error type: ",Etype,". Should be 'Z', 'X', 'Y', 'A' or 'M'. ",
+    if(all(Etype!=c("Z","X","Y","A","M","C","N"))){
+        warning(paste0("Wrong error type: ",Etype,". Should be 'Z', 'X', 'Y', 'C', 'A', 'M' or 'N'. ",
                        "Changing to 'Z'"),call.=FALSE);
         Etype <- "Z";
         modelDo <- "select";
     }
-
-    ### Check trend type
-    if(all(Ttype!=c("Z","X","Y","N","A","M","C"))){
-        warning(paste0("Wrong trend type: ",Ttype,". Should be 'Z', 'X', 'Y', 'N', 'A' or 'M'. ",
-                       "Changing to 'Z'"),call.=FALSE);
-        Ttype <- "Z";
-        modelDo <- "select";
+    # If the error is "N", then switch off the ETS model
+    if(Etype=="N"){
+        componentsNamesETS <- NULL;
+        componentsNumberETS <- 0;
+        Ttype[] <- "N";
+        damped[] <- FALSE;
+        Stype[] <- "N";
+        modelDo[] <- "estimate";
+        modelsPool[] <- NULL;
+        etsModel <- FALSE;
     }
-    if(modelIsTrendy){
-        componentsNamesETS <- c(componentsNamesETS,"trend");
-        componentsNumberETS[] <- componentsNumberETS+1;
+    else{
+        componentsNamesETS <- "level";
+        componentsNumberETS <- 1;
+        etsModel <- TRUE;
+    }
+
+    if(etsModel){
+        ### Check trend type
+        if(all(Ttype!=c("Z","X","Y","N","A","M","C"))){
+            warning(paste0("Wrong trend type: ",Ttype,". Should be 'Z', 'X', 'Y', 'C' 'N', 'A', or 'M'. ",
+                           "Changing to 'Z'"),call.=FALSE);
+            Ttype <- "Z";
+            modelDo <- "select";
+        }
+        modelIsTrendy <- (Ttype!="N");
+        if(modelIsTrendy){
+            componentsNamesETS <- c(componentsNamesETS,"trend");
+            componentsNumberETS[] <- componentsNumberETS+1;
+        }
     }
 
     #### Check the lags vector ####
@@ -443,7 +458,12 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         nonZeroMA <- NULL;
     }
 
-    modelIsSeasonal <- Stype!="N";
+    if(etsModel){
+        modelIsSeasonal <- Stype!="N";
+    }
+    else{
+        modelIsSeasonal <- FALSE;
+    }
 
     # Lags of the model used inside the functions
     lagsModel <- matrix(lags,ncol=1);
@@ -467,59 +487,65 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     lagsModelMax <- max(lagsModel);
     lagsLength <- length(lagsModel);
 
-    #### Check the seasonal model vs lags ####
-    if(all(Stype!=c("Z","X","Y","N","A","M","C"))){
-        warning(paste0("Wrong seasonality type: ",Stype,". Should be 'Z', 'X', 'Y', 'C', 'N', 'A' or 'M'. ",
-                       "Setting to 'Z'."),call.=FALSE);
-        if(lagsModelMax==1){
+    if(etsModel){
+        #### Check the seasonal model vs lags ####
+        if(all(Stype!=c("Z","X","Y","N","A","M","C"))){
+            warning(paste0("Wrong seasonality type: ",Stype,". Should be 'Z', 'X', 'Y', 'C', 'N', 'A' or 'M'. ",
+                           "Setting to 'Z'."),call.=FALSE);
+            if(lagsModelMax==1){
+                Stype <- "N";
+                modelIsSeasonal <- FALSE;
+            }
+            else{
+                Stype <- "Z";
+                modelDo <- "select";
+            }
+        }
+        if(all(modelIsSeasonal,lagsModelMax==1)){
+            if(all(Stype!=c("Z","X","Y"))){
+                warning(paste0("Cannot build the seasonal model on data with the unity lags.\n",
+                               "Switching to non-seasonal model: ETS(",substr(model,1,nchar(model)-1),"N)"));
+            }
             Stype <- "N";
             modelIsSeasonal <- FALSE;
+            substr(model,nchar(model),nchar(model)) <- "N";
+        }
+
+        # Check the pool of models to combine if it was decided that the data is not seasonal
+        if(!modelIsSeasonal && !is.null(modelsPool)){
+            modelsPool <- modelsPool[substr(modelsPool,nchar(modelsPool),nchar(modelsPool))=="N"];
+        }
+
+        # Check the type of seasonal
+        if(Stype!="N"){
+            componentsNamesETS <- c(componentsNamesETS,"seasonal");
+            componentsNumberETS[] <- componentsNumberETS+1;
+            componentsNumberETSSeasonal <- 1;
         }
         else{
-            Stype <- "Z";
-            modelDo <- "select";
+            componentsNumberETSSeasonal <- 0;
         }
-    }
-    if(all(modelIsSeasonal,lagsModelMax==1)){
-        if(all(Stype!=c("Z","X","Y"))){
-            warning(paste0("Cannot build the seasonal model on data with the unity lags.\n",
-                           "Switching to non-seasonal model: ETS(",substr(model,1,nchar(model)-1),"N)"));
+
+        # Check, whether the number of lags and the number of components are the same
+        if(lagsLength>componentsNumberETS){
+            if(Stype!="N"){
+                componentsNamesETS <- c(componentsNamesETS[-length(componentsNamesETS)],
+                                        paste0("seasonal",c(1:(lagsLength-componentsNumberETS-1))));
+                componentsNumberETSSeasonal[] <- lagsLength-componentsNumberETS+1;
+                componentsNumberETS[] <- lagsLength;
+            }
+            else{
+                lagsModel <- lagsModel[1:componentsNumberETS,,drop=FALSE];
+                lagsModelMax <- max(lagsModel);
+                lagsLength <- length(lagsModel);
+            }
         }
-        Stype <- "N";
-        modelIsSeasonal <- FALSE;
-        substr(model,nchar(model),nchar(model)) <- "N";
-    }
-
-    # Check the pool of models to combine if it was decided that the data is not seasonal
-    if(!modelIsSeasonal && !is.null(modelsPool)){
-        modelsPool <- modelsPool[substr(modelsPool,nchar(modelsPool),nchar(modelsPool))=="N"];
-    }
-
-    # Check the type of seasonal
-    if(Stype!="N"){
-        componentsNamesETS <- c(componentsNamesETS,"seasonal");
-        componentsNumberETS[] <- componentsNumberETS+1;
-        componentsNumberETSSeasonal <- 1;
+        else if(lagsLength<componentsNumberETS){
+            stop("The number of components of the model is smaller than the number of provided lags", call.=FALSE);
+        }
     }
     else{
         componentsNumberETSSeasonal <- 0;
-    }
-
-    # Check, whether the number of lags and the number of components are the same
-    if(lagsLength>componentsNumberETS){
-        if(Stype!="N"){
-            componentsNamesETS <- c(componentsNamesETS[-length(componentsNamesETS)],paste0("seasonal",c(1:(lagsLength-componentsNumberETS-1))));
-            componentsNumberETSSeasonal[] <- lagsLength-componentsNumberETS+1;
-            componentsNumberETS[] <- lagsLength;
-        }
-        else{
-            lagsModel <- lagsModel[1:componentsNumberETS,,drop=FALSE];
-            lagsModelMax <- max(lagsModel);
-            lagsLength <- length(lagsModel);
-        }
-    }
-    else if(lagsLength<componentsNumberETS){
-        stop("The number of components of the model is smaller than the number of provided lags", call.=FALSE);
     }
 
     if(!fast){
@@ -699,11 +725,11 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     }
 
    # Make sure that only important elements are estimated.
-    if(Ttype=="N"){
+    if(!etsModel || Ttype=="N"){
         persistenceTrendEstimate[] <- FALSE;
         persistenceTrend <- NULL;
     }
-    if(Stype=="N"){
+    if(!etsModel || Stype=="N"){
         persistenceSeasonalEstimate[] <- FALSE;
         persistenceSeasonal <- NULL;
     }
@@ -717,35 +743,41 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                                  persistenceSeasonalEstimate,persistenceXregEstimate));
 
     #### Phi ####
-    if(!is.null(phi)){
-        if(!is.numeric(phi) & (damped)){
-            warning(paste0("Provided value of phi is meaningless. phi will be estimated."),
-                    call.=FALSE);
-            phi <- 0.95;
-            phiEstimate <- TRUE;
-        }
-        else if(is.numeric(phi) & (phi<0 | phi>2)){
-            warning(paste0("Damping parameter should lie in (0, 2) region. ",
-                           "Changing to the estimation of phi."),call.=FALSE);
-            phi[] <- 0.95;
-            phiEstimate <- TRUE;
+    if(etsModel){
+        if(!is.null(phi)){
+            if(!is.numeric(phi) & (damped)){
+                warning(paste0("Provided value of phi is meaningless. phi will be estimated."),
+                        call.=FALSE);
+                phi <- 0.95;
+                phiEstimate <- TRUE;
+            }
+            else if(is.numeric(phi) & (phi<0 | phi>2)){
+                warning(paste0("Damping parameter should lie in (0, 2) region. ",
+                               "Changing to the estimation of phi."),call.=FALSE);
+                phi[] <- 0.95;
+                phiEstimate <- TRUE;
+            }
+            else{
+                phiEstimate <- FALSE;
+                if(damped){
+                    parametersNumber[2,1] <- parametersNumber[2,1] + 1;
+                }
+            }
         }
         else{
-            phiEstimate <- FALSE;
             if(damped){
-                parametersNumber[2,1] <- parametersNumber[2,1] + 1;
+                phiEstimate <- TRUE;
+                phi <- 0.95;
+            }
+            else{
+                phiEstimate <- FALSE;
+                phi <- 1;
             }
         }
     }
     else{
-        if(damped){
-            phiEstimate <- TRUE;
-            phi <- 0.95;
-        }
-        else{
-            phiEstimate <- FALSE;
-            phi <- 1;
-        }
+        phi <- 1;
+        phiEstimate <- FALSE;
     }
 
 
@@ -1005,68 +1037,75 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     }
 
     #### Check the provided initials and define initialEstimate variables ####
-    # Level
-    if(!is.null(initialLevel)){
-        if(length(initialLevel)>1){
-            warning("Initial level contains more than one value! Using the first one.",
-                    call.=FALSE);
-            initialLevel <- initialLevel[1];
-        }
-        initialLevelEstimate[] <- FALSE;
-        parametersNumber[2,1] <- parametersNumber[2,1] + 1;
-    }
-    # Trend
-    if(!is.null(initialTrend)){
-        if(length(initialTrend)>1){
-            warning("Initial trend contains more than one value! Using the first one.",
-                    call.=FALSE);
-            initialTrend <- initialTrend[1];
-        }
-        initialTrendEstimate[] <- FALSE;
-        parametersNumber[2,1] <- parametersNumber[2,1] + 1;
-    }
-    # Seasonal
-    if(!is.null(initialSeasonal)){
-        # The list means several seasonal lags
-        if(is.list(initialSeasonal)){
-            # Is the number of seasonal initials correct? If it is bigger, then remove redundant
-            if(length(initialSeasonal)>componentsNumberETSSeasonal){
-                warning("Initial seasonals contained more elements than needed! Removing redundant ones.",
+    if(etsModel){
+        # Level
+        if(!is.null(initialLevel)){
+            if(length(initialLevel)>1){
+                warning("Initial level contains more than one value! Using the first one.",
                         call.=FALSE);
-                initialSeasonal <- initialSeasonal[1:componentsNumberETSSeasonal];
+                initialLevel <- initialLevel[1];
             }
-            # Is the number of initials in each season correct? Use the correct ones only
-            if(any(!(sapply(initialSeasonal,length) %in% lagsModelSeasonal))){
-                warning(paste0("Some of initial seasonals have a wrong length, ",
-                               "not corresponding to the provided lags. We will estimate them."),
-                        call.=FALSE);
-                initialSeasonalToUse <- sapply(initialSeasonal,length) %in% lagsModelSeasonal;
-                initialSeasonal <- initialSeasonal[initialSeasonalToUse];
-            }
-            initialSeasonalEstimate[] <- !(lagsModelSeasonal %in% sapply(initialSeasonal,length));
-            # If there are some gaps in what to estimate, reform initialSeason to make sense in the future creator function
-            if(!all(initialSeasonalEstimate) && !all(!initialSeasonalEstimate)){
-                initialSeasonalCorrect <- vector("list",componentsNumberETSSeasonal);
-                initialSeasonalCorrect[which(!initialSeasonalEstimate)] <- initialSeasonal;
-                initialSeasonal <- initialSeasonalCorrect;
-            }
+            initialLevelEstimate[] <- FALSE;
+            parametersNumber[2,1] <- parametersNumber[2,1] + 1;
         }
-        # The vector implies only one seasonal
-        else{
-            if(all(length(initialSeasonal)!=lagsModelSeasonal)){
-                warning(paste0("Wrong length of seasonal initial: ",length(initialSeasonal),
-                               "Instead of ",lagsModelSeasonal,". Switching to estimation."),
-                        call.=FALSE)
-                initialSeasonalEstimate[] <- TRUE;
+        # Trend
+        if(!is.null(initialTrend)){
+            if(length(initialTrend)>1){
+                warning("Initial trend contains more than one value! Using the first one.",
+                        call.=FALSE);
+                initialTrend <- initialTrend[1];
             }
+            initialTrendEstimate[] <- FALSE;
+            parametersNumber[2,1] <- parametersNumber[2,1] + 1;
+        }
+        # Seasonal
+        if(!is.null(initialSeasonal)){
+            # The list means several seasonal lags
+            if(is.list(initialSeasonal)){
+                # Is the number of seasonal initials correct? If it is bigger, then remove redundant
+                if(length(initialSeasonal)>componentsNumberETSSeasonal){
+                    warning("Initial seasonals contained more elements than needed! Removing redundant ones.",
+                            call.=FALSE);
+                    initialSeasonal <- initialSeasonal[1:componentsNumberETSSeasonal];
+                }
+                # Is the number of initials in each season correct? Use the correct ones only
+                if(any(!(sapply(initialSeasonal,length) %in% lagsModelSeasonal))){
+                    warning(paste0("Some of initial seasonals have a wrong length, ",
+                                   "not corresponding to the provided lags. We will estimate them."),
+                            call.=FALSE);
+                    initialSeasonalToUse <- sapply(initialSeasonal,length) %in% lagsModelSeasonal;
+                    initialSeasonal <- initialSeasonal[initialSeasonalToUse];
+                }
+                initialSeasonalEstimate[] <- !(lagsModelSeasonal %in% sapply(initialSeasonal,length));
+                # If there are some gaps in what to estimate, reform initialSeason to make sense in the future creator function
+                if(!all(initialSeasonalEstimate) && !all(!initialSeasonalEstimate)){
+                    initialSeasonalCorrect <- vector("list",componentsNumberETSSeasonal);
+                    initialSeasonalCorrect[which(!initialSeasonalEstimate)] <- initialSeasonal;
+                    initialSeasonal <- initialSeasonalCorrect;
+                }
+            }
+            # The vector implies only one seasonal
             else{
-                initialSeasonalEstimate[] <- FALSE;
+                if(all(length(initialSeasonal)!=lagsModelSeasonal)){
+                    warning(paste0("Wrong length of seasonal initial: ",length(initialSeasonal),
+                                   "Instead of ",lagsModelSeasonal,". Switching to estimation."),
+                            call.=FALSE)
+                    initialSeasonalEstimate[] <- TRUE;
+                }
+                else{
+                    initialSeasonalEstimate[] <- FALSE;
+                }
+                # Create a list from the vector for consistency purposes
+                initialSeasonal <- list(initialSeasonal);
             }
-            # Create a list from the vector for consistency purposes
-            initialSeasonal <- list(initialSeasonal);
+            parametersNumber[2,1] <- parametersNumber[2,1] + length(unlist(initialSeasonal));
         }
-        parametersNumber[2,1] <- parametersNumber[2,1] + length(unlist(initialSeasonal));
     }
+    else{
+        initialLevel <- initialTrend <- initialSeasonal <- NULL;
+        initialLevelEstimate <- initialTrendEstimate <- initialSeasonalEstimate <- FALSE
+    }
+
     # ARIMA
     if(!is.null(initialArima)){
         if(length(initialArima)!=initialArimaNumber){
@@ -1422,11 +1461,11 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
 
     #### Conclusions about the initials ####
     # Make sure that only important elements are estimated.
-    if(Ttype=="N"){
+    if(!modelIsTrendy){
         initialTrendEstimate <- FALSE;
         initialTrend <- NULL;
     }
-    if(Stype=="N"){
+    if(!modelIsSeasonal){
         initialSeasonalEstimate <- FALSE;
         initialSeasonal <- NULL;
     }
@@ -1440,10 +1479,11 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     }
 
     # If we don't need to estimate anything, flag initialEstimate
-    if(!any(c(initialLevelEstimate, (initialTrendEstimate & modelIsTrendy),
-              (initialSeasonalEstimate & Stype!="N"),
-              (initialArimaEstimate & arimaModel),
-              (initialXregEstimate & xregExist)))){
+    if(!any(c(etsModel && initialLevelEstimate,
+              (etsModel && modelIsTrendy && initialTrendEstimate),
+              (etsModel & modelIsSeasonal & initialSeasonalEstimate),
+              (arimaModel && initialArimaEstimate),
+              (xregExist && initialXregEstimate)))){
         initialEstimate[] <- FALSE;
     }
     else{
@@ -1451,9 +1491,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     }
 
     # If at least something is provided, flag it as "provided"
-    if(!initialLevelEstimate ||
-       (modelIsTrendy && !initialTrendEstimate) ||
-       (modelIsSeasonal && !initialSeasonalEstimate) ||
+    if((etsModel && !initialLevelEstimate) ||
+       (etsModel && modelIsTrendy && !initialTrendEstimate) ||
+       (etsModel & modelIsSeasonal & !initialSeasonalEstimate) ||
        (arimaModel && !initialArimaEstimate) ||
        (xregExist && !initialXregEstimate)){
         initialType[] <- "provided";
@@ -1469,22 +1509,31 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     # Check if multiplicative models can be fitted
     allowMultiplicative <- !((any(yInSample<=0) && !occurrenceModel) || (occurrenceModel && any(yInSample<0)));
 
-    # Clean the pool of models if only additive are allowed
-    if(!allowMultiplicative && !is.null(modelsPool)){
-        modelsPoolMultiplicative <- ((substr(modelsPool,1,1)=="M") |
-                                         substr(modelsPool,2,2)=="M" |
-                                         substr(modelsPool,nchar(modelsPool),nchar(modelsPool))=="M");
-        if(any(modelsPoolMultiplicative)){
-            modelsPool <- modelsPool[!modelsPoolMultiplicative];
+    if(etsModel){
+        # Clean the pool of models if only additive are allowed
+        if(!allowMultiplicative && !is.null(modelsPool)){
+            modelsPoolMultiplicative <- ((substr(modelsPool,1,1)=="M") |
+                                             substr(modelsPool,2,2)=="M" |
+                                             substr(modelsPool,nchar(modelsPool),nchar(modelsPool))=="M");
+            if(any(modelsPoolMultiplicative)){
+                modelsPool <- modelsPool[!modelsPoolMultiplicative];
 
-            if(!any(model==c("PPP","FFF"))){
-                warning("Only additive models are allowed for your data. Amending the pool.",
-                        call.=FALSE);
+                if(!any(model==c("PPP","FFF"))){
+                    warning("Only additive models are allowed for your data. Amending the pool.",
+                            call.=FALSE);
+                }
             }
         }
+        if(any(model==c("PPP","FFF"))){
+            model <- "ZZZ";
+        }
     }
-    if(any(model==c("PPP","FFF"))){
-        model <- "ZZZ";
+
+    if(any(yInSample<=0) && any(distribution==c("dinvgauss","dlnorm","dls","dllaplace"))){
+        warning(paste0("You have non-positive values in the data. ",
+                       "The distribution ",distribution," does not support that. ",
+                       "This might lead to problems in the estimation."),
+                call.=FALSE);
     }
 
     # Update the number of parameters
@@ -1508,20 +1557,22 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     #### Checks for the potential number of degrees of freedom ####
     # This is needed in order to make the function work on small samples
     # scale parameter, smoothing parameters and phi
-    nParamMax <- (1 + persistenceLevelEstimate + persistenceTrendEstimate*modelIsTrendy +
-                      sum(persistenceSeasonalEstimate)*modelIsSeasonal +
-                      phiEstimate +
-                      # Number of ETS initials
-                      (sum(lagsModelAll)-xregNumber-initialArimaNumber)*(initialType=="optimal") +
+    nParamMax <- (1 +
+                      # ETS model
+                      etsModel*(persistenceLevelEstimate + modelIsTrendy*persistenceTrendEstimate +
+                                    modelIsSeasonal*sum(persistenceSeasonalEstimate) +
+                                    phiEstimate + (initialType=="optimal") *
+                                    (initialLevelEstimate + initialTrendEstimate + sum(initialSeasonalEstimate))) +
                       # ARIMA components: initials + parameters
-                      arimaModel*(initialArimaNumber*(initialType=="optimal") + sum(arOrders) + sum(maOrders)) +
+                      arimaModel*((initialType=="optimal")*initialArimaNumber +
+                                      arRequired*arEstimate*sum(arOrders) + maRequired*maEstimate*sum(maOrders)) +
                       # Xreg initials and smoothing parameters
-                      xregNumber*(initialXregEstimate+persistenceXregEstimate));
+                      xregExist*(xregNumber*(initialXregEstimate+persistenceXregEstimate)));
 
     # If the sample is smaller than the number of parameters
     if(obsNonzero <= nParamMax){
-        # If there is ARIMA terms, remove them
-        if(arimaModel){
+        # If there is both ETS and ARIMA, remove ARIMA
+        if(etsModel && arimaModel){
             warning("We don't have enough observations to fit ETS with ARIMA terms. We will construct the simple ETS.",
                     call.=FALSE);
             lagsModelAll <- lagsModelAll[-c(componentsNumberETS+c(1:componentsNumberARIMA)),,drop=FALSE];
@@ -1532,256 +1583,264 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
             initialArimaNumber <- componentsNumberARIMA <- 0;
             lagsModelMax <- max(lagsModelAll);
 
-            nParamMax[] <- (1 + persistenceLevelEstimate + persistenceTrendEstimate*modelIsTrendy +
-                                sum(persistenceSeasonalEstimate)*modelIsSeasonal +
-                                phiEstimate +
-                                # Number of ETS initials
-                                (sum(lagsModelAll)-xregNumber)*(initialType=="optimal") +
+            nParamMax[] <- (1 +
+                                # ETS model
+                                etsModel*(persistenceLevelEstimate + modelIsTrendy*persistenceTrendEstimate +
+                                              modelIsSeasonal*sum(persistenceSeasonalEstimate) +
+                                              phiEstimate + (initialType=="optimal") *
+                                              (initialLevelEstimate + initialTrendEstimate + sum(initialSeasonalEstimate))) +
                                 # Xreg initials and smoothing parameters
-                                xregNumber*(initialXregEstimate+persistenceXregEstimate));
+                                xregExist*(xregNumber*(initialXregEstimate+persistenceXregEstimate)));
+        }
+        else if(arimaModel && !etsModel){
+            stop(paste0("The number of parameter to estimate is ",nParamMax,
+                        ", while the number of observations is ",obsNonzero,
+                        ". Cannot proceed."), call.=FALSE);
         }
     }
 
-    # If the sample is still smaller than the number of parameters
-    if(obsNonzero <= nParamMax){
-        nParamExo <- xregNumber*(initialXregEstimate+persistenceXregEstimate);
-        if(!silent){
-            message(paste0("Number of non-zero observations is ",obsNonzero,
-                           ", while the maximum number of parameters to estimate is ", nParamMax,".\n",
-                           "Updating pool of models."));
-        }
-
-        # If the number of observations is still enough for the model selection and the pool is not specified
-        if(obsNonzero > (3 + nParamExo) && is.null(modelsPool) && any(modelDo==c("select","combine"))){
-            # We have enough observations for local level model
-            modelsPool <- c("ANN");
-            if(allowMultiplicative){
-                modelsPool <- c(modelsPool,"MNN");
-            }
-            # We have enough observations for trend model
-            if(obsNonzero > (5 + nParamExo)){
-                modelsPool <- c(modelsPool,"AAN");
-                if(allowMultiplicative){
-                    modelsPool <- c(modelsPool,"AMN","MAN","MMN");
-                }
-            }
-            # We have enough observations for damped trend model
-            if(obsNonzero > (6 + nParamExo)){
-                modelsPool <- c(modelsPool,"AAdN");
-                if(allowMultiplicative){
-                    modelsPool <- c(modelsPool,"AMdN","MAdN","MMdN");
-                }
-            }
-            # We have enough observations for seasonal model
-            if((obsNonzero > (2*lagsModelMax)) && lagsModelMax!=1){
-                modelsPool <- c(modelsPool,"ANA");
-                if(allowMultiplicative){
-                    modelsPool <- c(modelsPool,"ANM","MNA","MNM");
-                }
-            }
-            # We have enough observations for seasonal model with trend
-            if((obsNonzero > (6 + lagsModelMax + nParamExo)) &&
-               (obsNonzero > 2*lagsModelMax) && lagsModelMax!=1){
-                modelsPool <- c(modelsPool,"AAA");
-                if(allowMultiplicative){
-                    modelsPool <- c(modelsPool,"AAM","AMA","AMM","MAA","MAM","MMA","MMM");
-                }
+    # If the sample is still smaller than the number of parameters (even after removing ARIMA)
+    if(etsModel){
+        if(obsNonzero <= nParamMax){
+            nParamExo <- xregNumber*(initialXregEstimate+persistenceXregEstimate);
+            if(!silent){
+                message(paste0("Number of non-zero observations is ",obsNonzero,
+                               ", while the maximum number of parameters to estimate is ", nParamMax,".\n",
+                               "Updating pool of models."));
             }
 
-            warning("Not enough of non-zero observations for the fit of ETS(",model,")! Fitting what we can...",
-                    call.=FALSE);
-            if(modelDo=="combine"){
-                model <- "CNN";
-                if(length(modelsPool)>2){
-                    model <- "CCN";
-                }
-                if(length(modelsPool)>10){
-                    model <- "CCC";
-                }
-            }
-            else{
-                modelDo <- "select"
-                model <- "ZZZ";
-            }
-        }
-        # If the pool is provided (so, select / combine), amend it
-        else if(obsNonzero > (3 + nParamExo) && !is.null(modelsPool)){
-            # We don't have enough observations for seasonal models with damped trend
-            if((obsNonzero <= (6 + lagsModelMax + 1 + nParamExo))){
-                modelsPool <- modelsPool[!(nchar(modelsPool)==4 &
-                                               substr(modelsPool,nchar(modelsPool),nchar(modelsPool))=="A")];
-                modelsPool <- modelsPool[!(nchar(modelsPool)==4 &
-                                               substr(modelsPool,nchar(modelsPool),nchar(modelsPool))=="M")];
-            }
-            # We don't have enough observations for seasonal models with trend
-            if((obsNonzero <= (5 + lagsModelMax + 1 + nParamExo))){
-                modelsPool <- modelsPool[!(substr(modelsPool,2,2)!="N" &
-                                               substr(modelsPool,nchar(modelsPool),nchar(modelsPool))!="N")];
-            }
-            # We don't have enough observations for seasonal models
-            if(obsNonzero <= 2*lagsModelMax){
-                modelsPool <- modelsPool[substr(modelsPool,nchar(modelsPool),nchar(modelsPool))=="N"];
-            }
-            # We don't have enough observations for damped trend
-            if(obsNonzero <= (6 + nParamExo)){
-                modelsPool <- modelsPool[nchar(modelsPool)!=4];
-            }
-            # We don't have enough observations for any trend
-            if(obsNonzero <= (5 + nParamExo)){
-                modelsPool <- modelsPool[substr(modelsPool,2,2)=="N"];
-            }
-
-            modelsPool <- unique(modelsPool);
-            warning("Not enough of non-zero observations for the fit of ETS(",model,")! Fitting what we can...",
-                    call.=FALSE);
-            if(modelDo=="combine"){
-                model <- "CNN";
-                if(length(modelsPool)>2){
-                    model <- "CCN";
-                }
-                if(length(modelsPool)>10){
-                    model <- "CCC";
-                }
-            }
-            else{
-                modelDo <- "select"
-                model <- "ZZZ";
-            }
-        }
-        # If the model needs to be estimated / used, not selected
-        else if(obsNonzero > (3 + nParamExo) && any(modelDo==c("estimate","use"))){
-            # We don't have enough observations for seasonal models with damped trend
-            if((obsNonzero <= (6 + lagsModelMax + 1 + nParamExo))){
-                model <- model[!(nchar(model)==4 &
-                                               substr(model,nchar(model),nchar(model))=="A")];
-                model <- model[!(nchar(model)==4 &
-                                               substr(model,nchar(model),nchar(model))=="M")];
-            }
-            # We don't have enough observations for seasonal models with trend
-            if((obsNonzero <= (5 + lagsModelMax + 1 + nParamExo))){
-                model <- model[!(substr(model,2,2)!="N" &
-                                               substr(model,nchar(model),nchar(model))!="N")];
-            }
-            # We don't have enough observations for seasonal models
-            if(obsNonzero <= 2*lagsModelMax){
-                model <- model[substr(model,nchar(model),nchar(model))=="N"];
-            }
-            # We don't have enough observations for damped trend
-            if(obsNonzero <= (6 + nParamExo)){
-                model <- model[nchar(model)!=4];
-            }
-            # We don't have enough observations for any trend
-            if(obsNonzero <= (5 + nParamExo)){
-                model <- model[substr(model,2,2)=="N"];
-            }
-        }
-        # Extreme cases of small samples
-        else if(obsNonzero==4){
-            if(any(Etype==c("A","M"))){
-                modelDo <- "estimate";
-                Ttype <- "N";
-                Stype <- "N";
-            }
-            else{
+            # If the number of observations is still enough for the model selection and the pool is not specified
+            if(obsNonzero > (3 + nParamExo) && is.null(modelsPool) && any(modelDo==c("select","combine"))){
+                # We have enough observations for local level model
                 modelsPool <- c("ANN");
                 if(allowMultiplicative){
                     modelsPool <- c(modelsPool,"MNN");
                 }
-                modelDo <- "select";
-                model <- "ZZZ";
-                Etype <- "Z";
-                Ttype <- "N";
-                Stype <- "N";
-                warning("You have a very small sample. The only available model is level model.",
+                # We have enough observations for trend model
+                if(obsNonzero > (5 + nParamExo)){
+                    modelsPool <- c(modelsPool,"AAN");
+                    if(allowMultiplicative){
+                        modelsPool <- c(modelsPool,"AMN","MAN","MMN");
+                    }
+                }
+                # We have enough observations for damped trend model
+                if(obsNonzero > (6 + nParamExo)){
+                    modelsPool <- c(modelsPool,"AAdN");
+                    if(allowMultiplicative){
+                        modelsPool <- c(modelsPool,"AMdN","MAdN","MMdN");
+                    }
+                }
+                # We have enough observations for seasonal model
+                if((obsNonzero > (2*lagsModelMax)) && lagsModelMax!=1){
+                    modelsPool <- c(modelsPool,"ANA");
+                    if(allowMultiplicative){
+                        modelsPool <- c(modelsPool,"ANM","MNA","MNM");
+                    }
+                }
+                # We have enough observations for seasonal model with trend
+                if((obsNonzero > (6 + lagsModelMax + nParamExo)) &&
+                   (obsNonzero > 2*lagsModelMax) && lagsModelMax!=1){
+                    modelsPool <- c(modelsPool,"AAA");
+                    if(allowMultiplicative){
+                        modelsPool <- c(modelsPool,"AAM","AMA","AMM","MAA","MAM","MMA","MMM");
+                    }
+                }
+
+                warning("Not enough of non-zero observations for the fit of ETS(",model,")! Fitting what we can...",
                         call.=FALSE);
-            }
-            phiEstimate <- FALSE;
-        }
-        # Even smaller sample
-        else if(obsNonzero==3){
-            if(any(Etype==c("A","M"))){
-                modelDo <- "estimate";
-                Ttype <- "N";
-                Stype <- "N";
-                model <- paste0(Etype,"NN");
-            }
-            else{
-                modelsPool <- c("ANN");
-                if(allowMultiplicative){
-                    modelsPool <- c(modelsPool,"MNN");
+                if(modelDo=="combine"){
+                    model <- "CNN";
+                    if(length(modelsPool)>2){
+                        model <- "CCN";
+                    }
+                    if(length(modelsPool)>10){
+                        model <- "CCC";
+                    }
                 }
-                modelDo <- "select";
-                model <- "ZNN";
-                Etype <- "Z";
+                else{
+                    modelDo <- "select"
+                    model <- "ZZZ";
+                }
+            }
+            # If the pool is provided (so, select / combine), amend it
+            else if(obsNonzero > (3 + nParamExo) && !is.null(modelsPool)){
+                # We don't have enough observations for seasonal models with damped trend
+                if((obsNonzero <= (6 + lagsModelMax + 1 + nParamExo))){
+                    modelsPool <- modelsPool[!(nchar(modelsPool)==4 &
+                                                   substr(modelsPool,nchar(modelsPool),nchar(modelsPool))=="A")];
+                    modelsPool <- modelsPool[!(nchar(modelsPool)==4 &
+                                                   substr(modelsPool,nchar(modelsPool),nchar(modelsPool))=="M")];
+                }
+                # We don't have enough observations for seasonal models with trend
+                if((obsNonzero <= (5 + lagsModelMax + 1 + nParamExo))){
+                    modelsPool <- modelsPool[!(substr(modelsPool,2,2)!="N" &
+                                                   substr(modelsPool,nchar(modelsPool),nchar(modelsPool))!="N")];
+                }
+                # We don't have enough observations for seasonal models
+                if(obsNonzero <= 2*lagsModelMax){
+                    modelsPool <- modelsPool[substr(modelsPool,nchar(modelsPool),nchar(modelsPool))=="N"];
+                }
+                # We don't have enough observations for damped trend
+                if(obsNonzero <= (6 + nParamExo)){
+                    modelsPool <- modelsPool[nchar(modelsPool)!=4];
+                }
+                # We don't have enough observations for any trend
+                if(obsNonzero <= (5 + nParamExo)){
+                    modelsPool <- modelsPool[substr(modelsPool,2,2)=="N"];
+                }
+
+                modelsPool <- unique(modelsPool);
+                warning("Not enough of non-zero observations for the fit of ETS(",model,")! Fitting what we can...",
+                        call.=FALSE);
+                if(modelDo=="combine"){
+                    model <- "CNN";
+                    if(length(modelsPool)>2){
+                        model <- "CCN";
+                    }
+                    if(length(modelsPool)>10){
+                        model <- "CCC";
+                    }
+                }
+                else{
+                    modelDo <- "select"
+                    model <- "ZZZ";
+                }
+            }
+            # If the model needs to be estimated / used, not selected
+            else if(obsNonzero > (3 + nParamExo) && any(modelDo==c("estimate","use"))){
+                # We don't have enough observations for seasonal models with damped trend
+                if((obsNonzero <= (6 + lagsModelMax + 1 + nParamExo))){
+                    model <- model[!(nchar(model)==4 &
+                                         substr(model,nchar(model),nchar(model))=="A")];
+                    model <- model[!(nchar(model)==4 &
+                                         substr(model,nchar(model),nchar(model))=="M")];
+                }
+                # We don't have enough observations for seasonal models with trend
+                if((obsNonzero <= (5 + lagsModelMax + 1 + nParamExo))){
+                    model <- model[!(substr(model,2,2)!="N" &
+                                         substr(model,nchar(model),nchar(model))!="N")];
+                }
+                # We don't have enough observations for seasonal models
+                if(obsNonzero <= 2*lagsModelMax){
+                    model <- model[substr(model,nchar(model),nchar(model))=="N"];
+                }
+                # We don't have enough observations for damped trend
+                if(obsNonzero <= (6 + nParamExo)){
+                    model <- model[nchar(model)!=4];
+                }
+                # We don't have enough observations for any trend
+                if(obsNonzero <= (5 + nParamExo)){
+                    model <- model[substr(model,2,2)=="N"];
+                }
+            }
+            # Extreme cases of small samples
+            else if(obsNonzero==4){
+                if(any(Etype==c("A","M"))){
+                    modelDo <- "estimate";
+                    Ttype <- "N";
+                    Stype <- "N";
+                }
+                else{
+                    modelsPool <- c("ANN");
+                    if(allowMultiplicative){
+                        modelsPool <- c(modelsPool,"MNN");
+                    }
+                    modelDo <- "select";
+                    model <- "ZZZ";
+                    Etype <- "Z";
+                    Ttype <- "N";
+                    Stype <- "N";
+                    warning("You have a very small sample. The only available model is level model.",
+                            call.=FALSE);
+                }
+                phiEstimate <- FALSE;
+            }
+            # Even smaller sample
+            else if(obsNonzero==3){
+                if(any(Etype==c("A","M"))){
+                    modelDo <- "estimate";
+                    Ttype <- "N";
+                    Stype <- "N";
+                    model <- paste0(Etype,"NN");
+                }
+                else{
+                    modelsPool <- c("ANN");
+                    if(allowMultiplicative){
+                        modelsPool <- c(modelsPool,"MNN");
+                    }
+                    modelDo <- "select";
+                    model <- "ZNN";
+                    Etype <- "Z";
+                    Ttype <- "N";
+                    Stype <- "N";
+                }
+                persistenceLevel <- 0;
+                persistenceEstimate <- persistenceLevelEstimate <- FALSE;
+                warning("We did not have enough of non-zero observations, so persistence value was set to zero.",
+                        call.=FALSE);
+                phiEstimate <- FALSE;
+            }
+            # Can it be even smaller?
+            else if(obsNonzero==2){
+                modelsPool <- NULL;
+                persistenceLevel <- 0;
+                persistenceEstimate <- persistenceLevelEstimate <- FALSE;
+                initialLevel <- mean(yInSample);
+                initialType <- "provided";
+                initialEstimate <- initialLevelEstimate <- FALSE;
+                warning("We did not have enough of non-zero observations, so persistence value was set to zero and initial was preset.",
+                        call.=FALSE);
+                modelDo <- "use";
+                model <- "ANN";
+                Etype <- "A";
                 Ttype <- "N";
                 Stype <- "N";
+                phiEstimate <- FALSE;
+                parametersNumber[1,1] <- 0;
+                parametersNumber[2,1] <- 2;
             }
-            persistenceLevel <- 0;
-            persistenceEstimate <- persistenceLevelEstimate <- FALSE;
-            warning("We did not have enough of non-zero observations, so persistence value was set to zero.",
-                    call.=FALSE);
-            phiEstimate <- FALSE;
-        }
-        # Can it be even smaller?
-        else if(obsNonzero==2){
-            modelsPool <- NULL;
-            persistenceLevel <- 0;
-            persistenceEstimate <- persistenceLevelEstimate <- FALSE;
-            initialLevel <- mean(yInSample);
-            initialType <- "provided";
-            initialEstimate <- initialLevelEstimate <- FALSE;
-            warning("We did not have enough of non-zero observations, so persistence value was set to zero and initial was preset.",
-                    call.=FALSE);
-            modelDo <- "use";
-            model <- "ANN";
-            Etype <- "A";
-            Ttype <- "N";
-            Stype <- "N";
-            phiEstimate <- FALSE;
-            parametersNumber[1,1] <- 0;
-            parametersNumber[2,1] <- 2;
-        }
-        # And how about now?!
-        else if(obsNonzero==1){
-            modelsPool <- NULL;
-            persistenceLevel <- 0;
-            persistenceEstimate <- persistenceLevelEstimate <- FALSE;
-            initialLevel <- yInSample[yInSample!=0];
-            initialType <- "provided";
-            initialEstimate <- initialLevelEstimate <- FALSE;
-            warning("We did not have enough of non-zero observations, so we used Naive.",call.=FALSE);
-            modelDo <- "nothing"
-            model <- "ANN";
-            Etype <- "A";
-            Ttype <- "N";
-            Stype <- "N";
-            phiEstimate <- FALSE;
-            parametersNumber[1,1] <- 0;
-            parametersNumber[2,1] <- 2;
-        }
-        # Only zeroes in the data...
-        else if(obsNonzero==0 && obsInSample>1){
-            modelsPool <- NULL;
-            persistenceLevel <- 0;
-            persistenceEstimate <- persistenceLevelEstimate <- FALSE;
-            initialLevel <- 0;
-            initialType <- "provided";
-            initialEstimate <- initialLevelEstimate <- FALSE;
-            occurrenceModelProvided <- occurrenceModel <- FALSE;
-            occurrence <- "none";
-            warning("You have a sample with zeroes only. Your forecast will be zero.",call.=FALSE);
-            modelDo <- "nothing"
-            model <- "ANN";
-            Etype <- "A";
-            Ttype <- "N";
-            Stype <- "N";
-            phiEstimate <- FALSE;
-            parametersNumber[1,1] <- 0;
-            parametersNumber[2,1] <- 2;
-        }
-        # If you don't have observations, then fuck off!
-        else{
-            stop("Not enough observations... Even for fitting of ETS('ANN')!",call.=FALSE);
+            # And how about now?!
+            else if(obsNonzero==1){
+                modelsPool <- NULL;
+                persistenceLevel <- 0;
+                persistenceEstimate <- persistenceLevelEstimate <- FALSE;
+                initialLevel <- yInSample[yInSample!=0];
+                initialType <- "provided";
+                initialEstimate <- initialLevelEstimate <- FALSE;
+                warning("We did not have enough of non-zero observations, so we used Naive.",call.=FALSE);
+                modelDo <- "nothing"
+                model <- "ANN";
+                Etype <- "A";
+                Ttype <- "N";
+                Stype <- "N";
+                phiEstimate <- FALSE;
+                parametersNumber[1,1] <- 0;
+                parametersNumber[2,1] <- 2;
+            }
+            # Only zeroes in the data...
+            else if(obsNonzero==0 && obsInSample>1){
+                modelsPool <- NULL;
+                persistenceLevel <- 0;
+                persistenceEstimate <- persistenceLevelEstimate <- FALSE;
+                initialLevel <- 0;
+                initialType <- "provided";
+                initialEstimate <- initialLevelEstimate <- FALSE;
+                occurrenceModelProvided <- occurrenceModel <- FALSE;
+                occurrence <- "none";
+                warning("You have a sample with zeroes only. Your forecast will be zero.",call.=FALSE);
+                modelDo <- "nothing"
+                model <- "ANN";
+                Etype <- "A";
+                Ttype <- "N";
+                Stype <- "N";
+                phiEstimate <- FALSE;
+                parametersNumber[1,1] <- 0;
+                parametersNumber[2,1] <- 2;
+            }
+            # If you don't have observations, then fuck off!
+            else{
+                stop("Not enough observations... Even for fitting of ETS('ANN')!",call.=FALSE);
+            }
         }
     }
     # Reset the maximum lag. This is in order to take potential changes into account
@@ -1875,9 +1934,15 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         FI <- ellipsis$FI;
     }
 
-    # See if the estimation of the model is not needed
-    if(!any(persistenceEstimate,phiEstimate,(initialType!="backcasting")&initialEstimate,
-            arimaModel&any(c(arEstimate,maEstimate)), lambdaEstimate)){
+    # See if the estimation of the model is not needed (do we estimate anything?)
+    if(!any(c(etsModel & c(persistenceLevelEstimate, persistenceTrendEstimate,
+                           persistenceSeasonalEstimate, phiEstimate,
+                           (initialType!="backcasting") & c(initialLevelEstimate,
+                                                            initialTrendEstimate,
+                                                            initialSeasonalEstimate)),
+              arimaModel & c(arEstimate, maEstimate, initialArimaEstimate),
+              xregExist & c(persistenceXregEstimate, initialXregEstimate),
+              lambdaEstimate))){
         modelDo <- "use";
     }
 
