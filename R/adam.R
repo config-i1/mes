@@ -5394,7 +5394,9 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
             else{
                 yLower[levelLow==0] <- 0;
             }
-            yUpper[levelUp==1] <- Inf;
+            if(levelUp==1){
+                yUpper[levelUp==1] <- Inf;
+            }
         }
         else{
             if(Etype=="A" && (levelLow==0)){
@@ -5729,6 +5731,7 @@ modelType.adam <- function(object, ...){
 }
 
 # This is an internal function, no need to export it
+# modelLags <- function(object, ...) UseMethod("modelLags")
 modelLags.adam <- function(object, ...){
     return(object$lagsAll);
 }
