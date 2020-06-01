@@ -4885,7 +4885,17 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
     lagsModelAll <- modelLags(object);
     lagsModelMax <- max(lagsModelAll);
 
-    componentsNumberETSSeasonal <- length(object$initial$seasonal);
+    if(!is.null(object$initial$seasonal)){
+        if(is.list(object$initial$seasonal)){
+            componentsNumberETSSeasonal <- length(object$initial$seasonal);
+        }
+        else{
+            componentsNumberETSSeasonal <- 1;
+        }
+    }
+    else{
+        componentsNumberETSSeasonal <- 0;
+    }
     componentsNumberETS <- length(object$initial$level) + length(object$initial$trend) + componentsNumberETSSeasonal;
     componentsNumberARIMA <- length(object$initial$arima);
 
