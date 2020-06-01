@@ -588,9 +588,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         lossFunction <- NULL;
     }
 
-    #### Explanatory variables: xregExist and xregDo ####
+    #### Explanatory variables: xregModel and xregDo ####
     xregDo <- match.arg(xregDo,c("use","select","adapt"));
-    xregExist <- !is.null(xreg);
+    xregModel <- !is.null(xreg);
 
     #### Persistence provided ####
     # Vectors for persistence of different components
@@ -701,7 +701,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                         persistenceSeasonal <- as.vector(persistence)[j];
                         names(persistenceSeasonal) <- paste0("gamma",c(1:length(persistenceSeasonal)));
                     }
-                    if(xregExist && length(persistence)>j){
+                    if(xregModel && length(persistence)>j){
                         persistenceXreg <- as.vector(persistence)[-c(1:j)];
                         names(persistenceXreg) <- paste0("delta",c(1:length(persistenceXreg)));
                     }
@@ -733,7 +733,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         persistenceSeasonalEstimate[] <- FALSE;
         persistenceSeasonal <- NULL;
     }
-    if(!xregExist){
+    if(!xregModel){
         persistenceXregEstimate[] <- FALSE;
         persistenceXreg <- NULL;
     }
@@ -1022,7 +1022,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                                 initialArimaEstimate[] <- FALSE;
                             }
                         }
-                        if(xregExist){
+                        if(xregModel){
                             # Something else? xreg for sure!
                             if(length(initial[-c(1:j)])>0){
                                 initialXreg <- initial[-c(1:j)];
@@ -1234,7 +1234,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
 
     #### xreg preparation ####
     # Check the xregDo
-    if(!xregExist){
+    if(!xregModel){
         xregDo[] <- "use";
         formulaProvided <- NULL;
     }
@@ -1261,8 +1261,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     }
 
     # Use alm() in order to fit the preliminary model for xreg
-    if(xregExist){
-        xregModel <- vector("list",2);
+    if(xregModel){
+        xregModelInitials <- vector("list",2);
 
         # If the initials are not provided, estimate them using ALM.
         if(initialXregEstimate){
@@ -1319,24 +1319,24 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
             if(Etype!="Z"){
                 testModel <- xregInitialiser(Etype,distribution,formulaProvided,otLogical,responseName);
                 if(Etype=="A"){
-                    xregModel[[1]]$initialXreg <- testModel$coefficients[-1];
-                    xregModel[[1]]$other <- testModel$other;
+                    xregModelInitials[[1]]$initialXreg <- testModel$coefficients[-1];
+                    xregModelInitials[[1]]$other <- testModel$other;
                 }
                 else{
-                    xregModel[[2]]$initialXreg <- testModel$coefficients[-1];
-                    xregModel[[2]]$other <- testModel$other;
+                    xregModelInitials[[2]]$initialXreg <- testModel$coefficients[-1];
+                    xregModelInitials[[2]]$other <- testModel$other;
                 }
             }
             # If we are selecting the appropriate error, produce two models: for "M" and for "A"
             else{
                 # Additive model
                 testModel <- xregInitialiser("A",distribution,formulaProvided,otLogical,responseName);
-                xregModel[[1]]$initialXreg <- testModel$coefficients[-1];
-                xregModel[[1]]$other <- testModel$other;
+                xregModelInitials[[1]]$initialXreg <- testModel$coefficients[-1];
+                xregModelInitials[[1]]$other <- testModel$other;
                 # Multiplicative model
                 testModel[] <- xregInitialiser("M",distribution,formulaProvided,otLogical,responseName);
-                xregModel[[2]]$initialXreg <- testModel$coefficients[-1];
-                xregModel[[2]]$other <- testModel$other;
+                xregModelInitials[[2]]$initialXreg <- testModel$coefficients[-1];
+                xregModelInitials[[2]]$other <- testModel$other;
             }
 
             # Write down the number and names of parameters
@@ -1369,9 +1369,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         else{
             initialXregProvided <- TRUE;
 
-            xregModel[[1]]$initialXreg <- initialXreg;
+            xregModelInitials[[1]]$initialXreg <- initialXreg;
             if(Etype=="Z"){
-                xregModel[[2]]$initialXreg <- initialXreg;
+                xregModelInitials[[2]]$initialXreg <- initialXreg;
             }
 
             # Write down the number and names of parameters
@@ -1385,7 +1385,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                 xregData <- xreg;
             }
             xregNumber <- ncol(xregData);
-            xregNames <- names(xregModel[[1]]$initialXreg);
+            xregNames <- names(xregModelInitials[[1]]$initialXreg);
             parametersNumber[2,2] <- parametersNumber[2,2] + xregNumber;
         }
 
@@ -1434,7 +1434,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         if(xregNumber==0){
             warning("It looks like there are no suitable explanatory variables. Check the xreg! We dropped them out.",
                     call.=FALSE);
-            xregExist[] <- FALSE;
+            xregModel[] <- FALSE;
             xregData <- NULL;
         }
     }
@@ -1443,7 +1443,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         initialXregEstimate <- FALSE;
         persistenceXregProvided <- FALSE;
         persistenceXregEstimate <- FALSE;
-        xregModel <- NULL;
+        xregModelInitials <- NULL;
         xregData <- NULL;
         xregNumber <- 0;
         xregNames <- NULL;
@@ -1473,7 +1473,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         initialArimaEstimate <- FALSE;
         initialArima <- NULL;
     }
-    if(!xregExist){
+    if(!xregModel){
         initialXregEstimate <- FALSE;
         initialXreg <- NULL;
     }
@@ -1483,7 +1483,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
               (etsModel && modelIsTrendy && initialTrendEstimate),
               (etsModel & modelIsSeasonal & initialSeasonalEstimate),
               (arimaModel && initialArimaEstimate),
-              (xregExist && initialXregEstimate)))){
+              (xregModel && initialXregEstimate)))){
         initialEstimate[] <- FALSE;
     }
     else{
@@ -1495,7 +1495,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
        (etsModel && modelIsTrendy && !initialTrendEstimate) ||
        (etsModel & modelIsSeasonal & !initialSeasonalEstimate) ||
        (arimaModel && !initialArimaEstimate) ||
-       (xregExist && !initialXregEstimate)){
+       (xregModel && !initialXregEstimate)){
         initialType[] <- "provided";
     }
 
@@ -1567,7 +1567,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                       arimaModel*((initialType=="optimal")*initialArimaNumber +
                                       arRequired*arEstimate*sum(arOrders) + maRequired*maEstimate*sum(maOrders)) +
                       # Xreg initials and smoothing parameters
-                      xregExist*(xregNumber*(initialXregEstimate+persistenceXregEstimate)));
+                      xregModel*(xregNumber*(initialXregEstimate+persistenceXregEstimate)));
 
     # If the sample is smaller than the number of parameters
     if(obsNonzero <= nParamMax){
@@ -1590,7 +1590,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                                               phiEstimate + (initialType=="optimal") *
                                               (initialLevelEstimate + initialTrendEstimate + sum(initialSeasonalEstimate))) +
                                 # Xreg initials and smoothing parameters
-                                xregExist*(xregNumber*(initialXregEstimate+persistenceXregEstimate)));
+                                xregModel*(xregNumber*(initialXregEstimate+persistenceXregEstimate)));
         }
         else if(arimaModel && !etsModel){
             stop(paste0("The number of parameter to estimate is ",nParamMax,
@@ -1941,7 +1941,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                                                             initialTrendEstimate,
                                                             initialSeasonalEstimate)),
               arimaModel & c(arEstimate, maEstimate, initialArimaEstimate),
-              xregExist & c(persistenceXregEstimate, initialXregEstimate),
+              xregModel & c(persistenceXregEstimate, initialXregEstimate),
               lambdaEstimate))){
         modelDo <- "use";
     }
@@ -2042,7 +2042,6 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     assign("initialArimaEstimate",initialArimaEstimate,ParentEnvironment);
     # Number of initials that the ARIMA has (either provided or to estimate)
     assign("initialArimaNumber",initialArimaNumber,ParentEnvironment);
-    assign("initialXreg",initialXreg,ParentEnvironment);
     assign("initialXregEstimate",initialXregEstimate,ParentEnvironment);
     assign("initialXregProvided",initialXregProvided,ParentEnvironment);
 
@@ -2066,10 +2065,10 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     assign("bounds",bounds,ParentEnvironment);
 
     ### ARIMA components
+    assign("arimaModel",arimaModel,ParentEnvironment);
     assign("arOrders",arOrders,ParentEnvironment);
     assign("iOrders",iOrders,ParentEnvironment);
     assign("maOrders",maOrders,ParentEnvironment);
-    assign("arimaModel",arimaModel,ParentEnvironment);
     assign("arRequired",arRequired,ParentEnvironment);
     assign("iRequired",iRequired,ParentEnvironment);
     assign("maRequired",maRequired,ParentEnvironment);
@@ -2080,9 +2079,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     assign("nonZeroMA",nonZeroMA,ParentEnvironment);
 
     ### Explanatory variables
-    assign("xregDo",xregDo,ParentEnvironment);
-    assign("xregExist",xregExist,ParentEnvironment);
     assign("xregModel",xregModel,ParentEnvironment);
+    assign("xregDo",xregDo,ParentEnvironment);
+    assign("xregModelInitials",xregModelInitials,ParentEnvironment);
     assign("xregData",xregData,ParentEnvironment);
     assign("xregNumber",xregNumber,ParentEnvironment);
     assign("xregNames",xregNames,ParentEnvironment);
