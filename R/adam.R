@@ -457,42 +457,57 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
     rm(xreg);
 
     #### The function creates the technical variables (lags etc) based on the type of the model ####
-    architector <- function(Etype, Ttype, Stype, lags, lagsModelSeasonal,
+    architector <- function(etsModel, Etype, Ttype, Stype, lags, lagsModelSeasonal,
                             xregNumber, obsInSample, initialType,
-                            arimaModel, lagsModelARIMA){
-        modelIsTrendy <- Ttype!="N";
-        if(modelIsTrendy){
-            # Make lags (1, 1)
-            lagsModel <- matrix(c(1,1),ncol=1);
-            componentsNamesETS <- c("level","trend");
-        }
-        else{
-            # Make lags (1, ...)
-            lagsModel <- matrix(c(1),ncol=1);
-            componentsNamesETS <- c("level");
-        }
-        modelIsSeasonal <- Stype!="N";
-        if(modelIsSeasonal){
-            # If the lags are for the non-seasonal model
-            lagsModel <- matrix(c(lagsModel,lagsModelSeasonal),ncol=1);
-            componentsNumberETSSeasonal <- length(lagsModelSeasonal);
-            if(componentsNumberETSSeasonal>1){
-                componentsNamesETS <- c(componentsNamesETS,paste0("seasonal",c(1:componentsNumberETSSeasonal)));
+                            arimaModel, lagsModelARIMA, xregModel){
+        # If there is ETS
+        if(etsModel){
+            modelIsTrendy <- Ttype!="N";
+            if(modelIsTrendy){
+                # Make lags (1, 1)
+                lagsModel <- matrix(c(1,1),ncol=1);
+                componentsNamesETS <- c("level","trend");
             }
             else{
-                componentsNamesETS <- c(componentsNamesETS,"seasonal");
+                # Make lags (1, ...)
+                lagsModel <- matrix(c(1),ncol=1);
+                componentsNamesETS <- c("level");
             }
+            modelIsSeasonal <- Stype!="N";
+            if(modelIsSeasonal){
+                # If the lags are for the non-seasonal model
+                lagsModel <- matrix(c(lagsModel,lagsModelSeasonal),ncol=1);
+                componentsNumberETSSeasonal <- length(lagsModelSeasonal);
+                if(componentsNumberETSSeasonal>1){
+                    componentsNamesETS <- c(componentsNamesETS,paste0("seasonal",c(1:componentsNumberETSSeasonal)));
+                }
+                else{
+                    componentsNamesETS <- c(componentsNamesETS,"seasonal");
+                }
+            }
+            else{
+                componentsNumberETSSeasonal <- 0;
+            }
+            lagsModelAll <- lagsModel;
+
+            componentsNumberETS <- length(lagsModel);
         }
         else{
-            componentsNumberETSSeasonal <- 0;
+            modelIsTrendy <- modelIsSeasonal <- FALSE;
+            componentsNumberETS <- componentsNumberETSSeasonal <- 0;
+            componentsNamesETS <- NULL;
+            lagsModel <- NULL;
         }
-        lagsModelAll <- lagsModel;
 
-        componentsNumberETS <- length(lagsModel);
+        # If there is ARIMA
         if(arimaModel){
             lagsModelAll <- matrix(c(lagsModel,lagsModelARIMA), ncol=1);
         }
-        lagsModelAll <- matrix(c(lagsModelAll,rep(1,xregNumber)), ncol=1);
+
+        # If there are xreg
+        if(xregModel){
+            lagsModelAll <- matrix(c(lagsModelAll,rep(1,xregNumber)), ncol=1);
+        }
         lagsModelMax <- max(lagsModelAll);
 
         # Define the number of cols that should be in the matvt
@@ -509,7 +524,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
     #### The function creates the necessary matrices based on the model and provided parameters ####
     # This is needed in order to initialise the estimation
-    creator <- function(Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
+    creator <- function(etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
                         lags, lagsModel, lagsModelARIMA, lagsModelAll, lagsModelMax,
                         obsStates, obsInSample, obsAll, componentsNumberETS, componentsNumberETSSeasonal,
                         componentsNamesETS, otLogical, yInSample,
@@ -530,6 +545,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                         componentsNumberARIMA, componentsNamesARIMA,
                         # Explanatory variables
                         xregModel, xregModelInitials, xregData, xregNumber, xregNames){
+
         # Matrix of states. Time in columns, components in rows
         matVt <- matrix(NA, componentsNumberETS+componentsNumberARIMA+xregNumber, obsStates,
                         dimnames=list(c(componentsNamesETS,componentsNamesARIMA,xregNames),NULL));
@@ -537,6 +553,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         # Measurement rowvector
         matWt <- matrix(1, obsAll, componentsNumberETS+componentsNumberARIMA+xregNumber,
                         dimnames=list(NULL,c(componentsNamesETS,componentsNamesARIMA,xregNames)));
+
         # If xreg are provided, then fill in the respective values in Wt vector
         if(xregModel){
             matWt[,componentsNumberETS+componentsNumberARIMA+1:xregNumber] <- xregData;
@@ -549,29 +566,34 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         vecG <- matrix(0, componentsNumberETS+componentsNumberARIMA+xregNumber, 1,
                        dimnames=list(c(componentsNamesETS,componentsNamesARIMA,xregNames),NULL));
         j <- 1;
-        rownames(vecG)[j] <- "alpha";
-        if(!persistenceLevelEstimate){
-            vecG[j,] <- persistenceLevel;
-        }
-        if(modelIsTrendy){
-            j <- j+1;
-            rownames(vecG)[j] <- "beta";
-            if(!persistenceTrendEstimate){
-                vecG[j,] <- persistenceTrend;
+        # ETS model
+        if(etsModel){
+            rownames(vecG)[j] <- "alpha";
+            if(!persistenceLevelEstimate){
+                vecG[j,] <- persistenceLevel;
+            }
+            if(modelIsTrendy){
+                j <- j+1;
+                rownames(vecG)[j] <- "beta";
+                if(!persistenceTrendEstimate){
+                    vecG[j,] <- persistenceTrend;
+                }
+            }
+            if(modelIsSeasonal){
+                if(!all(persistenceSeasonalEstimate)){
+                    vecG[j+which(!persistenceSeasonalEstimate),] <- persistenceSeasonal;
+                }
+                if(componentsNumberETSSeasonal>1){
+                    rownames(vecG)[j+c(1:componentsNumberETSSeasonal)] <- paste0("gamma",c(1:componentsNumberETSSeasonal));
+                }
+                else{
+                    rownames(vecG)[j+1] <- "gamma";
+                }
+                j <- j+componentsNumberETSSeasonal;
             }
         }
-        if(modelIsSeasonal){
-            if(!all(persistenceSeasonalEstimate)){
-                vecG[j+which(!persistenceSeasonalEstimate),] <- persistenceSeasonal;
-            }
-            if(componentsNumberETSSeasonal>1){
-                rownames(vecG)[j+c(1:componentsNumberETSSeasonal)] <- paste0("gamma",c(1:componentsNumberETSSeasonal));
-            }
-            else{
-                rownames(vecG)[j+1] <- "gamma";
-            }
-            j <- j+componentsNumberETSSeasonal;
-        }
+
+        # ARIMA model, names for persistence
         if(arimaModel){
             if(componentsNumberARIMA>1){
                 rownames(vecG)[j+1:componentsNumberARIMA] <- paste0("psi",c(1:componentsNumberARIMA));
@@ -581,6 +603,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             }
             j <- j+componentsNumberARIMA;
         }
+
+        # Regression
         if(xregModel){
             if(persistenceXregProvided && !persistenceXregEstimate){
                 vecG[j+1:xregNumber,] <- persistenceXreg;
@@ -589,14 +613,14 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         }
 
         # Damping parameter value
-        if(modelIsTrendy){
+        if(etsModel && modelIsTrendy){
             matF[1,2] <- phi;
             matF[2,2] <- phi;
 
             matWt[,2] <- phi;
         }
 
-        # If the arma parameters were provided
+        # If the arma parameters were provided, fill in the persistence
         if(arimaModel && ((arRequired && !arEstimate) || (maRequired && !maEstimate)) ||
            (iRequired && !arEstimate && !maEstimate)){
             # Call polynomial
@@ -619,213 +643,216 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             arimaPolynomials <- NULL;
         }
 
+        # ETS model, initial state
         # If something needs to be estimated...
-        if(initialEstimate){
-            # For the seasonal models
-            if(modelIsSeasonal){
-                if(obsNonzero>=lagsModelMax*2){
-                    # If either Etype or Stype are multiplicative, do multiplicative decomposition
-                    decompositionType <- c("additive","multiplicative")[any(c(Etype,Stype)=="M")+1];
-                    yDecomposition <- msdecompose(yInSample, lags[lags!=1], type=decompositionType);
-                    j <- 1;
-                    # level
-                    if(initialLevelEstimate){
-                        matVt[j,1:lagsModelMax] <- mean(yInSample[1:lagsModelMax]);
-                    }
-                    else{
-                        matVt[j,1:lagsModelMax] <- initialLevel;
-                    }
-                    j <- j+1;
-                    # If trend is needed
-                    if(modelIsTrendy){
-                        if(initialTrendEstimate){
-                            if(Ttype=="A" && Stype=="M"){
-                                if(initialLevelEstimate){
-                                    # level fix
-                                    matVt[j-1,1:lagsModelMax] <- exp(mean(log(yInSample[otLogical][1:lagsModelMax])));
-                                }
-                                # trend
-                                matVt[j,1:lagsModelMax] <- prod(yDecomposition$initial)-yDecomposition$initial[1];
-                            }
-                            else if(Ttype=="M" && Stype=="A"){
-                                if(initialLevelEstimate){
-                                    # level fix
-                                    matVt[j-1,1:lagsModelMax] <- exp(mean(log(yInSample[otLogical][1:lagsModelMax])));
-                                }
-                                # trend
-                                matVt[j,1:lagsModelMax] <- sum(yDecomposition$initial)/yDecomposition$initial[1];
-                            }
-                            else{
-                                # trend
-                                matVt[j,1:lagsModelMax] <- yDecomposition$initial[2];
-                            }
-                            # This is a failsafe for multiplicative trend models, so that the thing does not explode
-                            if(Ttype=="M" && matVt[j,1:lagsModelMax]>1.1){
-                                matVt[j,1:lagsModelMax] <- 1;
-                            }
+        if(etsModel){
+            if(initialEstimate){
+                # For the seasonal models
+                if(modelIsSeasonal){
+                    if(obsNonzero>=lagsModelMax*2){
+                        # If either Etype or Stype are multiplicative, do multiplicative decomposition
+                        decompositionType <- c("additive","multiplicative")[any(c(Etype,Stype)=="M")+1];
+                        yDecomposition <- msdecompose(yInSample, lags[lags!=1], type=decompositionType);
+                        j <- 1;
+                        # level
+                        if(initialLevelEstimate){
+                            matVt[j,1:lagsModelMax] <- mean(yInSample[1:lagsModelMax]);
                         }
                         else{
-                            matVt[j,1:lagsModelMax] <- initialTrend;
+                            matVt[j,1:lagsModelMax] <- initialLevel;
                         }
                         j <- j+1;
+                        # If trend is needed
+                        if(modelIsTrendy){
+                            if(initialTrendEstimate){
+                                if(Ttype=="A" && Stype=="M"){
+                                    if(initialLevelEstimate){
+                                        # level fix
+                                        matVt[j-1,1:lagsModelMax] <- exp(mean(log(yInSample[otLogical][1:lagsModelMax])));
+                                    }
+                                    # trend
+                                    matVt[j,1:lagsModelMax] <- prod(yDecomposition$initial)-yDecomposition$initial[1];
+                                }
+                                else if(Ttype=="M" && Stype=="A"){
+                                    if(initialLevelEstimate){
+                                        # level fix
+                                        matVt[j-1,1:lagsModelMax] <- exp(mean(log(yInSample[otLogical][1:lagsModelMax])));
+                                    }
+                                    # trend
+                                    matVt[j,1:lagsModelMax] <- sum(yDecomposition$initial)/yDecomposition$initial[1];
+                                }
+                                else{
+                                    # trend
+                                    matVt[j,1:lagsModelMax] <- yDecomposition$initial[2];
+                                }
+                                # This is a failsafe for multiplicative trend models, so that the thing does not explode
+                                if(Ttype=="M" && matVt[j,1:lagsModelMax]>1.1){
+                                    matVt[j,1:lagsModelMax] <- 1;
+                                }
+                            }
+                            else{
+                                matVt[j,1:lagsModelMax] <- initialTrend;
+                            }
+                            j <- j+1;
+                        }
+                        #### Seasonal components
+                        # For pure models use stuff as is
+                        if(all(c(Etype,Stype)=="A") || all(c(Etype,Stype)=="M") ||
+                           (Etype=="A" & Stype=="M")){
+                            for(i in 1:componentsNumberETSSeasonal){
+                                if(initialSeasonalEstimate[i]){
+                                    matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <- yDecomposition$seasonal[[i]];
+                                    # Renormalise the initial seasons
+                                    if(Stype=="A"){
+                                        matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <-
+                                            matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] -
+                                            mean(matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]]);
+                                    }
+                                    else{
+                                        matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <-
+                                            matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] /
+                                            exp(mean(log(matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]])));
+                                    }
+                                }
+                                else{
+                                    matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <- initialSeasonal[[i]];
+                                }
+                            }
+                        }
+                        # For mixed models use a different set of initials
+                        else if(Etype=="M" && Stype=="A"){
+                            for(i in 1:componentsNumberETSSeasonal){
+                                if(initialSeasonalEstimate[i]){
+                                    matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+
+                                              1:lagsModel[i+j-1]] <- log(yDecomposition$seasonal[[i]])*min(yInSample[otLogical]);
+                                    # Renormalise the initial seasons
+                                    if(Stype=="A"){
+                                        matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <-
+                                            matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] -
+                                            mean(matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]]);
+                                    }
+                                    else{
+                                        matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <-
+                                            matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] /
+                                            exp(mean(log(matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]])));
+                                    }
+                                }
+                                else{
+                                    matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <- initialSeasonal[[i]];
+                                }
+                            }
+                        }
                     }
-                    #### Seasonal components
-                    # For pure models use stuff as is
-                    if(all(c(Etype,Stype)=="A") || all(c(Etype,Stype)=="M") ||
-                       (Etype=="A" & Stype=="M")){
-                        for(i in 1:componentsNumberETSSeasonal){
-                            if(initialSeasonalEstimate[i]){
-                                matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <- yDecomposition$seasonal[[i]];
-                                # Renormalise the initial seasons
-                                if(Stype=="A"){
+                    else{
+                        # If either Etype or Stype are multiplicative, do multiplicative decomposition
+                        j <- 1;
+                        # level
+                        if(initialLevelEstimate){
+                            matVt[j,1:lagsModelMax] <- mean(yInSample[1:lagsModelMax]);
+                        }
+                        else{
+                            matVt[j,1:lagsModelMax] <- initialLevel;
+                        }
+                        j <- j+1;
+                        if(modelIsTrendy){
+                            if(initialTrendEstimate){
+                                if(Ttype=="A"){
+                                    # trend
+                                    matVt[j,1:lagsModelMax] <- yInSample[2]-yInSample[1];
+                                }
+                                else if(Ttype=="M"){
+                                    if(initialLevelEstimate){
+                                        # level fix
+                                        matVt[j-1,1:lagsModelMax] <- exp(mean(log(yInSample[otLogical][1:lagsModelMax])));
+                                    }
+                                    # trend
+                                    matVt[j,1:lagsModelMax] <- yInSample[2]/yInSample[1];
+                                }
+                                # This is a failsafe for multiplicative trend models, so that the thing does not explode
+                                if(Ttype=="M" && matVt[j,1:lagsModelMax]>1.1){
+                                    matVt[j,1:lagsModelMax] <- 1;
+                                }
+                            }
+                            else{
+                                matVt[j,1:lagsModelMax] <- initialTrend;
+                            }
+                            j <- j+1;
+                        }
+                        #### Seasonal components
+                        # For pure models use stuff as is
+                        if(Stype=="A"){
+                            for(i in 1:componentsNumberETSSeasonal){
+                                if(initialSeasonalEstimate[i]){
+                                    matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <-
+                                        yInSample[1:lagsModel[i+j-1]]-matVt[1,1];
+                                    # Renormalise the initial seasons
                                     matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <-
                                         matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] -
                                         mean(matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]]);
                                 }
                                 else{
+                                    matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <- initialSeasonal[[i]];
+                                }
+                            }
+                        }
+                        # For mixed models use a different set of initials
+                        else{
+                            for(i in 1:componentsNumberETSSeasonal){
+                                if(initialSeasonalEstimate[i]){
+                                    matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <-
+                                        yInSample[1:lagsModel[i+j-1]]/matVt[1,1];
+                                    # Renormalise the initial seasons
                                     matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <-
                                         matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] /
                                         exp(mean(log(matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]])));
-                                }
-                            }
-                            else{
-                                matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <- initialSeasonal[[i]];
-                            }
-                        }
-                    }
-                    # For mixed models use a different set of initials
-                    else if(Etype=="M" && Stype=="A"){
-                        for(i in 1:componentsNumberETSSeasonal){
-                            if(initialSeasonalEstimate[i]){
-                                matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+
-                                          1:lagsModel[i+j-1]] <- log(yDecomposition$seasonal[[i]])*min(yInSample[otLogical]);
-                                # Renormalise the initial seasons
-                                if(Stype=="A"){
-                                    matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <-
-                                        matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] -
-                                        mean(matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]]);
                                 }
                                 else{
-                                    matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <-
-                                        matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] /
-                                        exp(mean(log(matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]])));
+                                    matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <- initialSeasonal[[i]];
                                 }
-                            }
-                            else{
-                                matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <- initialSeasonal[[i]];
                             }
                         }
                     }
                 }
+                # Non-seasonal models
                 else{
-                    # If either Etype or Stype are multiplicative, do multiplicative decomposition
-                    j <- 1;
                     # level
                     if(initialLevelEstimate){
-                        matVt[j,1:lagsModelMax] <- mean(yInSample[1:lagsModelMax]);
+                        matVt[1,lagsModelMax] <- mean(yInSample[1:max(lagsModelMax,ceiling(obsInSample*0.2))]);
                     }
                     else{
-                        matVt[j,1:lagsModelMax] <- initialLevel;
+                        matVt[1,lagsModelMax] <- initialLevel;
                     }
-                    j <- j+1;
                     if(modelIsTrendy){
                         if(initialTrendEstimate){
-                            if(Ttype=="A"){
-                                # trend
-                                matVt[j,1:lagsModelMax] <- yInSample[2]-yInSample[1];
-                            }
-                            else if(Ttype=="M"){
-                                if(initialLevelEstimate){
-                                    # level fix
-                                    matVt[j-1,1:lagsModelMax] <- exp(mean(log(yInSample[otLogical][1:lagsModelMax])));
-                                }
-                                # trend
-                                matVt[j,1:lagsModelMax] <- yInSample[2]/yInSample[1];
-                            }
-                            # This is a failsafe for multiplicative trend models, so that the thing does not explode
-                            if(Ttype=="M" && matVt[j,1:lagsModelMax]>1.1){
-                                matVt[j,1:lagsModelMax] <- 1;
-                            }
+                            matVt[2,lagsModelMax] <- switch(Ttype,
+                                                            "A" = mean(diff(yInSample[1:max(lagsModelMax+1,ceiling(obsInSample*0.2))]),na.rm=TRUE),
+                                                            "M" = exp(mean(diff(log(yInSample[otLogical])),na.rm=TRUE)));
                         }
                         else{
-                            matVt[j,1:lagsModelMax] <- initialTrend;
-                        }
-                        j <- j+1;
-                    }
-                    #### Seasonal components
-                    # For pure models use stuff as is
-                    if(Stype=="A"){
-                        for(i in 1:componentsNumberETSSeasonal){
-                            if(initialSeasonalEstimate[i]){
-                                matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <-
-                                    yInSample[1:lagsModel[i+j-1]]-matVt[1,1];
-                                # Renormalise the initial seasons
-                                matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <-
-                                    matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] -
-                                    mean(matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]]);
-                            }
-                            else{
-                                matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <- initialSeasonal[[i]];
-                            }
-                        }
-                    }
-                    # For mixed models use a different set of initials
-                    else{
-                        for(i in 1:componentsNumberETSSeasonal){
-                            if(initialSeasonalEstimate[i]){
-                                matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <-
-                                    yInSample[1:lagsModel[i+j-1]]/matVt[1,1];
-                                # Renormalise the initial seasons
-                                matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <-
-                                    matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] /
-                                    exp(mean(log(matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]])));
-                            }
-                            else{
-                                matVt[i+j-1,(lagsModelMax-lagsModel[i+j-1])+1:lagsModel[i+j-1]] <- initialSeasonal[[i]];
-                            }
+                            matVt[2,lagsModelMax] <- initialTrend;
                         }
                     }
                 }
-            }
-            # Non-seasonal models
-            else{
-                # level
-                if(initialLevelEstimate){
-                    matVt[1,lagsModelMax] <- mean(yInSample[1:max(lagsModelMax,ceiling(obsInSample*0.2))]);
-                }
-                else{
-                    matVt[1,lagsModelMax] <- initialLevel;
-                }
-                if(modelIsTrendy){
-                    if(initialTrendEstimate){
-                        matVt[2,lagsModelMax] <- switch(Ttype,
-                                             "A" = mean(diff(yInSample[1:max(lagsModelMax+1,ceiling(obsInSample*0.2))]),na.rm=TRUE),
-                                             "M" = exp(mean(diff(log(yInSample[otLogical])),na.rm=TRUE)));
-                    }
-                    else{
-                        matVt[2,lagsModelMax] <- initialTrend;
-                    }
-                }
-            }
 
-            if(initialLevelEstimate && Etype=="M" && matVt[1,lagsModelMax]==0){
-                matVt[1,lagsModelMax] <- mean(yInSample);
-            }
-        }
-        # Else, insert the provided ones... make sure that this is not a backcasting
-        else if(!initialEstimate && initialType=="provided"){
-            j <- 1;
-            matVt[j,1:lagsModelMax] <- initialLevel;
-            if(modelIsTrendy){
-                j <- j+1;
-                matVt[j,1:lagsModelMax] <- initialTrend;
-            }
-            if(modelIsSeasonal){
-                for(i in 1:componentsNumberETSSeasonal){
-                    matVt[j+i,(lagsModelMax-lagsModel[j+i])+1:lagsModel[j+i]] <- initialSeasonal[[i]];
+                if(initialLevelEstimate && Etype=="M" && matVt[1,lagsModelMax]==0){
+                    matVt[1,lagsModelMax] <- mean(yInSample);
                 }
             }
-            j <- j+componentsNumberETSSeasonal;
+            # Else, insert the provided ones... make sure that this is not a backcasting
+            else if(!initialEstimate && initialType=="provided"){
+                j <- 1;
+                matVt[j,1:lagsModelMax] <- initialLevel;
+                if(modelIsTrendy){
+                    j <- j+1;
+                    matVt[j,1:lagsModelMax] <- initialTrend;
+                }
+                if(modelIsSeasonal){
+                    for(i in 1:componentsNumberETSSeasonal){
+                        matVt[j+i,(lagsModelMax-lagsModel[j+i])+1:lagsModel[j+i]] <- initialSeasonal[[i]];
+                    }
+                }
+                j <- j+componentsNumberETSSeasonal;
+            }
         }
 
         # If ARIMA orders are specified, prepare initials
@@ -963,7 +990,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
     #### The function fills in the existing matrices with values of A ####
     # This is needed in order to do the estimation and the fit
     filler <- function(B,
-                       Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
+                       etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
                        componentsNumberETS, componentsNumberETSNonSeasonal,
                        componentsNumberETSSeasonal, componentsNumberARIMA,
                        lags, lagsModel, lagsModelMax,
@@ -980,28 +1007,32 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         j <- 0;
         # Fill in persistence
         if(persistenceEstimate){
-            i <- 1;
-            # alpha
-            if(persistenceLevelEstimate){
-                j[] <- j+1;
-                vecG[i] <- B[j];
-            }
-            # beta
-            if(modelIsTrendy){
-                i[] <- 2;
-                if(persistenceTrendEstimate){
+            # Persistence of ETS
+            if(etsModel){
+                i <- 1;
+                # alpha
+                if(persistenceLevelEstimate){
                     j[] <- j+1;
                     vecG[i] <- B[j];
                 }
-            }
-            # gamma1, gamma2, ...
-            if(modelIsSeasonal){
-                if(any(persistenceSeasonalEstimate)){
-                    vecG[i+which(persistenceSeasonalEstimate)] <- B[j+c(1:sum(persistenceSeasonalEstimate))];
-                    j[] <- j+sum(persistenceSeasonalEstimate);
+                # beta
+                if(modelIsTrendy){
+                    i[] <- 2;
+                    if(persistenceTrendEstimate){
+                        j[] <- j+1;
+                        vecG[i] <- B[j];
+                    }
                 }
-                i[] <- componentsNumberETS;
+                # gamma1, gamma2, ...
+                if(modelIsSeasonal){
+                    if(any(persistenceSeasonalEstimate)){
+                        vecG[i+which(persistenceSeasonalEstimate)] <- B[j+c(1:sum(persistenceSeasonalEstimate))];
+                        j[] <- j+sum(persistenceSeasonalEstimate);
+                    }
+                    i[] <- componentsNumberETS;
+                }
             }
+
             # Persistence of xreg
             if(xregModel && persistenceXregEstimate){
                 vecG[j+componentsNumberARIMA+1:xregNumber] <- B[j+1:xregNumber];
@@ -1010,7 +1041,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         }
 
         # Damping parameter
-        if(phiEstimate){
+        if(etsModel && phiEstimate){
             j[] <- j+1;
             matWt[,2] <- B[j];
             matF[1:2,2] <- B[j];
@@ -1036,8 +1067,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             j[] <- j+sum(c(arOrders,maOrders));
         }
 
-        # Initials if something needs to be estimated
-        if((initialType!="backcasting") && initialEstimate){
+        # Initials of ETS if something needs to be estimated
+        if(etsModel && (initialType!="backcasting") && initialEstimate){
             i <- 1;
             if(initialLevelEstimate){
                 j[] <- j+1;
@@ -1119,7 +1150,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         }
 
         # Initials of the xreg
-        if((initialType!="backcasting") && initialEstimate && initialXregEstimate){
+        if(xregModel && (initialType!="backcasting") && initialEstimate && initialXregEstimate){
             matVt[componentsNumberETS+componentsNumberARIMA+1:xregNumber,1:lagsModelMax] <- B[j+1:xregNumber];
         }
 
@@ -1392,7 +1423,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
     ##### Cost Function for ETS #####
     CF <- function(B,
-                   Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, yInSample,
+                   etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, yInSample,
                    ot, otLogical, occurrenceModel, obsInSample,
                    componentsNumberETS, componentsNumberETSSeasonal, componentsNumberETSNonSeasonal,
                    componentsNumberARIMA,
@@ -1410,7 +1441,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
         # Fill in the matrices
         adamElements <- filler(B,
-                               Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
+                               etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
                                componentsNumberETS, componentsNumberETSNonSeasonal,
                                componentsNumberETSSeasonal, componentsNumberARIMA,
                                lags, lagsModel, lagsModelMax,
@@ -1450,30 +1481,34 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 }
             }
 
-            if(any(adamElements$vecG[1:componentsNumberETS]>1) || any(adamElements$vecG[1:componentsNumberETS]<0)){
-                return(1E+300);
-            }
-            if(modelIsTrendy){
-                if((adamElements$vecG[2]>adamElements$vecG[1])){
+            if(etsModel){
+                if(any(adamElements$vecG[1:componentsNumberETS]>1) || any(adamElements$vecG[1:componentsNumberETS]<0)){
                     return(1E+300);
                 }
-                if(modelIsSeasonal && any(adamElements$vecG[componentsNumberETSNonSeasonal+c(1:componentsNumberETSSeasonal)]>
-                                          (1-adamElements$vecG[1]))){
+                if(modelIsTrendy){
+                    if((adamElements$vecG[2]>adamElements$vecG[1])){
+                        return(1E+300);
+                    }
+                    if(modelIsSeasonal && any(adamElements$vecG[componentsNumberETSNonSeasonal+c(1:componentsNumberETSSeasonal)]>
+                                              (1-adamElements$vecG[1]))){
+                        return(1E+300);
+                    }
+                }
+                else{
+                    if(modelIsSeasonal && any(adamElements$vecG[componentsNumberETSNonSeasonal+c(1:componentsNumberETSSeasonal)]>
+                                              (1-adamElements$vecG[1]))){
+                        return(1E+300);
+                    }
+                }
+
+                # This is the restriction on the damping parameter
+                if(phiEstimate && (adamElements$matF[2,2]>1 || adamElements$matF[2,2]<0)){
                     return(1E+300);
                 }
-            }
-            else{
-                if(modelIsSeasonal && any(adamElements$vecG[componentsNumberETSNonSeasonal+c(1:componentsNumberETSSeasonal)]>
-                                          (1-adamElements$vecG[1]))){
-                    return(1E+300);
-                }
-            }
-            # This is the restriction on the damping parameter
-            if(phiEstimate && (adamElements$matF[2,2]>1 || adamElements$matF[2,2]<0)){
-                return(1E+300);
             }
         }
         else if(bounds=="admissible"){
+            # Stationarity condition of ARIMA
             if(arimaModel){
                 # Extract polynomials
                 arimaPolynomials <- polynomialiser(B[sum(c(persistenceLevelEstimate, persistenceTrendEstimate,
@@ -1486,11 +1521,15 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                     return(1E+100/min(abs(roots(arimaPolynomials$arPolynomial))));
                 }
             }
-            # We check the condition only for the last row of matWt
-            eigenValues <- eigen(adamElements$matF - adamElements$vecG %*% adamElements$matWt[obsInSample,],
-                                 only.values=TRUE)$values;
-            if(any(abs(eigenValues)>1+1E-50)){
-                return(abs(eigenValues)*1E+100);
+
+            # Stability / invertibility condition for ETS / ARIMA.
+            if(etsModel || arimaModel){
+                # We check the condition only for the last row of matWt
+                eigenValues <- eigen(adamElements$matF - adamElements$vecG %*% adamElements$matWt[obsInSample,],
+                                     only.values=TRUE)$values;
+                if(any(abs(eigenValues)>1+1E-50)){
+                    return(abs(eigenValues)*1E+100);
+                }
             }
         }
 
@@ -1582,10 +1621,10 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 ### All of this is needed in order to normalise level, trend, seasonal and xreg parameters
                 # Define, how many elements to skip (we don't normalise smoothing parameters)
                 if(persistenceXregEstimate){
-                    persistenceToSkip <- componentsNumberETS+xregNumber;
+                    persistenceToSkip <- componentsNumberETS+componentsNumberARIMA+xregNumber;
                 }
                 else{
-                    persistenceToSkip <- componentsNumberETS;
+                    persistenceToSkip <- componentsNumberETS+componentsNumberARIMA;
                 }
                 j <- 1;
                 if(phiEstimate){
@@ -1812,13 +1851,13 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                           horizon, multisteps, lambda, lambdaEstimate){
 
         # Create the basic variables
-        adamArchitect <- architector(Etype, Ttype, Stype, lags, lagsModelSeasonal,
+        adamArchitect <- architector(etsModel, Etype, Ttype, Stype, lags, lagsModelSeasonal,
                                      xregNumber, obsInSample, initialType,
-                                     arimaModel, lagsModelARIMA);
+                                     arimaModel, lagsModelARIMA, xregModel);
         list2env(adamArchitect, environment());
 
         # Create the matrices for the specific ETS model
-        adamCreated <- creator(Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
+        adamCreated <- creator(etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
                                lags, lagsModel, lagsModelARIMA, lagsModelAll, lagsModelMax,
                                obsStates, obsInSample, obsAll, componentsNumberETS, componentsNumberETSSeasonal,
                                componentsNamesETS, otLogical, yInSample,
@@ -1968,7 +2007,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         if(xregDo=="select"){
             # Fill in the matrices
             adamElements <- filler(B,
-                                   Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
+                                   etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
                                    componentsNumberETS, componentsNumberETSNonSeasonal,
                                    componentsNumberETSSeasonal, componentsNumberARIMA,
                                    lags, lagsModel, lagsModelMax,
@@ -2375,7 +2414,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
         # Fill in the matrices
         adamElements <- filler(B,
-                               Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
+                               etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
                                componentsNumberETS, componentsNumberETSNonSeasonal,
                                componentsNumberETSSeasonal, componentsNumberARIMA,
                                lags, lagsModel, lagsModelMax,
@@ -2698,13 +2737,13 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
         #### This part is needed in order for the filler to do its job later on
         # Create the basic variables based on the estimated model
-        adamArchitect <- architector(Etype, Ttype, Stype, lags, lagsModelSeasonal,
+        adamArchitect <- architector(etsModel, Etype, Ttype, Stype, lags, lagsModelSeasonal,
                                      xregNumber, obsInSample, initialType,
-                                     arimaModel, lagsModelARIMA);
+                                     arimaModel, lagsModelARIMA, xregModel);
         list2env(adamArchitect, environment());
 
         # Create the matrices for the specific ETS model
-        adamCreated <- creator(Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
+        adamCreated <- creator(etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
                                lags, lagsModel, lagsModelARIMA, lagsModelAll, lagsModelMax,
                                obsStates, obsInSample, obsAll, componentsNumberETS, componentsNumberETSSeasonal,
                                componentsNamesETS, otLogical, yInSample,
@@ -2763,13 +2802,13 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
         #### This part is needed in order for the filler to do its job later on
         # Create the basic variables based on the estimated model
-        adamArchitect <- architector(Etype, Ttype, Stype, lags, lagsModelSeasonal,
+        adamArchitect <- architector(etsModel, Etype, Ttype, Stype, lags, lagsModelSeasonal,
                                      xregNumber, obsInSample, initialType,
-                                     arimaModel, lagsModelARIMA);
+                                     arimaModel, lagsModelARIMA, xregModel);
         list2env(adamArchitect, environment());
 
         # Create the matrices for the specific ETS model
-        adamCreated <- creator(Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
+        adamCreated <- creator(etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
                                lags, lagsModel, lagsModelARIMA, lagsModelAll, lagsModelMax,
                                obsStates, obsInSample, obsAll, componentsNumberETS, componentsNumberETSSeasonal,
                                componentsNamesETS, otLogical, yInSample,
@@ -2886,9 +2925,9 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
             #### This part is needed in order for the filler to do its job later on
             # Create the basic variables based on the estimated model
-            adamArchitect <- architector(Etype, Ttype, Stype, lags, lagsModelSeasonal,
+            adamArchitect <- architector(etsModel, Etype, Ttype, Stype, lags, lagsModelSeasonal,
                                          xregNumber, obsInSample, initialType,
-                                         arimaModel, lagsModelARIMA);
+                                         arimaModel, lagsModelARIMA, xregModel);
             list2env(adamArchitect, environment());
 
             adamSelected$results[[i]]$modelIsTrendy <- adamArchitect$modelIsTrendy;
@@ -2902,7 +2941,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             adamSelected$results[[i]]$componentsNamesETS <- adamArchitect$componentsNamesETS;
 
             # Create the matrices for the specific ETS model
-            adamCreated <- creator(Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
+            adamCreated <- creator(etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
                                    lags, lagsModel, lagsModelARIMA, lagsModelAll, lagsModelMax,
                                    obsStates, obsInSample, obsAll, componentsNumberETS, componentsNumberETSSeasonal,
                                    componentsNamesETS, otLogical, yInSample,
@@ -2955,13 +2994,13 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         }
 
         # Create the basic variables
-        adamArchitect <- architector(Etype, Ttype, Stype, lags, lagsModelSeasonal,
+        adamArchitect <- architector(etsModel, Etype, Ttype, Stype, lags, lagsModelSeasonal,
                                      xregNumber, obsInSample, initialType,
-                                     arimaModel, lagsModelARIMA);
+                                     arimaModel, lagsModelARIMA, xregModel);
         list2env(adamArchitect, environment());
 
         # Create the matrices for the specific ETS model
-        adamCreated <- creator(Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
+        adamCreated <- creator(etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
                                lags, lagsModel, lagsModelARIMA, lagsModelAll, lagsModelMax,
                                obsStates, obsInSample, obsAll, componentsNumberETS, componentsNumberETSSeasonal,
                                componentsNamesETS, otLogical, yInSample,
