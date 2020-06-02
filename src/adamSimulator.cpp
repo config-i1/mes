@@ -19,6 +19,7 @@ List adamSimulator(arma::cube &arrayVt, arma::mat const &matrixErrors, arma::mat
     arma::uvec lagsModifier = lags;
     arma::uvec lagsInternal = lags;
     int lagsModelMax = max(lagsInternal);
+    unsigned int nETS = nNonSeasonal + nSeasonal;
     int nComponents = lagsInternal.n_rows;
     int obsAll = obs + lagsModelMax;
 
@@ -42,15 +43,15 @@ List adamSimulator(arma::cube &arrayVt, arma::mat const &matrixErrors, arma::mat
             lagrows = j * nComponents - (lagsInternal + lagsModifier) + nComponents - 1;
             /* # Measurement equation and the error term */
             matY(j-lagsModelMax,i) = matrixOt(j-lagsModelMax,i) * (wvalue(matrixVt(lagrows), matrixWt.row(j-lagsModelMax), E, T, S,
-                                              nNonSeasonal, nSeasonal, nArima, nXreg, nComponents) +
+                                              nETS, nNonSeasonal, nSeasonal, nArima, nXreg, nComponents) +
                                                   rvalue(matrixVt(lagrows), matrixWt.row(j-lagsModelMax), E, T, S,
-                                                         nNonSeasonal, nSeasonal, nArima, nXreg, nComponents) *
+                                                         nETS, nNonSeasonal, nSeasonal, nArima, nXreg, nComponents) *
                                                              matrixErrors(j-lagsModelMax,i));
 
             /* # Transition equation */
-            matrixVt.col(j) = fvalue(matrixVt(lagrows), matrixF, E, T, S, nNonSeasonal, nSeasonal, nArima, nComponents) +
+            matrixVt.col(j) = fvalue(matrixVt(lagrows), matrixF, E, T, S, nETS, nNonSeasonal, nSeasonal, nArima, nComponents) +
             gvalue(matrixVt(lagrows), matrixF, matrixWt.row(j-lagsModelMax), E, T, S,
-                   nNonSeasonal, nSeasonal, nArima, nXreg, nComponents, matrixG.col(i), matrixErrors(j-lagsModelMax,i));
+                   nETS, nNonSeasonal, nSeasonal, nArima, nXreg, nComponents, matrixG.col(i), matrixErrors(j-lagsModelMax,i));
 
             /* Failsafe for cases when unreasonable value for state vector was produced */
             if(!matrixVt.col(j).is_finite()){

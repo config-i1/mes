@@ -565,9 +565,11 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         # Persistence vector
         vecG <- matrix(0, componentsNumberETS+componentsNumberARIMA+xregNumber, 1,
                        dimnames=list(c(componentsNamesETS,componentsNamesARIMA,xregNames),NULL));
-        j <- 1;
+
+        j <- 0;
         # ETS model
         if(etsModel){
+            j <- j+1;
             rownames(vecG)[j] <- "alpha";
             if(!persistenceLevelEstimate){
                 vecG[j,] <- persistenceLevel;
@@ -858,11 +860,35 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         # If ARIMA orders are specified, prepare initials
         if(arimaModel){
             if(initialArimaEstimate){
-                matVt[componentsNumberETS+componentsNumberARIMA, 1:lagsModelARIMA[componentsNumberARIMA]+
-                          (lagsModelMax-lagsModelARIMA[componentsNumberARIMA])] <-
-                    # If there is ETS model, then do 0 / 1. Otherwise, take actuals
-                    switch(Etype,"A"=0,"M"=1);
-                    # switch(Etype,"A"=yInSample,"M"=log(yInSample))[1:lagsModelARIMA[componentsNumberARIMA]];
+                if(etsModel){
+                    matVt[componentsNumberETS+componentsNumberARIMA,
+                          1:lagsModelARIMA[componentsNumberARIMA]+(lagsModelMax-lagsModelARIMA[componentsNumberARIMA])] <-
+                        switch(Etype,"A"=0,"M"=1);
+                }
+                else{
+                    matVt[componentsNumberARIMA,
+                          1:lagsModelARIMA[componentsNumberARIMA]+(lagsModelMax-lagsModelARIMA[componentsNumberARIMA])] <-
+                        yInSample[1:lagsModelARIMA[componentsNumberARIMA]];
+
+                    # if(initialType!="backcasting"){
+                    #     # If this is just ARIMA with optimisation, refine the initials
+                    #     arimaPolynomials <- polynomialiser(rep(0.1,sum(c(arOrders,maOrders))), arOrders, iOrders, maOrders, lags);
+                    #     if(nrow(nonZeroARI)>0 && nrow(nonZeroARI)>=nrow(nonZeroMA)){
+                    #         matVt[1:componentsNumberARIMA,lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
+                    #             arimaPolynomials$ariPolynomial[nonZeroARI[,1]] %*%
+                    #             t(matVt[componentsNumberARIMA,
+                    #                     lagsModelMax-initialArimaNumber+1:initialArimaNumber]) /
+                    #             tail(arimaPolynomials$ariPolynomial,1);
+                    #     }
+                    #     else{
+                    #         matVt[1:componentsNumberARIMA,lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
+                    #             arimaPolynomials$maPolynomial[nonZeroMA[,1]] %*%
+                    #             t(matVt[componentsNumberARIMA,
+                    #                     lagsModelMax-initialArimaNumber+1:initialArimaNumber]) /
+                    #             tail(arimaPolynomials$maPolynomial,1);
+                    #     }
+                    # }
+                }
             }
             else{
                 # Insert the provided initials
@@ -1158,7 +1184,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
     }
 
     #### The function initialises the vector B for ETS ####
-    initialiser <- function(Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, componentsNumberETSSeasonal,
+    initialiser <- function(etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, componentsNumberETSSeasonal,
                             componentsNumberETS, lags, lagsModel, lagsModelSeasonal, lagsModelARIMA, lagsModelMax,
                             matVt,
                             # persistence values
@@ -1180,39 +1206,47 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         # Persistence of states and for xreg, phi, AR and MA parameters, initials, initialsARIMA, initials for xreg
         B <- Bl <- Bu <- vector("numeric",
                                 # Values of the persistence vector + phi
-                                persistenceLevelEstimate + modelIsTrendy*persistenceTrendEstimate +
-                                    modelIsSeasonal*sum(persistenceSeasonalEstimate) +
-                                    xregModel*persistenceXregEstimate*xregNumber + phiEstimate +
+                                etsModel*(persistenceLevelEstimate + modelIsTrendy*persistenceTrendEstimate +
+                                              modelIsSeasonal*sum(persistenceSeasonalEstimate) + phiEstimate) +
+                                    xregModel*persistenceXregEstimate*xregNumber +
                                     # AR and MA values
                                     arimaModel*(arEstimate*sum(arOrders)+maEstimate*sum(maOrders)) +
                                     # initials of ETS
-                                    (initialType!="backcasting")*(initialLevelEstimate + (modelIsTrendy*initialTrendEstimate) +
-                                    (modelIsSeasonal*sum(initialSeasonalEstimate*(lagsModelSeasonal-1)))) +
+                                    etsModel*(initialType!="backcasting")*
+                                    (initialLevelEstimate +
+                                         (modelIsTrendy*initialTrendEstimate) +
+                                         (modelIsSeasonal*sum(initialSeasonalEstimate*(lagsModelSeasonal-1)))) +
                                     # initials of ARIMA
                                     (initialType!="backcasting")*arimaModel*initialArimaNumber*initialArimaEstimate +
                                     # initials of xreg
                                     (initialType!="backcasting")*xregModel*initialXregEstimate*xregNumber+lambdaEstimate);
 
         j <- 0;
-        # Fill in persistence
-        if(persistenceEstimate){
-            if(any(c(Etype,Ttype,Stype)=="M")){
-                # A special type of model which is not safe: AAM, MAA, MAM
-                if((Etype=="A" && Ttype=="A" && Stype=="M") || (Etype=="A" && Ttype=="M" && Stype=="A") ||
-                   ((initialType=="backcasting") &&
-                    ((Etype=="M" && Ttype=="A" && Stype=="A") || (Etype=="M" && Ttype=="A" && Stype=="M")))){
-                    B[1:sum(persistenceEstimateVector)] <-
-                        c(0.01,0,rep(0,componentsNumberETSSeasonal))[which(persistenceEstimateVector)];
-                }
-                # MMA is the worst. Set everything to zero and see if anything can be done...
-                else if((Etype=="M" && Ttype=="M" && Stype=="A")){
-                    B[1:sum(persistenceEstimateVector)] <-
-                        c(0,0,rep(0,componentsNumberETSSeasonal))[which(persistenceEstimateVector)];
-                }
-                else if(Etype=="M" && Ttype=="A"){
-                    if(initialType=="backcasting"){
+        if(etsModel){
+            # Fill in persistence
+            if(persistenceEstimate){
+                if(any(c(Etype,Ttype,Stype)=="M")){
+                    # A special type of model which is not safe: AAM, MAA, MAM
+                    if((Etype=="A" && Ttype=="A" && Stype=="M") || (Etype=="A" && Ttype=="M" && Stype=="A") ||
+                       ((initialType=="backcasting") &&
+                        ((Etype=="M" && Ttype=="A" && Stype=="A") || (Etype=="M" && Ttype=="A" && Stype=="M")))){
                         B[1:sum(persistenceEstimateVector)] <-
-                            c(0.1,0,rep(0.11,componentsNumberETSSeasonal))[which(persistenceEstimateVector)];
+                            c(0.01,0,rep(0,componentsNumberETSSeasonal))[which(persistenceEstimateVector)];
+                    }
+                    # MMA is the worst. Set everything to zero and see if anything can be done...
+                    else if((Etype=="M" && Ttype=="M" && Stype=="A")){
+                        B[1:sum(persistenceEstimateVector)] <-
+                            c(0,0,rep(0,componentsNumberETSSeasonal))[which(persistenceEstimateVector)];
+                    }
+                    else if(Etype=="M" && Ttype=="A"){
+                        if(initialType=="backcasting"){
+                            B[1:sum(persistenceEstimateVector)] <-
+                                c(0.1,0,rep(0.11,componentsNumberETSSeasonal))[which(persistenceEstimateVector)];
+                        }
+                        else{
+                            B[1:sum(persistenceEstimateVector)] <-
+                                c(0.1,0.05,rep(0.11,componentsNumberETSSeasonal))[which(persistenceEstimateVector)];
+                        }
                     }
                     else{
                         B[1:sum(persistenceEstimateVector)] <-
@@ -1223,31 +1257,27 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                     B[1:sum(persistenceEstimateVector)] <-
                         c(0.1,0.05,rep(0.11,componentsNumberETSSeasonal))[which(persistenceEstimateVector)];
                 }
-            }
-            else{
-                B[1:sum(persistenceEstimateVector)] <-
-                    c(0.1,0.05,rep(0.11,componentsNumberETSSeasonal))[which(persistenceEstimateVector)];
-            }
-            Bl[1:sum(persistenceEstimateVector)] <- rep(-5, sum(persistenceEstimateVector));
-            Bu[1:sum(persistenceEstimateVector)] <- rep(5, sum(persistenceEstimateVector));
-            # Names for B
-            if(persistenceLevelEstimate){
-                j[] <- j+1
-                names(B)[j] <- "alpha";
-            }
-            if(modelIsTrendy && persistenceTrendEstimate){
-                j[] <- j+1
-                names(B)[j] <- "beta";
-            }
-            if(modelIsSeasonal && any(persistenceSeasonalEstimate)){
-                if(componentsNumberETSSeasonal>1){
-                    names(B)[j+c(1:sum(persistenceSeasonalEstimate))] <-
-                        paste0("gamma",c(1:componentsNumberETSSeasonal));
+                Bl[1:sum(persistenceEstimateVector)] <- rep(-5, sum(persistenceEstimateVector));
+                Bu[1:sum(persistenceEstimateVector)] <- rep(5, sum(persistenceEstimateVector));
+                # Names for B
+                if(persistenceLevelEstimate){
+                    j[] <- j+1
+                    names(B)[j] <- "alpha";
                 }
-                else{
-                    names(B)[j+1] <- "gamma";
+                if(modelIsTrendy && persistenceTrendEstimate){
+                    j[] <- j+1
+                    names(B)[j] <- "beta";
                 }
-                j[] <- j+sum(persistenceSeasonalEstimate);
+                if(modelIsSeasonal && any(persistenceSeasonalEstimate)){
+                    if(componentsNumberETSSeasonal>1){
+                        names(B)[j+c(1:sum(persistenceSeasonalEstimate))] <-
+                            paste0("gamma",c(1:componentsNumberETSSeasonal));
+                    }
+                    else{
+                        names(B)[j+1] <- "gamma";
+                    }
+                    j[] <- j+sum(persistenceSeasonalEstimate);
+                }
             }
         }
 
@@ -1263,7 +1293,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         }
 
         # Damping parameter
-        if(phiEstimate){
+        if(etsModel && phiEstimate){
             j[] <- j+1;
             B[j] <- 0.95;
             names(B)[j] <- "phi";
@@ -1295,7 +1325,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         }
 
         # Initials
-        if(initialType!="backcasting" && initialEstimate){
+        if(etsModel && initialType!="backcasting" && initialEstimate){
             i <- 1;
             if(initialLevelEstimate){
                 j[] <- j+1;
@@ -1462,13 +1492,14 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
         # Check the bounds, classical restrictions
         if(bounds=="usual"){
+            # Stationarity and invertibility conditions for ARIMA
             if(arimaModel && any(c(arEstimate,maEstimate))){
                 # Extract polynomials
-                arimaPolynomials <- polynomialiser(B[sum(c(persistenceLevelEstimate,
-                                                           modelIsTrendy*persistenceTrendEstimate,
-                                                           modelIsSeasonal*persistenceSeasonalEstimate,
+                arimaPolynomials <- polynomialiser(B[sum(c(etsModel*c(persistenceLevelEstimate,
+                                                                      modelIsTrendy*persistenceTrendEstimate,
+                                                                      modelIsSeasonal*persistenceSeasonalEstimate),
                                                            xregModel*persistenceXregEstimate))+
-                                                         phiEstimate+1:sum(c(arOrders,maOrders))],
+                                                         etsModel*phiEstimate+1:sum(c(arOrders,maOrders))],
                                                    arOrders, iOrders, maOrders, lags);
 
                 # Calculate the polynomial roots for AR
@@ -1481,6 +1512,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 }
             }
 
+            # Smoothing parameters & phi restrictions in case of ETS
             if(etsModel){
                 if(any(adamElements$vecG[1:componentsNumberETS]>1) || any(adamElements$vecG[1:componentsNumberETS]<0)){
                     return(1E+300);
@@ -1714,7 +1746,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
     #### The function returns log-likelihood of the model ####
     logLikADAM <- function(B,
-                           Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, yInSample,
+                           etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, yInSample,
                            ot, otLogical, occurrenceModel, pFitted, obsInSample,
                            componentsNumberETS, componentsNumberETSSeasonal, componentsNumberETSNonSeasonal,
                            componentsNumberARIMA,
@@ -1740,7 +1772,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                           "HAM"=switch(Etype,"A"="ds","M"="dls"),
                                           distribution);
                 logLikReturn <- -CF(B,
-                                    Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, yInSample,
+                                    etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, yInSample,
                                     ot, otLogical, occurrenceModel, obsInSample,
                                     componentsNumberETS, componentsNumberETSSeasonal, componentsNumberETSNonSeasonal,
                                     componentsNumberARIMA,
@@ -1789,7 +1821,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             # - Laplace for MAEh and MACE,
             # - S for HAMh and CHAM
             logLikReturn <- CF(B,
-                               Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, yInSample,
+                               etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, yInSample,
                                ot, otLogical, occurrenceModel, obsInSample,
                                componentsNumberETS, componentsNumberETSSeasonal, componentsNumberETSNonSeasonal,
                                componentsNumberARIMA,
@@ -1831,7 +1863,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
     }
 
     #### The function estimates the ETS model and returns B, logLik, nParam and CF(B) ####
-    estimator <- function(Etype, Ttype, Stype, lags, lagsModelSeasonal, lagsModelARIMA,
+    estimator <- function(etsModel, Etype, Ttype, Stype, lags, lagsModelSeasonal, lagsModelARIMA,
                           obsStates, obsInSample,
                           yInSample, persistence, persistenceEstimate,
                           persistenceLevel, persistenceLevelEstimate,
@@ -1876,7 +1908,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                xregModel, xregModelInitials, xregData, xregNumber, xregNames);
 
         if(is.null(B) && is.null(lb) && is.null(ub)){
-            BValues <- initialiser(Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, componentsNumberETSSeasonal,
+            BValues <- initialiser(etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, componentsNumberETSSeasonal,
                                    componentsNumberETS, lags, lagsModel, lagsModelSeasonal, lagsModelARIMA, lagsModelMax,
                                    adamCreated$matVt,
                                    persistenceEstimate, persistenceLevelEstimate, persistenceTrendEstimate,
@@ -1891,6 +1923,45 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             B <- BValues$B;
             # lb <- BValues$Bl;
             # ub <- BValues$Bu;
+        }
+
+        # Preheat the initial state of ARIMA
+        if(!etsModel && arimaModel && initialType=="optimal"){
+            adamElements <- filler(B,
+                                   etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
+                                   componentsNumberETS, componentsNumberETSNonSeasonal,
+                                   componentsNumberETSSeasonal, componentsNumberARIMA,
+                                   lags, lagsModel, lagsModelMax,
+                                   adamCreated$matVt, adamCreated$matWt, adamCreated$matF, adamCreated$vecG,
+                                   persistenceEstimate, persistenceLevelEstimate, persistenceTrendEstimate,
+                                   persistenceSeasonalEstimate, persistenceXregEstimate,
+                                   phiEstimate,
+                                   initialType, initialEstimate,
+                                   initialLevelEstimate, initialTrendEstimate, initialSeasonalEstimate,
+                                   initialArimaEstimate, initialXregEstimate,
+                                   arimaModel, arEstimate, maEstimate, nonZeroARI, nonZeroMA, arimaPolynomials,
+                                   xregModel, xregNumber);
+
+            # Do initial fit to get the state values from the backcasting
+            adamFitted <- adamFitterWrap(cbind(adamElements$matVt,adamElements$matVt[,1:lagsModelMax]),
+                                         adamElements$matWt, adamElements$matF, adamElements$vecG,
+                                         lagsModelAll, Etype, Ttype, Stype, componentsNumberETS, componentsNumberETSSeasonal,
+                                         componentsNumberARIMA, xregNumber, yInSample, ot, TRUE);
+
+            # Produce new initials
+            BValues <- initialiser(etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, componentsNumberETSSeasonal,
+                                   componentsNumberETS, lags, lagsModel, lagsModelSeasonal, lagsModelARIMA, lagsModelMax,
+                                   adamFitted$matVt,
+                                   persistenceEstimate, persistenceLevelEstimate, persistenceTrendEstimate,
+                                   persistenceSeasonalEstimate, persistenceXregEstimate,
+                                   phiEstimate, initialType, initialEstimate,
+                                   initialLevelEstimate, initialTrendEstimate, initialSeasonalEstimate,
+                                   initialArimaEstimate, initialXregEstimate,
+                                   arimaModel, arRequired, maRequired, arEstimate, maEstimate, arOrders, maOrders,
+                                   componentsNumberARIMA, componentsNamesARIMA, initialArimaNumber,
+                                   xregModel, xregNumber, lambdaEstimate);
+            # Create the vector of initials for the optimisation
+            B <- BValues$B;
         }
 
         # If the distribution is default, change it according to the error term
@@ -1919,7 +1990,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         res <- suppressWarnings(nloptr(B, CF, lb=lb, ub=ub,
                                        opts=list(algorithm=algorithm, xtol_rel=xtol_rel, xtol_abs=xtol_abs,
                                                  maxeval=maxeval, maxtime=maxtime, print_level=print_level),
-                                       Etype=Etype, Ttype=Ttype, Stype=Stype, modelIsTrendy=modelIsTrendy,
+                                       etsModel=etsModel, Etype=Etype, Ttype=Ttype, Stype=Stype, modelIsTrendy=modelIsTrendy,
                                        modelIsSeasonal=modelIsSeasonal, yInSample=yInSample,
                                        ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, obsInSample=obsInSample,
                                        componentsNumberETS=componentsNumberETS, componentsNumberETSSeasonal=componentsNumberETSSeasonal,
@@ -1948,7 +2019,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             res <- suppressWarnings(nloptr(B, CF, lb=lb, ub=ub,
                                            opts=list(algorithm=algorithm, xtol_rel=xtol_rel, maxeval=maxeval,
                                                      maxtime=maxtime, print_level=print_level),
-                                           Etype=Etype, Ttype=Ttype, Stype=Stype, modelIsTrendy=modelIsTrendy,
+                                           etsModel=etsModel, Etype=Etype, Ttype=Ttype, Stype=Stype, modelIsTrendy=modelIsTrendy,
                                            modelIsSeasonal=modelIsSeasonal, yInSample=yInSample,
                                            ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, obsInSample=obsInSample,
                                            componentsNumberETS=componentsNumberETS, componentsNumberETSSeasonal=componentsNumberETSSeasonal,
@@ -1985,7 +2056,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         nParamEstimated <- length(B) + (loss=="likelihood");
         # Return a proper logLik class
         logLikADAMValue <- structure(logLikADAM(B,
-                                                Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, yInSample,
+                                                etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, yInSample,
                                                 ot, otLogical, occurrenceModel, pFitted, obsInSample,
                                                 componentsNumberETS, componentsNumberETSSeasonal, componentsNumberETSNonSeasonal,
                                                 componentsNumberARIMA,
@@ -2046,7 +2117,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 persistenceXregEstimate[] <- persistenceXregEstimateOriginal;
                 xregData <- xregDataOriginal[,xregNames,drop=FALSE];
 
-                return(estimator(Etype, Ttype, Stype, lags, lagsModelSeasonal, lagsModelARIMA,
+                return(estimator(etsModel, Etype, Ttype, Stype, lags, lagsModelSeasonal, lagsModelARIMA,
                                  obsStates, obsInSample,
                                  yInSample, persistence, persistenceEstimate,
                                  persistenceLevel, persistenceLevelEstimate,
@@ -2076,7 +2147,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
     #### The function creates a pool of models and selects the best of them ####
     selector <- function(model, modelsPool, allowMultiplicative,
-                         Etype, Ttype, Stype, damped, lags,
+                         etsModel, Etype, Ttype, Stype, damped, lags,
                          lagsModelSeasonal, lagsModelARIMA,
                          obsStates, obsInSample,
                          yInSample, persistence, persistenceEstimate,
@@ -2213,7 +2284,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                     Stype[] <- substring(modelCurrent,3,3);
                 }
 
-                results[[i]] <- estimator(Etype, Ttype, Stype, lags, lagsModelSeasonal, lagsModelARIMA,
+                results[[i]] <- estimator(etsModel, Etype, Ttype, Stype, lags, lagsModelSeasonal, lagsModelARIMA,
                                           obsStates, obsInSample,
                                           yInSample, persistence, persistenceEstimate,
                                           persistenceLevel, persistenceLevelEstimate,
@@ -2340,7 +2411,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 phiEstimate <- FALSE;
             }
 
-            results[[j]] <- estimator(Etype, Ttype, Stype, lags, lagsModelSeasonal, lagsModelARIMA,
+            results[[j]] <- estimator(etsModel, Etype, Ttype, Stype, lags, lagsModelSeasonal, lagsModelARIMA,
                                       obsStates, obsInSample,
                                       yInSample, persistence, persistenceEstimate,
                                       persistenceLevel, persistenceLevelEstimate,
@@ -2396,7 +2467,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
     }
 
     ##### Function prepares all the matrices and vectors for return #####
-    preparator <- function(B, Etype, Ttype, Stype,
+    preparator <- function(B, etsModel, Etype, Ttype, Stype,
                            lagsModel, lagsModelMax, lagsModelAll,
                            componentsNumberETS, componentsNumberETSSeasonal,
                            xregNumber, distribution, loss,
@@ -2519,55 +2590,59 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         }
 
         #### Initial values to return ####
-        initialValue <- vector("list", 1+modelIsTrendy+modelIsSeasonal+arimaModel+xregModel);
-        initialValueETS <- vector("list", length(lagsModel));
-        initialValueNames <- vector("character", 1+modelIsTrendy+modelIsSeasonal+arimaModel+xregModel);
+        initialValue <- vector("list", etsModel*(1+modelIsTrendy+modelIsSeasonal)+arimaModel+xregModel);
+        initialValueETS <- vector("list", etsModel*length(lagsModel));
+        initialValueNames <- vector("character", etsModel*(1+modelIsTrendy+modelIsSeasonal)+arimaModel+xregModel);
         # The vector that defines what was estimated in the model
-        initialEstimated <- vector("logical", 1+modelIsTrendy+modelIsSeasonal*componentsNumberETSSeasonal+
+        initialEstimated <- vector("logical", etsModel*(1+modelIsTrendy+modelIsSeasonal*componentsNumberETSSeasonal)+
                                        arimaModel+xregModel);
 
-        # Write down level, trend and seasonal
-        for(i in 1:length(lagsModel)){
-            initialValueETS[[i]] <- tail(matVt[i,1:lagsModelMax],lagsModel[i]);
-        }
-        j <- 1;
-        # Write down level in the final list
-        initialEstimated[j] <- initialLevelEstimate;
-        initialValue[[j]] <- initialValueETS[[j]];
-        initialValueNames[j] <- c("level");
-        names(initialEstimated)[j] <- initialValueNames[j];
-        if(modelIsTrendy){
-            j <- 2;
-            initialEstimated[j] <- initialTrendEstimate;
-            # Write down trend in the final list
-            initialValue[[j]] <- initialValueETS[[j]];
-            # Remove the trend from ETS list
-            initialValueETS[[j]] <- NULL;
-            initialValueNames[j] <- c("trend");
-            names(initialEstimated)[j] <- initialValueNames[j];
-        }
-        # Write down the initial seasonals
-        if(modelIsSeasonal){
-            initialEstimated[j+c(1:componentsNumberETSSeasonal)] <- initialSeasonalEstimate;
-            # Remove the level from ETS list
-            initialValueETS[[1]] <- NULL;
-            j <- j+1;
-            if(length(initialSeasonalEstimate)>1){
-                initialValue[[j]] <- initialValueETS;
-                initialValueNames[[j]] <- "seasonal";
-                names(initialEstimated)[j+0:(componentsNumberETSSeasonal-1)] <-
-                    paste0(initialValueNames[j],c(1:componentsNumberETSSeasonal));
+        # Write down the initials of ETS
+        j <- 0;
+        if(etsModel){
+            # Write down level, trend and seasonal
+            for(i in 1:length(lagsModel)){
+                initialValueETS[[i]] <- tail(matVt[i,1:lagsModelMax],lagsModel[i]);
             }
-            else{
-                initialValue[[j]] <- initialValueETS[[1]];
-                initialValueNames[[j]] <- "seasonal";
+            j[] <- j+1;
+            # Write down level in the final list
+            initialEstimated[j] <- initialLevelEstimate;
+            initialValue[[j]] <- initialValueETS[[j]];
+            initialValueNames[j] <- c("level");
+            names(initialEstimated)[j] <- initialValueNames[j];
+            if(modelIsTrendy){
+                j[] <- 2;
+                initialEstimated[j] <- initialTrendEstimate;
+                # Write down trend in the final list
+                initialValue[[j]] <- initialValueETS[[j]];
+                # Remove the trend from ETS list
+                initialValueETS[[j]] <- NULL;
+                initialValueNames[j] <- c("trend");
                 names(initialEstimated)[j] <- initialValueNames[j];
             }
-
+            # Write down the initial seasonals
+            if(modelIsSeasonal){
+                initialEstimated[j+c(1:componentsNumberETSSeasonal)] <- initialSeasonalEstimate;
+                # Remove the level from ETS list
+                initialValueETS[[1]] <- NULL;
+                j[] <- j+1;
+                if(length(initialSeasonalEstimate)>1){
+                    initialValue[[j]] <- initialValueETS;
+                    initialValueNames[[j]] <- "seasonal";
+                    names(initialEstimated)[j+0:(componentsNumberETSSeasonal-1)] <-
+                        paste0(initialValueNames[j],c(1:componentsNumberETSSeasonal));
+                }
+                else{
+                    initialValue[[j]] <- initialValueETS[[1]];
+                    initialValueNames[[j]] <- "seasonal";
+                    names(initialEstimated)[j] <- initialValueNames[j];
+                }
+            }
         }
+
         # Write down the ARIMA initials
         if(arimaModel){
-            j <- j+1;
+            j[] <- j+1;
             initialEstimated[j] <- initialArimaEstimate;
             initialValue[[j]] <- head(matVt[componentsNumberETS+componentsNumberARIMA,],initialArimaNumber);
             initialValueNames[j] <- "arima";
@@ -2575,7 +2650,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         }
         # Write down the xreg initials
         if(xregModel){
-            j <- j+1;
+            j[] <- j+1;
             initialEstimated[j] <- initialXregEstimate;
             initialValue[[j]] <- matVt[-c(1:(componentsNumberETS+componentsNumberARIMA)),lagsModelMax];
             initialValueNames[j] <- "xreg";
@@ -2586,30 +2661,22 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         #### Persistence to return ####
         persistence <- as.vector(vecG);
         names(persistence) <- rownames(vecG);
-        # if(xregModel && xregDo=="adapt"){
-        #     persistence <- as.vector(vecG);
-        #     names(persistence) <- rownames(vecG);
-        # }
-        # else{
-        #     persistence <- vecG[1:componentsNumberETS,];
-        #     names(persistence) <- rownames(vecG)[1:componentsNumberETS];
-        # }
 
         if(arimaModel){
             armaParametersList <- vector("list",arRequired+maRequired);
-            j <- 1;
+            j[] <- 1;
             if(arRequired && arEstimate){
                 # Avoid damping parameter phi
                 armaParametersList[[j]] <- B[nchar(names(B))>3 & substr(names(B),1,3)=="phi"];
                 names(armaParametersList)[j] <- "ar";
-                j <- j+1;
+                j[] <- j+1;
             }
             # If this was provided
             else if(arRequired && !arEstimate){
                 # Avoid damping parameter phi
                 armaParametersList[[j]] <- armaParameters[substr(names(armaParameters),1,3)=="phi"];
                 names(armaParametersList)[j] <- "ar";
-                j <- j+1;
+                j[] <- j+1;
             }
             if(maRequired && maEstimate){
                 armaParametersList[[j]] <- B[substr(names(B),1,5)=="theta"];
@@ -2715,7 +2782,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
     ##### Estimate the specified model #####
     if(modelDo=="estimate"){
         # Estimate the parameters of the demand sizes model
-        adamEstimated <- estimator(Etype, Ttype, Stype, lags, lagsModelSeasonal, lagsModelARIMA,
+        adamEstimated <- estimator(etsModel, Etype, Ttype, Stype, lags, lagsModelSeasonal, lagsModelARIMA,
                                    obsStates, obsInSample,
                                    yInSample, persistence, persistenceEstimate,
                                    persistenceLevel, persistenceLevelEstimate,
@@ -2776,7 +2843,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
     #### Selection of the best model ####
     else if(modelDo=="select"){
         adamSelected <-  selector(model, modelsPool, allowMultiplicative,
-                                  Etype, Ttype, Stype, damped, lags,
+                                  etsModel, Etype, Ttype, Stype, damped, lags,
                                   lagsModelSeasonal, lagsModelARIMA,
                                   obsStates, obsInSample,
                                   yInSample, persistence, persistenceEstimate,
@@ -2888,7 +2955,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         }
 
         adamSelected <-  selector(model, modelsPool, allowMultiplicative,
-                                  Etype, Ttype, Stype, damped, lags,
+                                  etsModel, Etype, Ttype, Stype, damped, lags,
                                   lagsModelSeasonal, lagsModelARIMA,
                                   obsStates, obsInSample,
                                   yInSample, persistence, persistenceEstimate,
@@ -3019,7 +3086,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                xregModel, xregModelInitials, xregData, xregNumber, xregNames);
         list2env(adamCreated, environment());
 
-        CFValue <- CF(B=0, Etype=Etype, Ttype=Ttype, Stype=Stype, modelIsTrendy=modelIsTrendy,
+        CFValue <- CF(B=0, etsModel=etsModel, Etype=Etype, Ttype=Ttype, Stype=Stype, modelIsTrendy=modelIsTrendy,
                       modelIsSeasonal=modelIsSeasonal, yInSample=yInSample,
                       ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, obsInSample=obsInSample,
                       componentsNumberETS=componentsNumberETS, componentsNumberETSSeasonal=componentsNumberETSSeasonal,
@@ -3045,7 +3112,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
         parametersNumber[1,1] <- parametersNumber[1,4] <- 1;
         logLikADAMValue <- structure(logLikADAM(B=0,
-                                                Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, yInSample,
+                                                etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, yInSample,
                                                 ot, otLogical, occurrenceModel, pFitted, obsInSample,
                                                 componentsNumberETS, componentsNumberETSSeasonal, componentsNumberETSNonSeasonal,
                                                 componentsNumberARIMA,
@@ -3067,7 +3134,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         if(FI){
             # If B is not provided, then use the standard thing
             if(is.null(B)){
-                BValues <- initialiser(Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, componentsNumberETSSeasonal,
+                BValues <- initialiser(etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, componentsNumberETSSeasonal,
                                        componentsNumberETS, lags, lagsModel, lagsModelSeasonal, lagsModelARIMA, lagsModelMax,
                                        matVt,
                                        TRUE, TRUE, modelIsTrendy, rep(modelIsSeasonal,componentsNumberETSSeasonal), FALSE,
@@ -3151,7 +3218,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 arEstimateFI <- arRequired;
             }
 
-            FI <- -hessian(logLikADAM, B, Etype=Etype, Ttype=Ttype, Stype=Stype, modelIsTrendy=modelIsTrendy,
+            FI <- -hessian(logLikADAM, B, etsModel=etsModel, Etype=Etype, Ttype=Ttype, Stype=Stype, modelIsTrendy=modelIsTrendy,
                            modelIsSeasonal=modelIsSeasonal, yInSample=yInSample,
                            ot=ot, otLogical=otLogical, occurrenceModel=occurrenceModel, pFitted=pFitted, obsInSample=obsInSample,
                            componentsNumberETS=componentsNumberETS, componentsNumberETSSeasonal=componentsNumberETSSeasonal,
@@ -3198,7 +3265,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
     #### Prepare the return if we didn't combine anything ####
     if(modelDo!="combine"){
-        modelReturned <- preparator(B, Etype, Ttype, Stype,
+        modelReturned <- preparator(B, etsModel, Etype, Ttype, Stype,
                                     lagsModel, lagsModelMax, lagsModelAll,
                                     componentsNumberETS, componentsNumberETSSeasonal,
                                     xregNumber, distribution, loss,
@@ -3216,26 +3283,33 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
         # Prepare the name of the model
         modelName <- "";
-        if(xregModel){
-            modelName[] <- "ETSX";
-        }
-        else{
+        if(etsModel){
             modelName[] <- "ETS";
-        }
-        modelName[] <- paste0(modelName,"(",model,")");
-        if(all(occurrence!=c("n","none"))){
-            modelName[] <- paste0("i",modelName);
-        }
-        if(componentsNumberETSSeasonal>1){
-            modelName[] <- paste0(modelName,"[",paste0(lags[lags!=1], collapse=", "),"]");
+            if(xregModel){
+                modelName[] <- paste0(modelName,"X");
+            }
+            modelName[] <- paste0(modelName,"(",model,")");
+            if(componentsNumberETSSeasonal>1){
+                modelName[] <- paste0(modelName,"[",paste0(lags[lags!=1], collapse=", "),"]");
+            }
         }
         if(arimaModel){
+            if(etsModel){
+                modelName[] <- paste0(modelName,"+");
+            }
             # Either the lags are non-seasonal, or there are no orders for seasonal lags
             if(all(lags==1) || (all(arOrders[lags>1]==0) && all(iOrders[lags>1]==0) && all(maOrders[lags>1]==0))){
-                modelName[] <- paste0(modelName,"+ARIMA(",arOrders[1],",",iOrders[1],",",maOrders[1],")");
+                modelName[] <- paste0(modelName,"ARIMA");
+                if(!etsModel && xregModel){
+                    modelName[] <- paste0(modelName,"X");
+                }
+                modelName[] <- paste0(modelName,"(",arOrders[1],",",iOrders[1],",",maOrders[1],")");
             }
             else{
-                modelName[] <- paste0(modelName,"+SARIMA");
+                modelName[] <- paste0(modelName,"SARIMA");
+                if(!etsModel && xregModel){
+                    modelName[] <- paste0(modelName,"X");
+                }
                 for(i in 1:length(arOrders)){
                     if(all(arOrders[i]==0) && all(iOrders[i]==0) && all(maOrders[i]==0)){
                         next;
@@ -3245,6 +3319,12 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                     modelName[] <- paste0(modelName,maOrders[i],")[",lags[i],"]");
                 }
             }
+        }
+        if(!etsModel && !arimaModel){
+            modelName[] <- paste0("Regression");
+        }
+        if(all(occurrence!=c("n","none"))){
+            modelName[] <- paste0("i",modelName);
         }
 
         modelReturned$model <- modelName;
@@ -3275,7 +3355,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
         for(i in 1:length(adamSelected$results)){
             list2env(adamSelected$results[[i]], environment());
-            modelReturned$models[[i]] <- preparator(B, Etype, Ttype, Stype,
+            modelReturned$models[[i]] <- preparator(B, etsModel, Etype, Ttype, Stype,
                                                     lagsModel, lagsModelMax, lagsModelAll,
                                                     componentsNumberETS, componentsNumberETSSeasonal,
                                                     xregNumber, distribution, loss,

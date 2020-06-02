@@ -326,6 +326,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
             componentsNumberETS[] <- componentsNumberETS+1;
         }
     }
+    else{
+        modelIsTrendy <- FALSE;
+    }
 
     #### Check the lags vector ####
     if(any(c(lags)<0)){

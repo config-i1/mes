@@ -64,6 +64,7 @@ List adamFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const 
 
     int obs = vectorYt.n_rows;
     int obsall = matrixVt.n_cols;
+    unsigned int nETS = nNonSeasonal + nSeasonal;
     int nComponents = matrixVt.n_rows;
     arma::uvec lagsModifier = lags;
     arma::uvec lagsInternal = lags;
@@ -98,7 +99,7 @@ List adamFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const 
 
             /* # Measurement equation and the error term */
             vecYfit(i-lagsModelMax) = wvalue(matrixVt(lagrows), matrixWt.row(i-lagsModelMax), E, T, S,
-                    nNonSeasonal, nSeasonal, nArima, nXreg, nComponents);
+                    nETS, nNonSeasonal, nSeasonal, nArima, nXreg, nComponents);
 
             // Failsafe for fitted becoming negative in mixed models
             // if((E=='M') && (vecYfit(i-lagsModelMax)<0)){
@@ -114,8 +115,8 @@ List adamFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const 
             }
 
             /* # Transition equation */
-            matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, E, T, S, nNonSeasonal, nSeasonal, nArima, nComponents) +
-            gvalue(matrixVt(lagrows), matrixF, matrixWt.row(i-lagsModelMax), E, T, S,
+            matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, E, T, S, nETS, nNonSeasonal, nSeasonal, nArima, nComponents) +
+            gvalue(matrixVt(lagrows), matrixF, matrixWt.row(i-lagsModelMax), E, T, S, nETS,
                    nNonSeasonal, nSeasonal, nArima, nXreg, nComponents, vectorG, vecErrors(i-lagsModelMax));
 
             // Failsafe for cases, when nan values appear
@@ -145,7 +146,7 @@ List adamFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const 
             // Fill in the tail of the series - this is needed for backcasting
             for (int i=obs+lagsModelMax; i<obsall; i=i+1) {
                 lagrows = i * nComponents - (lagsInternal + lagsModifier) + nComponents - 1;
-                matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, E, T, S, nNonSeasonal, nSeasonal, nArima, nComponents);
+                matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, E, T, S, nETS, nNonSeasonal, nSeasonal, nArima, nComponents);
 
                 // /* Failsafe for cases when unreasonable value for state vector was produced */
                 // if(!matrixVt.col(i).is_finite()){
@@ -167,7 +168,7 @@ List adamFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const 
 
                 /* # Measurement equation and the error term */
                 vecYfit(i-lagsModelMax) = wvalue(matrixVt(lagrows), matrixWt.row(i-lagsModelMax), E, T, S,
-                        nNonSeasonal, nSeasonal, nArima, nXreg, nComponents);
+                        nETS, nNonSeasonal, nSeasonal, nArima, nXreg, nComponents);
 
                 // Failsafe for fitted becoming negative in mixed models
                 // if((E=='M') && (vecYfit(i-lagsModelMax)<0)){
@@ -183,9 +184,9 @@ List adamFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const 
                 }
 
                 /* # Transition equation */
-                matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, E, T, S, nNonSeasonal, nSeasonal, nArima, nComponents) +
+                matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, E, T, S, nETS, nNonSeasonal, nSeasonal, nArima, nComponents) +
                 gvalue(matrixVt(lagrows), matrixF, matrixWt.row(i-lagsModelMax), E, T, S,
-                   nNonSeasonal, nSeasonal, nArima, nXreg, nComponents, vectorG, vecErrors(i-lagsModelMax));
+                       nETS, nNonSeasonal, nSeasonal, nArima, nXreg, nComponents, vectorG, vecErrors(i-lagsModelMax));
 
                 // Failsafe for cases, when nan values appear
                 if(matrixVt.col(i).has_nan()){
@@ -215,7 +216,7 @@ List adamFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const 
             // Fill in the head of the series
             for (int i=lagsModelMax-1; i>=0; i=i-1) {
                 lagrows = i * nComponents + lagsInternal - lagsModifier + nComponents - 1;
-                matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, E, T, S, nNonSeasonal, nSeasonal, nArima, nComponents);
+                matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, E, T, S, nETS, nNonSeasonal, nSeasonal, nArima, nComponents);
 
                 // /* Failsafe for cases when unreasonable value for state vector was produced */
                 // if(!matrixVt.col(i).is_finite()){
@@ -294,6 +295,7 @@ arma::vec adamForecaster(arma::mat const &matrixVt, arma::mat const &matrixWt, a
     unsigned int lagslength = lags.n_rows;
     unsigned int lagsModelMax = max(lags);
     unsigned int hh = horizon + lagsModelMax;
+    unsigned int nETS = nNonSeasonal + nSeasonal;
     unsigned int nComponents = matrixVt.n_rows;
     arma::uvec lagrows(lagslength, arma::fill::zeros);
 
@@ -311,10 +313,10 @@ arma::vec adamForecaster(arma::mat const &matrixVt, arma::mat const &matrixWt, a
     /* # Fill in the new xt matrix using F. Do the forecasts. */
     for (unsigned int i=lagsModelMax; i<hh; i=i+1) {
         lagrows = i * nComponents - lags + nComponents - 1;
-        matrixVtnew.col(i) = fvalue(matrixVtnew(lagrows), matrixF, E, T, S, nNonSeasonal, nSeasonal, nArima, nComponents);
+        matrixVtnew.col(i) = fvalue(matrixVtnew(lagrows), matrixF, E, T, S, nETS, nNonSeasonal, nSeasonal, nArima, nComponents);
 
         vecYfor.row(i-lagsModelMax) = (wvalue(matrixVtnew(lagrows), matrixWt.row(i-lagsModelMax), E, T, S,
-                                       nNonSeasonal, nSeasonal, nArima, nXreg, nComponents));
+                                       nETS, nNonSeasonal, nSeasonal, nArima, nXreg, nComponents));
     }
 
     // return List::create(Named("matVt") = matrixVtnew, Named("yForecast") = vecYfor);
