@@ -733,6 +733,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     }
 
    # Make sure that only important elements are estimated.
+    if(!etsModel){
+        persistenceLevelEstimate[] <- FALSE;
+    }
     if(!etsModel || Ttype=="N"){
         persistenceTrendEstimate[] <- FALSE;
         persistenceTrend <- NULL;

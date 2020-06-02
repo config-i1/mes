@@ -1467,7 +1467,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                    arimaModel, nonZeroARI, nonZeroMA, arEstimate, maEstimate, arimaPolynomials,
                    xregModel, xregNumber,
                    bounds, loss, lossFunction, distribution,
-                   horizon, multisteps, lambda, lambdaEstimate){
+                   horizon, multisteps, lambda, lambdaEstimate,
+                   arPolynomialMatrix, maPolynomialMatrix){
 
         # Fill in the matrices
         adamElements <- filler(B,
@@ -1503,12 +1504,20 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                                    arOrders, iOrders, maOrders, lags);
 
                 # Calculate the polynomial roots for AR
-                if(arEstimate && any(abs(polyroot(arimaPolynomials$arPolynomial))<1)){
-                    return(1E+100/min(abs(roots(arimaPolynomials$arPolynomial))));
+                if(arEstimate){
+                    arPolynomialMatrix[,1] <- -arimaPolynomials$arPolynomial[-1];
+                    arPolyroots <- abs(eigen(arPolynomialMatrix, symmetric=TRUE, only.values=TRUE)$values);
+                    if(any(arPolyroots>1)){
+                        return(1E+100*max(arPolyroots));
+                    }
                 }
                 # Calculate the polynomial roots of MA
-                if(maEstimate && any(abs(polyroot(arimaPolynomials$maPolynomial))<1)){
-                    return(1E+100/min(abs(roots(arimaPolynomials$maPolynomial))));
+                if(maEstimate){
+                    maPolynomialMatrix[,1] <- arimaPolynomials$maPolynomial[-1];
+                    maPolyroots <- abs(eigen(arPolynomialMatrix, symmetric=TRUE ,only.values=TRUE)$values);
+                    if(any(maPolyroots>1)){
+                        return(1E+100*max(abs(maPolyroots)));
+                    }
                 }
             }
 
@@ -1543,14 +1552,20 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             # Stationarity condition of ARIMA
             if(arimaModel){
                 # Extract polynomials
-                arimaPolynomials <- polynomialiser(B[sum(c(persistenceLevelEstimate, persistenceTrendEstimate,
-                                                           persistenceSeasonalEstimate, persistenceXregEstimate))+
-                                                         phiEstimate+1:sum(c(arOrders,maOrders))],
+                arimaPolynomials <- polynomialiser(B[sum(c(etsModel*c(persistenceLevelEstimate,
+                                                                      modelIsTrendy*persistenceTrendEstimate,
+                                                                      modelIsSeasonal*persistenceSeasonalEstimate),
+                                                           xregModel*persistenceXregEstimate))+
+                                                         etsModel*phiEstimate+1:sum(c(arOrders,maOrders))],
                                                    arOrders, iOrders, maOrders, lags);
 
                 # Calculate the polynomial roots for AR
-                if(any(abs(polyroot(arimaPolynomials$arPolynomial))<1)){
-                    return(1E+100/min(abs(roots(arimaPolynomials$arPolynomial))));
+                if(arEstimate){
+                    arPolynomialMatrix[,1] <- -arimaPolynomials$arPolynomial[-1];
+                    arPolyroots <- abs(eigen(arPolynomialMatrix, symmetric=TRUE, only.values=TRUE)$values);
+                    if(any(arPolyroots>1)){
+                        return(1E+100*max(arPolyroots));
+                    }
                 }
             }
 
@@ -1558,7 +1573,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             if(etsModel || arimaModel){
                 # We check the condition only for the last row of matWt
                 eigenValues <- eigen(adamElements$matF - adamElements$vecG %*% adamElements$matWt[obsInSample,],
-                                     only.values=TRUE)$values;
+                                     symmetric=TRUE, only.values=TRUE)$values;
                 if(any(abs(eigenValues)>1+1E-50)){
                     return(abs(eigenValues)*1E+100);
                 }
@@ -1759,7 +1774,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                            initialArimaEstimate, initialXregEstimate,
                            arimaModel, nonZeroARI, nonZeroMA, arEstimate, maEstimate, arimaPolynomials,
                            xregModel, xregNumber,
-                           bounds, loss, lossFunction, distribution, horizon, multisteps, lambda, lambdaEstimate){
+                           bounds, loss, lossFunction, distribution, horizon, multisteps, lambda, lambdaEstimate,
+                           arPolynomialMatrix, maPolynomialMatrix){
 
         if(!multisteps){
             if(any(loss==c("LASSO","RIDGE"))){
@@ -1786,7 +1802,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                     arimaModel, nonZeroARI, nonZeroMA, arEstimate, maEstimate, arimaPolynomials,
                                     xregModel, xregNumber,
                                     bounds, loss, lossFunction, distribution,
-                                    horizon, multisteps, lambda, lambdaEstimate);
+                                    horizon, multisteps, lambda, lambdaEstimate,
+                                    arPolynomialMatrix, maPolynomialMatrix);
 
                 # If this is an occurrence model, add the probabilities
                 if(occurrenceModel){
@@ -1835,7 +1852,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                arimaModel, nonZeroARI, nonZeroMA, arEstimate, maEstimate, arimaPolynomials,
                                xregModel, xregNumber,
                                bounds, loss, lossFunction, distribution,
-                               horizon, multisteps, lambda, lambdaEstimate);
+                               horizon, multisteps, lambda, lambdaEstimate,
+                               arPolynomialMatrix, maPolynomialMatrix);
 
             logLikReturn[] <- -switch(loss,
                                       "MSEh"=, "aMSEh"=, "TMSE"=, "aTMSE"=, "MSCE"=, "aMSCE"=
@@ -1964,6 +1982,19 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             B <- BValues$B;
         }
 
+        # Matrices needed for the polynomials calculation
+        if(arimaModel){
+            # AR polynomials
+            arPolynomialMatrix <- matrix(0, arOrders %*% lags, arOrders %*% lags);
+            arPolynomialMatrix[2:nrow(arPolynomialMatrix)-1,2:nrow(arPolynomialMatrix)] <- diag(nrow(arPolynomialMatrix)-1);
+            # MA polynomials
+            maPolynomialMatrix <- matrix(0, maOrders %*% lags, maOrders %*% lags);
+            maPolynomialMatrix[2:nrow(maPolynomialMatrix)-1,2:nrow(maPolynomialMatrix)] <- diag(nrow(maPolynomialMatrix)-1);
+        }
+        else{
+            maPolynomialMatrix <- arPolynomialMatrix <- NULL;
+        }
+
         # If the distribution is default, change it according to the error term
         if(distribution=="default"){
             distributionNew <- switch(Etype,
@@ -2011,7 +2042,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                        arEstimate=arEstimate, maEstimate=maEstimate,
                                        xregModel=xregModel, xregNumber=xregNumber,
                                        bounds=bounds, loss=loss, lossFunction=lossFunction, distribution=distributionNew,
-                                       horizon=horizon, multisteps=multisteps, lambda=lambda, lambdaEstimate=lambdaEstimate));
+                                       horizon=horizon, multisteps=multisteps, lambda=lambda, lambdaEstimate=lambdaEstimate,
+                                       arPolynomialMatrix=arPolynomialMatrix, maPolynomialMatrix=maPolynomialMatrix));
 
         if(is.infinite(res$objective) || res$objective==1e+300){
             # If the optimisation didn't work, give it another try with zero initials for smoothing parameters
@@ -2041,7 +2073,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                            arEstimate=arEstimate, maEstimate=maEstimate,
                                            xregModel=xregModel, xregNumber=xregNumber,
                                            bounds=bounds, loss=loss, lossFunction=lossFunction, distribution=distributionNew,
-                                           horizon=horizon, multisteps=multisteps, lambda=lambda, lambdaEstimate=lambdaEstimate));
+                                           horizon=horizon, multisteps=multisteps, lambda=lambda, lambdaEstimate=lambdaEstimate,
+                                           arPolynomialMatrix=arPolynomialMatrix, maPolynomialMatrix=maPolynomialMatrix));
         }
 
         ##### !!! Check the obtained parameters and the loss value and remove redundant parameters !!! #####
@@ -2071,7 +2104,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                                 adamCreated$arimaPolynomials,
                                                 xregModel, xregNumber,
                                                 bounds, loss, lossFunction, distributionNew, horizon, multisteps,
-                                                lambda, lambdaEstimate),
+                                                lambda, lambdaEstimate, arPolynomialMatrix, maPolynomialMatrix),
                                      nobs=obsInSample,df=nParamEstimated,class="logLik");
 
         #### If we do variables selection, do it here, then reestimate the model. ####
@@ -3108,7 +3141,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                       arEstimate=arEstimate, maEstimate=maEstimate,
                       xregModel=xregModel, xregNumber=xregNumber,
                       bounds=bounds, loss=loss, lossFunction=lossFunction, distribution=distributionNew,
-                      horizon=horizon, multisteps=multisteps, lambda=lambda, lambdaEstimate=lambdaEstimate);
+                      horizon=horizon, multisteps=multisteps, lambda=lambda, lambdaEstimate=lambdaEstimate,
+                      arPolynomialMatrix=NULL, maPolynomialMatrix=NULL);
 
         parametersNumber[1,1] <- parametersNumber[1,4] <- 1;
         logLikADAMValue <- structure(logLikADAM(B=0,
@@ -3126,7 +3160,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                                 arimaModel, nonZeroARI, nonZeroMA, arEstimate, maEstimate, arimaPolynomials,
                                                 xregModel, xregNumber,
                                                 bounds, loss, lossFunction, distributionNew, horizon,
-                                                multisteps, lambda, lambdaEstimate)
+                                                multisteps, lambda, lambdaEstimate, NULL, NULL)
                                      ,nobs=obsInSample,df=parametersNumber[1,4],class="logLik")
 
         icSelection <- ICFunction(logLikADAMValue);
@@ -3216,7 +3250,18 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             if(arimaModel){
                 maEstimateFI <- maRequired;
                 arEstimateFI <- arRequired;
+
+                # # Matrices needed for the polynomials calculation
+                # # AR polynomials
+                # arPolynomialMatrix <- matrix(0, arOrders %*% lags, arOrders %*% lags);
+                # arPolynomialMatrix[2:nrow(arPolynomialMatrix)-1,2:nrow(arPolynomialMatrix)] <- diag(nrow(arPolynomialMatrix)-1);
+                # # MA polynomials
+                # maPolynomialMatrix <- matrix(0, maOrders %*% lags, maOrders %*% lags);
+                # maPolynomialMatrix[2:nrow(maPolynomialMatrix)-1,2:nrow(maPolynomialMatrix)] <- diag(nrow(maPolynomialMatrix)-1);
             }
+            # else{
+                maPolynomialMatrix <- arPolynomialMatrix <- NULL;
+            # }
 
             FI <- -hessian(logLikADAM, B, etsModel=etsModel, Etype=Etype, Ttype=Ttype, Stype=Stype, modelIsTrendy=modelIsTrendy,
                            modelIsSeasonal=modelIsSeasonal, yInSample=yInSample,
@@ -3239,7 +3284,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                            xregModel=xregModel, xregNumber=xregNumber,
                            bounds=bounds, loss=loss, lossFunction=lossFunction, distribution=distribution,
                            horizon=horizon, multisteps=multisteps,
-                           lambda=lambda, lambdaEstimate=lambdaEstimateFI);
+                           lambda=lambda, lambdaEstimate=lambdaEstimateFI,
+                           arPolynomialMatrix=arPolynomialMatrix, maPolynomialMatrix=maPolynomialMatrix);
 
             colnames(FI) <- names(B);
             rownames(FI) <- names(B);
@@ -4127,6 +4173,9 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
 
 #' @export
 print.adam <- function(x, digits=4, ...){
+    etsModel <- any(unlist(gregexpr("ETS",x$model))!=-1);
+    arimaModel <- any(unlist(gregexpr("ARIMA",x$model))!=-1);
+
     cat(paste0("Time elapsed: ",round(as.numeric(x$timeElapsed,units="secs"),2)," seconds"));
     cat(paste0("\nModel estimated: ",x$model));
 
@@ -4163,23 +4212,28 @@ print.adam <- function(x, digits=4, ...){
     if(is.occurrence(x$occurrence)){
         distrib <- paste0("Mixture of Bernoulli and ", distrib);
     }
-    cat(paste0("\nDistribution assumed in the model: ", distrib));
+    cat(paste0("\nDistribution assumed in the model: ", distrib,"\n"));
 
-    if(!is.null(x$persistence)){
-        cat(paste0("\nPersistence vector g"));
-        if(!is.null(x$xreg)){
-            cat(" (excluding xreg):\n");
+    if(etsModel){
+        if(!is.null(x$persistence)){
+            cat(paste0("Persistence vector g"));
+            if(!is.null(x$xreg)){
+                cat(" (excluding xreg):\n");
+            }
+            else{
+                cat(":\n");
+            }
+            persistence <- x$persistence[substr(names(x$persistence),1,5)!="delta"];
+            if(arimaModel){
+                persistence <- persistence[substr(names(x$persistence),1,3)!="psi"];
+            }
+            print(round(persistence,digits));
         }
-        else{
-            cat(":\n");
-        }
-        persistence <- x$persistence[substr(names(x$persistence),1,5)!="delta"];
-        print(round(persistence,digits));
-    }
 
-    if(!is.null(x$phi)){
-        if(gregexpr("d",x$model)!=-1){
-            cat(paste0("Damping parameter: ", round(x$phi,digits),"\n"));
+        if(!is.null(x$phi)){
+            if(gregexpr("d",x$model)!=-1){
+                cat(paste0("Damping parameter: ", round(x$phi,digits),"\n"));
+            }
         }
     }
 
@@ -5842,8 +5896,15 @@ pointLik.adam <- function(object, ...){
 # simulate.adam <- function(object, nsim=1, seed=NULL, obs=NULL, ...){}
 #' @export
 modelType.adam <- function(object, ...){
-    model <- object$model;
-    modelType <- substring(model,unlist(gregexpr("\\(",model))+1,unlist(gregexpr("\\)",model))-1)[1];
+    etsModel <- any(unlist(gregexpr("ETS",object$model))!=-1);
+    if(etsModel){
+        modelType <- substring(object$model,
+                               unlist(gregexpr("\\(",object$model))+1,
+                               unlist(gregexpr("\\)",object$model))-1)[1];
+    }
+    else{
+        modelType <- "NNN";
+    }
     return(modelType)
 }
 
