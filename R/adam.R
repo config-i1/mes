@@ -1944,7 +1944,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         }
 
         # Preheat the initial state of ARIMA
-        if(!etsModel && arimaModel && initialType=="optimal"){
+        if(arimaModel && initialType=="optimal"){
             adamElements <- filler(B,
                                    etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
                                    componentsNumberETS, componentsNumberETSNonSeasonal,
