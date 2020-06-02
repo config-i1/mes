@@ -87,6 +87,11 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     obsAll <- length(y) + (1 - holdout)*h;
     obsInSample <- length(y) - holdout*h;
 
+    if(obsInSample<=0){
+        stop("The number of in-sample observations is not positive. Cannot do anything.",
+             call.=FALSE);
+    }
+
     # If this is just a numeric variable, use ts class
     if(all(yClasses=="integer") || all(yClasses=="data.frame") || all(yClasses=="matrix")){
         if(any(class(yIndex) %in% c("POSIXct","Date"))){
@@ -1104,6 +1109,11 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     else{
         initialLevel <- initialTrend <- initialSeasonal <- NULL;
         initialLevelEstimate <- initialTrendEstimate <- initialSeasonalEstimate <- FALSE
+
+        # If ETS is switched off, set error to whatever, based on the used distribution
+        Etype[] <- switch(distribution,
+                          "dinvgauss"=,"dlnorm"=,"dllaplace"=,"dls"="M",
+                          "A");
     }
 
     # ARIMA
@@ -1946,6 +1956,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         modelDo <- "use";
     }
 
+
     #### Return the values to the previous environment ####
     ### Actuals
     assign("y",y,ParentEnvironment);
@@ -1976,6 +1987,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     assign("parametersNumber",parametersNumber,ParentEnvironment);
 
     ### Model type
+    assign("etsModel",etsModel,ParentEnvironment);
     assign("model",model,ParentEnvironment);
     assign("Etype",Etype,ParentEnvironment);
     assign("Ttype",Ttype,ParentEnvironment);
