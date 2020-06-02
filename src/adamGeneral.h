@@ -25,6 +25,9 @@ inline double wvalue(arma::vec const &vecVt, arma::rowvec const &rowvecW,
                      unsigned int const &nXreg, unsigned int const &nComponents){
     // vecVt is a vector here!
     double yfit = 0;
+    if(E=='M'){
+        yfit = 1;
+    }
     arma::mat vecYfit;
 
     // If there is ETS, calculate the measurement
@@ -81,7 +84,6 @@ inline double wvalue(arma::vec const &vecVt, arma::rowvec const &rowvecW,
                 vecVt.rows(nETS,nETS+nArima-1));
             break;
         case 'M':
-
             yfit = yfit * as_scalar(exp(rowvecW.cols(nETS,nETS+nArima-1) *
                 log(vecVt.rows(nETS,nETS+nArima-1))));
             break;
