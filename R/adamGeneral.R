@@ -1956,8 +1956,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                            (initialType!="backcasting") & c(initialLevelEstimate,
                                                             initialTrendEstimate,
                                                             initialSeasonalEstimate)),
-              arimaModel & c(arEstimate, maEstimate, initialArimaEstimate),
-              xregModel & c(persistenceXregEstimate, initialXregEstimate),
+              arimaModel & c(arEstimate, maEstimate, (initialType!="backcasting") & initialArimaEstimate),
+              xregModel & c(persistenceXregEstimate, (initialType!="backcasting") & initialXregEstimate),
               lambdaEstimate))){
         modelDo <- "use";
     }

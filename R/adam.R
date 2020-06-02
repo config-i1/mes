@@ -3160,7 +3160,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                                 arimaModel, nonZeroARI, nonZeroMA, arEstimate, maEstimate, arimaPolynomials,
                                                 xregModel, xregNumber,
                                                 bounds, loss, lossFunction, distributionNew, horizon,
-                                                multisteps, lambda, lambdaEstimate, NULL, NULL)
+                                                multisteps, lambda, lambdaEstimate, arPolynomialMatrix=NULL,
+                                                maPolynomialMatrix=NULL)
                                      ,nobs=obsInSample,df=parametersNumber[1,4],class="logLik")
 
         icSelection <- ICFunction(logLikADAMValue);
@@ -3251,7 +3252,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 maEstimateFI <- maRequired;
                 arEstimateFI <- arRequired;
 
-                # # Matrices needed for the polynomials calculation
+                # Matrices needed for the polynomials calculation
                 # # AR polynomials
                 # arPolynomialMatrix <- matrix(0, arOrders %*% lags, arOrders %*% lags);
                 # arPolynomialMatrix[2:nrow(arPolynomialMatrix)-1,2:nrow(arPolynomialMatrix)] <- diag(nrow(arPolynomialMatrix)-1);
