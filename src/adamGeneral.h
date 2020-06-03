@@ -142,10 +142,12 @@ inline arma::vec fvalue(arma::vec const &matrixVt, arma::mat const &matrixF,
         matrixVtnew = matrixF * matrixVt;
         break;
     case 'M':
-        matrixVtnew.rows(0,1) = exp(matrixF.submat(0,0,1,1) * log(matrixVt.rows(0,1)));
-        if(nComponents>2){
-            // This is needed in order not to face log(-x)
-            matrixVtnew.rows(2,nComponents-1) = matrixVt.rows(2,nComponents-1);
+        if(nETS>0){
+            matrixVtnew.rows(0,1) = exp(matrixF.submat(0,0,1,1) * log(matrixVt.rows(0,1)));
+            if(nSeasonal>0){
+                // This is needed in order not to face log(-x)
+                matrixVtnew.rows(2,nComponents-1) = matrixVt.rows(2,nComponents-1);
+            }
         }
         break;
     }
@@ -153,8 +155,7 @@ inline arma::vec fvalue(arma::vec const &matrixVt, arma::mat const &matrixF,
     // If there is ARIMA, fix the states for E='M'
     if(nArima>0 && E=='M'){
         matrixVtnew.rows(nETS,nETS+nArima-1) =
-            exp(matrixF.submat(nETS,nETS,
-                               nETS+nArima-1,nETS+nArima-1) *
+            exp(matrixF.submat(nETS,nETS,nETS+nArima-1,nETS+nArima-1) *
                                    log(matrixVt.rows(nETS,nETS+nArima-1)));
     }
 

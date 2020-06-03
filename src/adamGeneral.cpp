@@ -315,8 +315,8 @@ arma::vec adamForecaster(arma::mat const &matrixVt, arma::mat const &matrixWt, a
         lagrows = i * nComponents - lags + nComponents - 1;
         matrixVtnew.col(i) = fvalue(matrixVtnew(lagrows), matrixF, E, T, S, nETS, nNonSeasonal, nSeasonal, nArima, nComponents);
 
-        vecYfor.row(i-lagsModelMax) = (wvalue(matrixVtnew(lagrows), matrixWt.row(i-lagsModelMax), E, T, S,
-                                       nETS, nNonSeasonal, nSeasonal, nArima, nXreg, nComponents));
+        vecYfor.row(i-lagsModelMax) = wvalue(matrixVtnew(lagrows), matrixWt.row(i-lagsModelMax), E, T, S,
+                    nETS, nNonSeasonal, nSeasonal, nArima, nXreg, nComponents);
     }
 
     // return List::create(Named("matVt") = matrixVtnew, Named("yForecast") = vecYfor);

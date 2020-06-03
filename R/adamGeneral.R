@@ -1866,13 +1866,13 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     # Parameters for the optimiser
     if(is.null(ellipsis$maxeval)){
         if(arimaModel){
-            maxeval <- 500;
+            maxeval <- 400;
         }
         else{
             maxeval <- 200;
         }
         # This is heuristic. If you have higher seasonal lags, use more iterations.
-        if(lagsModelMax>12){
+        if(lagsModelMax>12 && initialType=="optimal"){
             maxeval[] <- maxeval/20 * lagsModelMax;
         }
     }
@@ -1892,13 +1892,26 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         xtol_rel <- ellipsis$xtol_rel;
     }
     if(is.null(ellipsis$xtol_abs)){
-        xtol_abs <- 0;
+        xtol_abs <- 1E-8;
     }
     else{
         xtol_abs <- ellipsis$xtol_abs;
     }
+    if(is.null(ellipsis$ftol_rel)){
+        ftol_rel <- 1E-4;
+    }
+    else{
+        ftol_rel <- ellipsis$ftol_rel;
+    }
+    if(is.null(ellipsis$ftol_abs)){
+        ftol_abs <- 0;
+    }
+    else{
+        ftol_abs <- ellipsis$ftol_abs;
+    }
     if(is.null(ellipsis$algorithm)){
-        algorithm <- "NLOPT_LN_NELDERMEAD";
+        algorithm <- "NLOPT_LN_SBPLX";
+        # algorithm <- "NLOPT_LN_NELDERMEAD";
     }
     else{
         algorithm <- ellipsis$algorithm;
@@ -2111,6 +2124,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     assign("maxtime",maxtime,ParentEnvironment);
     assign("xtol_rel",xtol_rel,ParentEnvironment);
     assign("xtol_abs",xtol_abs,ParentEnvironment);
+    assign("ftol_rel",ftol_rel,ParentEnvironment);
+    assign("ftol_abs",ftol_abs,ParentEnvironment);
     assign("algorithm",algorithm,ParentEnvironment);
     assign("print_level",print_level,ParentEnvironment);
     assign("B",B,ParentEnvironment);
