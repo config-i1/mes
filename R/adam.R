@@ -863,12 +863,12 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 if(etsModel){
                     matVt[componentsNumberETS+componentsNumberARIMA,
                           1:lagsModelARIMA[componentsNumberARIMA]+(lagsModelMax-lagsModelARIMA[componentsNumberARIMA])] <-
-                        switch(Etype,"A"=0,"M"=1);
+                        switch(Etype, "A"=0, "M"=1);
                 }
                 else{
                     matVt[componentsNumberARIMA,
                           1:lagsModelARIMA[componentsNumberARIMA]+(lagsModelMax-lagsModelARIMA[componentsNumberARIMA])] <-
-                        yInSample[1:lagsModelARIMA[componentsNumberARIMA]];
+                        switch(Etype, "A"=yInSample[1:lagsModelARIMA[componentsNumberARIMA]], "M"=1);
 
                     # if(initialType!="backcasting"){
                     #     # If this is just ARIMA with optimisation, refine the initials
@@ -1961,7 +1961,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                    xregModel, xregNumber);
 
             # Do initial fit to get the state values from the backcasting
-            adamFitted <- adamFitterWrap(cbind(adamElements$matVt,adamElements$matVt[,1:lagsModelMax]),
+            adamFitted <- adamFitterWrap(cbind(adamElements$matVt,adamElements$matVt[,lagsModelMax+1:lagsModelMax]),
                                          adamElements$matWt, adamElements$matF, adamElements$vecG,
                                          lagsModelAll, Etype, Ttype, Stype, componentsNumberETS, componentsNumberETSSeasonal,
                                          componentsNumberARIMA, xregNumber, yInSample, ot, TRUE);
@@ -1982,7 +1982,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             B <- BValues$B;
         }
 
-        # Matrices needed for the polynomials calculation
+        # Matrices needed for the polynomials calculation -> stationarity / stability checks
         if(arimaModel){
             # AR polynomials
             arPolynomialMatrix <- matrix(0, arOrders %*% lags, arOrders %*% lags);
