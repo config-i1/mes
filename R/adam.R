@@ -2032,6 +2032,10 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         # print(Ttype)
         # print(Stype)
         # stop()
+        print_level_hidden <- print_level;
+        if(print_level==41){
+            print_level[] <- 0;
+        }
 
         # Parameters are chosen to speed up the optimisation process and have decent accuracy
         res <- suppressWarnings(nloptr(B, CF, lb=lb, ub=ub,
@@ -2095,7 +2099,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                            arPolynomialMatrix=arPolynomialMatrix, maPolynomialMatrix=maPolynomialMatrix));
         }
 
-        if(print_level>0){
+        if(print_level_hidden>0){
             print(res);
         }
 
@@ -2699,8 +2703,11 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         if(arimaModel){
             j[] <- j+1;
             initialEstimated[j] <- initialArimaEstimate;
-            if(initialArimaEstimate){
+            if(initialArimaEstimate && initialType=="optimal"){
                 initialValue[[j]] <- B[substr(names(B),1,10)=="ARIMAState"];
+            }
+            else if(initialArimaEstimate && initialType=="backcasting"){
+                initialValue[[j]] <- head(matVt[componentsNumberETS+componentsNumberARIMA,],initialArimaNumber);
             }
             else{
                 initialValue[[j]] <- initialArima;
