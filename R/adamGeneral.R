@@ -1872,8 +1872,13 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
             maxeval <- 200;
         }
         # This is heuristic. If you have higher seasonal lags, use more iterations.
-        if(lagsModelMax>12 && initialType=="optimal"){
-            maxeval[] <- maxeval/20 * lagsModelMax;
+        if(lagsModelMax>24 && arimaModel && initialType=="optimal"){
+            warning(paste0("The estimation of ARIMA model with initial='optimal' on high frequency data might ",
+                           "take more time to converge to the optimum. Consider either setting maxeval parameter ",
+                           "to a higher value (e.g. maxeval=10000, which will take ~25 times more time than this) ",
+                           "or using backcasting."),
+                    call.=FALSE);
+        #     maxeval[] <- maxeval/20 * lagsModelMax;
         }
     }
     else{
