@@ -696,6 +696,10 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                     persistenceEstimate <- TRUE;
                 }
                 else{
+                    # If there ARIMA elements, remove them
+                    if(any(substr(names(persistence),1,3)=="psi")){
+                        persistence <- persistence[substr(names(persistence),1,3)!="psi"];
+                    }
                     j <- 1;
                     persistenceLevel <- as.vector(persistence)[1];
                     names(persistenceLevel) <- "alpha";
@@ -1425,7 +1429,12 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
             }
         }
         else{
-            if(xregDo=="adapt"){
+            # The persistenceXregEstimate is provided
+            if(xregDo=="adapt" && !persistenceXregEstimate){
+                persistenceXregProvided <- TRUE;
+                persistenceXregEstimate <- FALSE;
+            }
+            else if(xregDo=="adapt" && persistenceXregEstimate){
                 persistenceXreg <- rep(0.05,xregNumber);
                 persistenceXregProvided <- FALSE;
                 persistenceXregEstimate <- TRUE;
@@ -1979,7 +1988,6 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
               lambdaEstimate))){
         modelDo <- "use";
     }
-
 
     #### Return the values to the previous environment ####
     ### Actuals

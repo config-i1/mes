@@ -2729,6 +2729,11 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         persistence <- as.vector(vecG);
         names(persistence) <- rownames(vecG);
 
+        # Remove xreg persistence from the returned vector
+        if(xregModel && xregDo!="adapt"){
+            persistence <- persistence[substr(names(persistence),1,5)!="delta"];
+        }
+
         if(arimaModel){
             armaParametersList <- vector("list",arRequired+maRequired);
             j[] <- 1;
@@ -4260,7 +4265,7 @@ print.adam <- function(x, digits=4, ...){
             }
             persistence <- x$persistence[substr(names(x$persistence),1,5)!="delta"];
             if(arimaModel){
-                persistence <- persistence[substr(names(x$persistence),1,3)!="psi"];
+                persistence <- persistence[substr(names(persistence),1,3)!="psi"];
             }
             print(round(persistence,digits));
         }
