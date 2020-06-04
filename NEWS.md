@@ -1,3 +1,10 @@
+mes v1.1.0 (Release data: 2020-06-04)
+==============
+
+Changes:
+* ARIMA is implemented, ETS(NNN) - as well. Regression works without ETS / ARIMA.
+
+
 mes v1.0.0 (Release data: 2020-04-28)
 ==============
 

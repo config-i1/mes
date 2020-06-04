@@ -487,6 +487,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
 
     # If this is non-seasonal model and there are no seasonal ARIMA lags, trim the original lags
     if(!modelIsSeasonal && all(c(arOrders[lags>1],iOrders[lags>1],maOrders[lags>1])==0) && any(lags>1)){
+        arOrders <- arOrders[lags==1];
+        iOrders <- iOrders[lags==1];
+        maOrders <- maOrders[lags==1];
         lags <- lags[lags==1];
     }
 
@@ -752,10 +755,6 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         persistenceXregEstimate[] <- FALSE;
         persistenceXreg <- NULL;
     }
-
-    # Redefine persitenceEstimate value
-    persistenceEstimate[] <- any(c(persistenceLevelEstimate,persistenceTrendEstimate,
-                                 persistenceSeasonalEstimate,persistenceXregEstimate));
 
     #### Phi ####
     if(etsModel){
@@ -1267,9 +1266,6 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                 initialXreg <- NULL;
                 initialXregEstimate <- TRUE;
             }
-            else{
-                xregDo <- "use";
-            }
             if(!is.null(persistenceXreg) && any(persistenceXreg!=0)){
                 warning(paste0("We cannot do variables selection with the provided smoothing parameters ",
                                "for explantory variables. We will estimate them instead."),
@@ -1336,14 +1332,53 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
             }
             colnames(xregData) <- xregNames;
 
+            #### If this is just a regression, use stepwise / ALM
+            if((!etsModel && !arimaModel) && xregDo!="adapt"){
+                # Return the estimated model based on the provided xreg
+                if(is.null(formulaProvided)){
+                    formulaProvided <- as.formula(paste0("`",responseName,"`~."));
+                }
+                if(distribution=="default"){
+                    distribution[] <- switch(Etype,
+                                             "M"="dlnorm",
+                                             "dnorm");
+                }
+                # Either use or select the model via greybox functions
+                if(xregDo=="use"){
+                    warning("The specified model is just a regression. Returning the ALM instead.",
+                            call.=FALSE);
+                    almModel <- do.call("alm", list(formula=formulaProvided, data=xregData,
+                                                    distribution=distribution, subset=c(1:obsInSample)));
+                    almModel$call$data <- as.name("xreg");
+                    return(almModel);
+                }
+                else if(xregDo=="select"){
+                    warning("The specified model is just a stepwise regression. Returning the stepwise instead.",
+                            call.=FALSE);
+                    return(stepwise(xregData, distribution=distribution, subset=c(1:obsInSample)));
+                }
+            }
+
             if(Etype!="Z"){
                 testModel <- xregInitialiser(Etype,distribution,formulaProvided,otLogical,responseName);
                 if(Etype=="A"){
-                    xregModelInitials[[1]]$initialXreg <- testModel$coefficients[-1];
+                    # If this is just a regression, include intercept
+                    if(!etsModel && !arimaModel){
+                        xregModelInitials[[1]]$initialXreg <- testModel$coefficients;
+                    }
+                    else{
+                        xregModelInitials[[1]]$initialXreg <- testModel$coefficients[-1];
+                    }
                     xregModelInitials[[1]]$other <- testModel$other;
                 }
                 else{
-                    xregModelInitials[[2]]$initialXreg <- testModel$coefficients[-1];
+                    # If this is just a regression, include intercept
+                    if(!etsModel && !arimaModel){
+                        xregModelInitials[[2]]$initialXreg <- testModel$coefficients;
+                    }
+                    else{
+                        xregModelInitials[[2]]$initialXreg <- testModel$coefficients[-1];
+                    }
                     xregModelInitials[[2]]$other <- testModel$other;
                 }
             }
@@ -1351,18 +1386,39 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
             else{
                 # Additive model
                 testModel <- xregInitialiser("A",distribution,formulaProvided,otLogical,responseName);
-                xregModelInitials[[1]]$initialXreg <- testModel$coefficients[-1];
+                # If this is just a regression, include intercept
+                if(!etsModel && !arimaModel){
+                    xregModelInitials[[1]]$initialXreg <- testModel$coefficients;
+                }
+                else{
+                    xregModelInitials[[1]]$initialXreg <- testModel$coefficients[-1];
+                }
                 xregModelInitials[[1]]$other <- testModel$other;
                 # Multiplicative model
                 testModel[] <- xregInitialiser("M",distribution,formulaProvided,otLogical,responseName);
-                xregModelInitials[[2]]$initialXreg <- testModel$coefficients[-1];
+                # If this is just a regression, include intercept
+                if(!etsModel && !arimaModel){
+                    xregModelInitials[[2]]$initialXreg <- testModel$coefficients;
+                }
+                else{
+                    xregModelInitials[[2]]$initialXreg <- testModel$coefficients[-1];
+                }
                 xregModelInitials[[2]]$other <- testModel$other;
             }
 
-            # Write down the number and names of parameters
-            xregNumber <- ncol(testModel$data)-1;
-            xregData <- testModel$data[,-1,drop=FALSE];
-            xregNames <- names(coef(testModel))[-1];
+            # If this is just a regression, include intercept
+            if(!etsModel && !arimaModel){
+                xregNumber <- ncol(testModel$data);
+                xregNames <- names(coef(testModel));
+                xregData <- testModel$data;
+                xregData[,1] <- 1;
+            }
+            else{
+                # Write down the number and names of parameters
+                xregNumber <- ncol(testModel$data)-1;
+                xregNames <- names(coef(testModel))[-1];
+                xregData <- testModel$data[,-1,drop=FALSE];
+            }
             formulaProvided <- formula(testModel);
             responseName <- formulaProvided[[2]];
             # This is needed in order to succesfully expand the data
@@ -1445,7 +1501,14 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                 persistenceXregEstimate <- FALSE;
             }
         }
-        lagsModelAll <- matrix(c(lagsModelAll,rep(1,xregNumber)),ncol=1);
+
+        # If this is just a regression, include intercept
+        if(!etsModel && !arimaModel){
+            lagsModelAll <- matrix(rep(1,xregNumber),ncol=1);
+        }
+        else{
+            lagsModelAll <- matrix(c(lagsModelAll,rep(1,xregNumber)),ncol=1);
+        }
         # If there's only one explanatory variable, then there's nothing to select
         if(xregNumber==1){
             xregDo[] <- "use";
@@ -1483,6 +1546,10 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     }
     # Remove xreg, just to preserve some memory
     rm(xreg);
+
+    # Redefine persitenceEstimate value
+    persistenceEstimate[] <- any(c(persistenceLevelEstimate,persistenceTrendEstimate,
+                                   persistenceSeasonalEstimate,persistenceXregEstimate));
 
     #### Conclusions about the initials ####
     # Make sure that only important elements are estimated.
@@ -1566,6 +1633,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         parametersNumber[2,3] <- nparam(oesModel);
         pForecast <- c(forecast(oesModel, h=h)$mean);
     }
+
 
     #### Information Criteria ####
     ic <- match.arg(ic,c("AICc","AIC","BIC","BICc"));
@@ -1988,6 +2056,13 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
               lambdaEstimate))){
         modelDo <- "use";
     }
+
+    # If there is no model, stop
+    if(!etsModel && !arimaModel && !xregModel){
+        stop("No model specified. You either need to set model, or orders, or xreg.",
+             call.=FALSE);
+    }
+
 
     #### Return the values to the previous environment ####
     ### Actuals

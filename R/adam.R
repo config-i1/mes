@@ -451,11 +451,16 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
     responseName <- paste0(deparse(substitute(y)),collapse="");
 
     #### Check the parameters of the function and create variables based on them ####
-    parametersChecker(y, model, lags, formula, orders, arma,
-                      persistence, phi, initial,
-                      distribution, loss, h, holdout, occurrence, ic, bounds,
-                      xreg, xregDo, responseName,
-                      silent, modelDo, ParentEnvironment=environment(), ellipsis, fast=FALSE);
+    checkerReturn <- parametersChecker(y, model, lags, formula, orders, arma,
+                                       persistence, phi, initial,
+                                       distribution, loss, h, holdout, occurrence, ic, bounds,
+                                       xreg, xregDo, responseName,
+                                       silent, modelDo, ParentEnvironment=environment(), ellipsis, fast=FALSE);
+
+    if(is.alm(checkerReturn)){
+        return(checkerReturn);
+    }
+
     # Remove xreg if it was provided, just to preserve some memory
     rm(xreg);
 
@@ -499,7 +504,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             modelIsTrendy <- modelIsSeasonal <- FALSE;
             componentsNumberETS <- componentsNumberETSSeasonal <- 0;
             componentsNamesETS <- NULL;
-            lagsModel <- NULL;
+            lagsModelAll <- lagsModel <- NULL;
         }
 
         # If there is ARIMA
@@ -1214,6 +1219,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         # The vector of logicals for persistence elements
         persistenceEstimateVector <- c(persistenceLevelEstimate,modelIsTrendy&persistenceTrendEstimate,
                                        modelIsSeasonal&persistenceSeasonalEstimate);
+
         # The order:
         # Persistence of states and for xreg, phi, AR and MA parameters, initials, initialsARIMA, initials for xreg
         B <- Bl <- Bu <- vector("numeric",
@@ -2032,6 +2038,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         # print(Ttype)
         # print(Stype)
         # stop()
+
         print_level_hidden <- print_level;
         if(print_level==41){
             print_level[] <- 0;
@@ -2719,7 +2726,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         if(xregModel){
             j[] <- j+1;
             initialEstimated[j] <- initialXregEstimate;
-            initialValue[[j]] <- matVt[-c(1:(componentsNumberETS+componentsNumberARIMA)),lagsModelMax];
+            initialValue[[j]] <- matVt[componentsNumberETS+componentsNumberARIMA+1:xregNumber,lagsModelMax];
             initialValueNames[j] <- "xreg";
             names(initialEstimated)[j] <- initialValueNames[j];
         }
@@ -2789,7 +2796,11 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
     #### Deal with occurrence model ####
     if(occurrenceModel && !occurrenceModelProvided){
-        oesModel <- suppressWarnings(oes(ot, model=model, occurrence=occurrence, ic=ic, h=horizon,
+        modelForOES <- model;
+        if(model=="NNN"){
+            modelForOES[] <- "MNN";
+        }
+        oesModel <- suppressWarnings(oes(ot, model=modelForOES, occurrence=occurrence, ic=ic, h=horizon,
                                          holdout=FALSE, bounds="usual", xreg=xregData, xregDo=xregDo, silent=TRUE));
         pFitted[] <- fitted(oesModel);
         parametersNumber[1,3] <- nparam(oesModel);
@@ -3407,7 +3418,12 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             }
         }
         if(!etsModel && !arimaModel){
-            modelName[] <- paste0("Regression");
+            if(xregDo=="adapt"){
+                modelName[] <- paste0("Dynamic regression");
+            }
+            else{
+                modelName[] <- paste0("Regression");
+            }
         }
         if(all(occurrence!=c("n","none"))){
             modelName[] <- paste0("i",modelName);
@@ -3495,6 +3511,9 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                     }
                 }
             }
+            if(all(occurrence!=c("n","none"))){
+                modelName[] <- paste0("i",modelName);
+            }
 
             modelReturned$models[[i]]$model <- modelName;
             modelReturned$models[[i]]$timeElapsed <- Sys.time()-startTime;
@@ -3544,6 +3563,9 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                     modelName[] <- paste0(modelName,maOrders[i],")[",lags[i],"]");
                 }
             }
+        }
+        if(all(occurrence!=c("n","none"))){
+            modelName[] <- paste0("i",modelName);
         }
         modelReturned$model <- modelName;
         modelReturned$timeElapsed <- Sys.time()-startTime;

@@ -15,7 +15,7 @@ Description: The functions in the package are based on the Single Source of Erro
 License: GPL (>=2)
 Depends:
     R (>= 3.5.0),
-    greybox (>= 0.6.0)
+    greybox (>= 0.6.1)
 Imports:
     Rcpp (>= 1.0.2),
     stats,
