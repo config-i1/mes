@@ -285,9 +285,9 @@ inline arma::vec gvalue(arma::vec const &matrixVt, arma::mat const &matrixF, arm
 
     // Explanatory variables. Needed in order to update the parameters
     if(nXreg>0){
-        arma::vec rowvecWtxreg(1/rowvecW.cols(nETS+nArima,nComponents-1).t());
-        rowvecWtxreg.rows(find_nonfinite(rowvecWtxreg)).fill(0);
-        g.rows(nETS+nArima,nComponents-1) = rowvecWtxreg % g.rows(nETS+nArima,nComponents-1);
+        arma::vec vecWtxreg(1/rowvecW.cols(nETS+nArima,nComponents-1).t());
+        vecWtxreg.rows(find_nonfinite(vecWtxreg)).fill(0);
+        g.rows(nETS+nArima,nComponents-1) = vecWtxreg;
     }
 
     // Do the multiplication in order to get the correct g(v) value
@@ -296,8 +296,7 @@ inline arma::vec gvalue(arma::vec const &matrixVt, arma::mat const &matrixF, arm
     // If there are arima components, make sure that the g is correct for multiplicative error type
     if(nArima>0 && E=='M'){
         g.rows(nETS,nETS+nArima-1) =
-            fvalue(matrixVt, matrixF, E, T, S, nETS, nNonSeasonal, nSeasonal, nArima, nComponents).rows(nETS,
-                   nETS+nArima-1) %
+            fvalue(matrixVt, matrixF, E, T, S, nETS, nNonSeasonal, nSeasonal, nArima, nComponents).rows(nETS, nETS+nArima-1) %
             (exp(vectorG.rows(nETS,nETS+nArima-1)*log(1+error)) - 1);
     }
 
