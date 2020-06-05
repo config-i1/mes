@@ -1100,7 +1100,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                     -arimaPolynomials$ariPolynomial[nonZeroARI[,1]];
             }
             # Fill in the persistence vector
-            if(arEstimate && nrow(nonZeroARI)>0){
+            if(nrow(nonZeroARI)>0){
                 vecG[componentsNumberETS+nonZeroARI[,2]] <- -arimaPolynomials$ariPolynomial[nonZeroARI[,1]];
             }
             if(maEstimate && nrow(nonZeroMA)>0){
@@ -1532,7 +1532,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 # Calculate the polynomial roots of MA
                 if(maEstimate){
                     maPolynomialMatrix[,1] <- arimaPolynomials$maPolynomial[-1];
-                    maPolyroots <- abs(eigen(arPolynomialMatrix, symmetric=TRUE ,only.values=TRUE)$values);
+                    maPolyroots <- abs(eigen(maPolynomialMatrix, symmetric=TRUE ,only.values=TRUE)$values);
                     if(any(maPolyroots>1)){
                         return(1E+100*max(abs(maPolyroots)));
                     }
@@ -1960,6 +1960,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             # lb <- BValues$Bl;
             # ub <- BValues$Bu;
         }
+        # print(B)
 
         # Preheat the initial state of ARIMA
         if(arimaModel && initialType=="optimal" && initialArimaEstimate){
@@ -1975,7 +1976,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                    initialType, initialEstimate,
                                    initialLevelEstimate, initialTrendEstimate, initialSeasonalEstimate,
                                    initialArimaEstimate, initialXregEstimate,
-                                   arimaModel, arEstimate, maEstimate, nonZeroARI, nonZeroMA, arimaPolynomials,
+                                   arimaModel, arEstimate, maEstimate, nonZeroARI, nonZeroMA, adamCreated$arimaPolynomials,
                                    xregModel, xregNumber);
 
             # Do initial fit to get the state values from the backcasting
@@ -1984,10 +1985,11 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                          lagsModelAll, Etype, Ttype, Stype, componentsNumberETS, componentsNumberETSSeasonal,
                                          componentsNumberARIMA, xregNumber, yInSample, ot, TRUE);
 
+            adamCreated$matVt[,1:lagsModelMax] <- adamFitted$matVt[,1:lagsModelMax];
             # Produce new initials
             BValues <- initialiser(etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, componentsNumberETSSeasonal,
                                    componentsNumberETS, lags, lagsModel, lagsModelSeasonal, lagsModelARIMA, lagsModelMax,
-                                   adamFitted$matVt,
+                                   adamCreated$matVt,
                                    persistenceEstimate, persistenceLevelEstimate, persistenceTrendEstimate,
                                    persistenceSeasonalEstimate, persistenceXregEstimate,
                                    phiEstimate, initialType, initialEstimate,
