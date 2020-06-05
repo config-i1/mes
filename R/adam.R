@@ -340,7 +340,6 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         persistence <- model$persistence;
         initial <- model$initial;
         initialEstimated <- model$initialEstimated;
-        lags <- model$lags;
         distribution <- model$distribution;
         loss <- model$loss;
         persistence <- model$persistence;
@@ -378,7 +377,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         xregPersistence <- model$xregPersistence;
 
         # Parameters of the original ARIMA model
-        orders <- model$orders;
+        lags <- lags(model);
+        orders <- orders(model);
         arma <- model$arma;
 
         model <- modelType(model);
@@ -1564,7 +1564,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             if(xregModel && xregDo=="adapt"){
                 if(any(adamElements$vecG[componentsNumberETS+componentsNumberARIMA+1:xregNumber]>1) ||
                    any(adamElements$vecG[componentsNumberETS+componentsNumberARIMA+1:xregNumber]<0)){
-                    return(1E+100*max(abs(adamElements$vecG[componentsNumberETS+componentsNumberARIMA+1:xregNumber])-0.5));
+                    return(1E+100*max(abs(adamElements$vecG[componentsNumberETS+componentsNumberARIMA+1:xregNumber]-0.5)));
                 }
             }
         }
@@ -5979,6 +5979,7 @@ modelType.adam <- function(object, ...){
     return(modelType)
 }
 
+#' @export
 errorType.adam <- function(object, ...){
     model <- modelType(object);
     if(model=="NNN"){
@@ -5996,4 +5997,9 @@ errorType.adam <- function(object, ...){
 modelLags.adam <- function(object, ...){
     return(object$lagsAll);
 }
-# orders.adam <- function(object, ...){}
+
+#' @export
+orders.adam <- function(object, ...){
+    return(object$orders);
+}
+
