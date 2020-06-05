@@ -1561,7 +1561,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             }
 
             # Smoothing parameters for the explanatory variables (0, 1) region
-            if(xregModel){
+            if(xregModel && xregDo=="adapt"){
                 if(any(adamElements$vecG[componentsNumberETS+componentsNumberARIMA+1:xregNumber]>1) ||
                    any(adamElements$vecG[componentsNumberETS+componentsNumberARIMA+1:xregNumber]<0)){
                     return(1E+100*max(abs(adamElements$vecG[componentsNumberETS+componentsNumberARIMA+1:xregNumber])-0.5));
