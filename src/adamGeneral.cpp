@@ -116,8 +116,8 @@ List adamFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const 
 
             /* # Transition equation */
             matrixVt.col(i) = fvalue(matrixVt(lagrows), matrixF, E, T, S, nETS, nNonSeasonal, nSeasonal, nArima, nComponents) +
-            gvalue(matrixVt(lagrows), matrixF, matrixWt.row(i-lagsModelMax), E, T, S, nETS,
-                   nNonSeasonal, nSeasonal, nArima, nXreg, nComponents, vectorG, vecErrors(i-lagsModelMax));
+            gvalue(matrixVt(lagrows), matrixF, matrixWt.row(i-lagsModelMax), E, T, S,
+                   nETS, nNonSeasonal, nSeasonal, nArima, nXreg, nComponents, vectorG, vecErrors(i-lagsModelMax));
 
             // Failsafe for cases, when nan values appear
             if(matrixVt.col(i).has_nan()){
@@ -137,8 +137,6 @@ List adamFitter(arma::mat &matrixVt, arma::mat const &matrixWt, arma::mat const 
             //         matrixVt.cols(i-lagsModelMax+1,i) = normaliser(matrixVt.cols(i-lagsModelMax+1,i), obsall, lagsModelMax, S, T);
             //     }
             // }
-
-            /* # Transition equation for xreg */
         }
 
         ////// Backwards run
