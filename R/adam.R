@@ -1668,13 +1668,13 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 }
             }
             else if(loss=="MSE"){
-                CFValue <- mean(adamFitted$errors^2);
+                CFValue <- sum(adamFitted$errors^2)/obsInSample;
             }
             else if(loss=="MAE"){
-                CFValue <- mean(abs(adamFitted$errors));
+                CFValue <- sum(abs(adamFitted$errors))/obsInSample;
             }
             else if(loss=="HAM"){
-                CFValue <- mean(sqrt(abs(adamFitted$errors)));
+                CFValue <- sum(sqrt(abs(adamFitted$errors)))/obsInSample;
             }
             else if(any(loss==c("LASSO","RIDGE"))){
                 ### All of this is needed in order to normalise level, trend, seasonal and xreg parameters
