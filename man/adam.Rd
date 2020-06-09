@@ -17,14 +17,16 @@ adam(y, model = "ZXZ", lags = c(1, frequency(y)), orders = list(ar =
   bounds = c("usual", "admissible", "none"), xreg = NULL,
   xregDo = c("use", "select", "adapt"), silent = TRUE, ...)
 
-auto.adam(y, model = "ZXZ", lags = c(frequency(y)),
-  distribution = c("dnorm", "dlogis", "dlaplace", "ds", "dlnorm",
-  "dllaplace", "dls", "dinvgauss"), h = 0, holdout = FALSE,
-  persistence = NULL, phi = NULL, initial = c("optimal", "backcasting"),
+auto.adam(y, model = "ZXZ", lags = c(frequency(y)), orders = list(ar =
+  c(0), i = c(0), ma = c(0), select = FALSE), distribution = c("dnorm",
+  "dlogis", "dlaplace", "ds", "dlnorm", "dllaplace", "dls", "dinvgauss"),
+  h = 0, holdout = FALSE, persistence = NULL, phi = NULL,
+  initial = c("optimal", "backcasting"), arma = NULL,
   occurrence = c("none", "auto", "fixed", "general", "odds-ratio",
   "inverse-odds-ratio", "direct"), ic = c("AICc", "AIC", "BIC", "BICc"),
   bounds = c("usual", "admissible", "none"), xreg = NULL,
-  xregDo = c("use", "select", "adapt"), silent = TRUE, ...)
+  xregDo = c("use", "select", "adapt"), silent = TRUE, parallel = FALSE,
+  ...)
 }
 \arguments{
 \item{y}{Vector, containing data needed to be forecasted. If a matrix is
@@ -82,9 +84,13 @@ assuming that the lags 1 were dropped.}
 either as a vector (in which case the non-seasonal ARIMA is assumed) or as a list of
 a type \code{orders=list(ar=c(p,P),i=c(d,D),ma=c(q,Q))}, in which case the \code{lags}
 variable is used in order to determine the seasonality m. See \link[smooth]{msarima}
-for details. Note that ARIMA here is treated as an addition to the ETS model and does
-not allow constant / drift. If you want a pure ARIMA model, use \link[smooth]{msarima}
-function.}
+for details. Note that ARIMA here is mainly treated as an addition to the ETS model and
+does not allow constant / drift.
+
+In case of \code{auto.adam()} function, \code{orders} accepts one more parameters:
+\code{orders=list(select=FALSE)}. If \code{TRUE}, then the function will select the most
+appropriate order using a mechanism similar to \code{auto.msarima()}. The values
+\code{list(ar=...,i=...,ma=...)} specify the maximum orders to check in this case.}
 
 \item{formula}{Formula to use in case of explanatory variables. If \code{NULL},
 then all the variables are used as is. Only considered if \code{xreg} is not
@@ -233,6 +239,9 @@ You can read more about these parameters by running the function
 \link[nloptr]{nloptr.print.options}.
 Finally, the parameter \code{lambda} for LASSO / RIDGE, Asymmetric Laplace and df
 of Student's distribution can be provided here as well.}
+
+\item{parallel}{If TRUE, the estimation of ADAM models is done in parallel (used in \code{auto.adam} only).
+If the number is provided (e.g. \code{parallel=41}), then the specified number of cores is set up.}
 
 \item{xregPersistence}{The persistence vector \eqn{g_X}, containing smoothing
 parameters for exogenous variables. If \code{NULL}, then estimated. If \code{0}
