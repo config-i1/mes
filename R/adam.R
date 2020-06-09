@@ -4771,6 +4771,10 @@ rstandard.adam <- function(model, ...){
         errors[] <- log(errors);
         return(exp((errors - mean(errors[residsToGo])) / sqrt(model$scale^2 * obs / df)));
     }
+    else if(model$distribution=="dllaplace"){
+        errors[] <- log(errors);
+        return(exp((errors - mean(errors[residsToGo])) / model$scale * obs / df));
+    }
     else{
         return(errors / model$scale * obs / df);
     }
