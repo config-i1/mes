@@ -106,9 +106,13 @@
 #' either as a vector (in which case the non-seasonal ARIMA is assumed) or as a list of
 #' a type \code{orders=list(ar=c(p,P),i=c(d,D),ma=c(q,Q))}, in which case the \code{lags}
 #' variable is used in order to determine the seasonality m. See \link[smooth]{msarima}
-#' for details. Note that ARIMA here is treated as an addition to the ETS model and does
-#' not allow constant / drift. If you want a pure ARIMA model, use \link[smooth]{msarima}
-#' function.
+#' for details. Note that ARIMA here is mainly treated as an addition to the ETS model and
+#' does not allow constant / drift.
+#'
+#' In case of \code{auto.adam()} function, \code{orders} accepts one more parameters:
+#' \code{orders=list(select=FALSE)}. If \code{TRUE}, then the function will select the most
+#' appropriate order using a mechanism similar to \code{auto.msarima()}. The values
+#' \code{list(ar=...,i=...,ma=...)} specify the maximum orders to check in this case.
 #' @param formula Formula to use in case of explanatory variables. If \code{NULL},
 #' then all the variables are used as is. Only considered if \code{xreg} is not
 #' \code{NULL} and \code{xregDo="use"}.
@@ -2205,7 +2209,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
         return(list(B=B, CFValue=CFValue, nParamEstimated=nParamEstimated, logLikADAMValue=logLikADAMValue,
                     xregModel=xregModel, xregData=xregData, xregNumber=xregNumber, xregNames=xregNames, xregModelInitials=xregModelInitials,
-                    initialXregEstimate=initialXregEstimate, persistenceXregEstimate=persistenceXregEstimate));
+                    initialXregEstimate=initialXregEstimate, persistenceXregEstimate=persistenceXregEstimate,
+                    arimaPolynomials=adamCreated$arimaPolynomials));
     }
 
 
@@ -2545,7 +2550,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                            occurrenceModel, ot, oesModel,
                            parametersNumber, CFValue,
                            arimaModel, arRequired, maRequired,
-                           arEstimate, maEstimate, armaParameters){
+                           arEstimate, maEstimate, nonZeroARI, nonZeroMA,
+                           arimaPolynomials, armaParameters){
 
         # Fill in the matrices
         adamElements <- filler(B,
@@ -3111,6 +3117,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             adamSelected$results[[i]]$matWt <- adamCreated$matWt;
             adamSelected$results[[i]]$matF <- adamCreated$matF;
             adamSelected$results[[i]]$vecG <- adamCreated$vecG;
+            adamSelected$results[[i]]$arimaPolynomials <- adamCreated$arimaPolynomials;
 
             parametersNumber[1,1] <- adamSelected$results[[i]]$nParamEstimated;
             if(xregModel){
@@ -3374,7 +3381,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                     occurrenceModel, ot, oesModel,
                                     parametersNumber, CFValue,
                                     arimaModel, arRequired, maRequired,
-                                    arEstimate, maEstimate, armaParameters);
+                                    arEstimate, maEstimate, nonZeroARI, nonZeroMA,
+                                    arimaPolynomials, armaParameters);
 
         # Prepare the name of the model
         modelName <- "";
@@ -3469,7 +3477,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                                     occurrenceModel, ot, oesModel,
                                                     parametersNumber, CFValue,
                                                     arimaModel, arRequired, maRequired,
-                                                    arEstimate, maEstimate, armaParameters);
+                                                    arEstimate, maEstimate, nonZeroARI, nonZeroMA,
+                                                    arimaPolynomials, armaParameters);
             modelReturned$models[[i]]$fitted[is.na(modelReturned$models[[i]]$fitted)] <- 0;
             yFittedCombined[] <- yFittedCombined + modelReturned$models[[i]]$fitted * adamSelected$icWeights[i];
             if(h>0){
