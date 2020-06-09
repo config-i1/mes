@@ -5081,6 +5081,19 @@ plot.adam.predict <- function(x, ...){
 
 # Work in progress...
 #' @param nsim Number of iterations to do in case of \code{interval="simulated"}.
+#' @param interval What type of mechanism to use for interval construction. The
+#' most statistically correct one is \code{interval="simulated"}, but it is the
+#' slowest method. \code{interval="approximate"} uses analytical formulae for
+#' conditional h-steps ahead variance, but is approximate for the non-additive
+#' models (thus the name). \code{interval="semiparametric"} relies on the multiple
+#' steps ahead forecast error and an assumed distribution of the error term.
+#' \code{interval="nonparametric"} uses Taylor & Bunn (1999) approach with
+#' quantile regressions. Finally, \code{interval="confidence"} tries to generate
+#' the confidence intervals for the point forecast. This relies on the assumption
+#' that the parameters of ETS are known (unrealistic, but a standard one). The
+#' function also accepts \code{interval="parametric"} and
+#' \code{interval="prediction"}, which are equivalent to
+#' \code{interval="approximate"}.
 #' @param occurrence The vector containing the fututer occurrence variable
 #' (values in [0,1]), if it is known.
 #' @rdname forecast.smooth
@@ -5095,7 +5108,7 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
     ellipsis <- list(...);
 
     interval <- match.arg(interval[1],c("none", "simulated", "approximate", "semiparametric",
-                                        "nonparametric", "confidence", "parametric"));
+                                        "nonparametric", "confidence", "parametric","prediction"));
     # If the horizon is zero, just construct fitted and potentially confidence interval thingy
     if(h<=0){
         if(all(interval!=c("none","confidence"))){
@@ -5106,9 +5119,9 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                        level=level, side=side, ...));
     }
 
-    if(interval=="parametric"){
-        warning("The parameter 'interval' does not accept 'parametric' anymore. We use 'approximate' value instead.",
-                call.=FALSE);
+    if(any(interval==c("parametric","prediction"))){
+        # warning("The parameter 'interval' does not accept 'parametric' anymore. We use 'approximate' value instead.",
+        #         call.=FALSE);
         interval <- "approximate";
     }
     else if(interval=="confidence"){
