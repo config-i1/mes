@@ -241,7 +241,9 @@ Finally, the parameter \code{lambda} for LASSO / RIDGE, Asymmetric Laplace and d
 of Student's distribution can be provided here as well.}
 
 \item{parallel}{If TRUE, the estimation of ADAM models is done in parallel (used in \code{auto.adam} only).
-If the number is provided (e.g. \code{parallel=41}), then the specified number of cores is set up.}
+If the number is provided (e.g. \code{parallel=41}), then the specified number of cores is set up.
+WARNING! Packages \code{foreach} and either \code{doMC} (Linux and Mac only)
+or \code{doParallel} are needed in order to run the function in parallel.}
 
 \item{xregPersistence}{The persistence vector \eqn{g_X}, containing smoothing
 parameters for exogenous variables. If \code{NULL}, then estimated. If \code{0}
