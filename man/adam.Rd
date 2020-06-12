@@ -26,7 +26,7 @@ auto.adam(y, model = "ZXZ", lags = c(frequency(y)), orders = list(ar =
   "inverse-odds-ratio", "direct"), ic = c("AICc", "AIC", "BIC", "BICc"),
   bounds = c("usual", "admissible", "none"), xreg = NULL,
   xregDo = c("use", "select", "adapt"), silent = TRUE, parallel = FALSE,
-  ...)
+  fast = TRUE, ...)
 }
 \arguments{
 \item{y}{Vector, containing data needed to be forecasted. If a matrix is
@@ -245,9 +245,8 @@ If the number is provided (e.g. \code{parallel=41}), then the specified number o
 WARNING! Packages \code{foreach} and either \code{doMC} (Linux and Mac only)
 or \code{doParallel} are needed in order to run the function in parallel.}
 
-\item{xregPersistence}{The persistence vector \eqn{g_X}, containing smoothing
-parameters for exogenous variables. If \code{NULL}, then estimated. If \code{0}
-then each element of the vector is set to zero. Prerequisite - non-NULL \code{xreg}.}
+\item{fast}{If \code{TRUE}, then some of the orders of ARIMA are
+skipped in the order selection. This is not advised for models with \code{lags} greater than 12.}
 }
 \value{
 Object of class "adam" is returned. It contains the list of the

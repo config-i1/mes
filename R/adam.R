@@ -210,9 +210,6 @@
 #' \code{"select"} means that a selection using \code{ic} should be done,
 #' \code{"adapt"} will trigger the mechanism of time varying parameters for the
 #' explanatory variables.
-#' @param xregPersistence The persistence vector \eqn{g_X}, containing smoothing
-#' parameters for exogenous variables. If \code{NULL}, then estimated. If \code{0}
-#' then each element of the vector is set to zero. Prerequisite - non-NULL \code{xreg}.
 #' @param silent Specifies, whether to provide the progress of the function or not.
 #' If \code{TRUE}, then the function will print what it does and how much it has
 #' already done.
@@ -1980,7 +1977,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                    xregModel, xregNumber);
 
             # Do initial fit to get the state values from the backcasting
-            adamFitted <- adamFitterWrap(cbind(adamElements$matVt,adamElements$matVt[,lagsModelMax+1:lagsModelMax]),
+            adamFitted <- adamFitterWrap(cbind(adamElements$matVt,adamElements$matVt[,lagsModelMax+1:lagsModelMax,drop=FALSE]),
                                          adamElements$matWt, adamElements$matF, adamElements$vecG,
                                          lagsModelAll, Etype, Ttype, Stype, componentsNumberETS, componentsNumberETSSeasonal,
                                          componentsNumberARIMA, xregNumber, yInSample, ot, TRUE);
@@ -5960,9 +5957,9 @@ pointLik.adam <- function(object, ...){
                                    "dlnorm"=dlnorm(x=yInSample[otLogical], meanlog=log(yFitted[otLogical]),
                                                    sdlog=scale, log=TRUE),
                                    "dllaplace"=dlaplace(q=log(yInSample[otLogical]), mu=log(yFitted[otLogical]),
-                                                        scale=scale, log=TRUE),
+                                                        scale=scale, log=TRUE)-log(yInSample[otLogical]),
                                    "dls"=ds(q=log(yInSample[otLogical]), mu=log(yFitted[otLogical]),
-                                            scale=scale, log=TRUE),
+                                            scale=scale, log=TRUE)-log(yInSample[otLogical]),
                                    "dinvgauss"=dinvgauss(x=yInSample[otLogical], mean=yFitted[otLogical],
                                                          dispersion=scale/yFitted[otLogical], log=TRUE))
 
