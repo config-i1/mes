@@ -5792,6 +5792,20 @@ forecast.adamCombined <- function(object, h=10, newxreg=NULL,
         yLower[] <- yLower + adamForecasts$lower * object$ICw[i];
     }
 
+    # Fix the names of the columns
+    if(interval!="none"){
+        colnames(yLower) <- colnames(adamForecasts$lower);
+        colnames(yUpper) <- colnames(adamForecasts$upper);
+    }
+
+    # Fix the content of upper / lower bounds
+    if(side=="upper"){
+        yLower[] <- -Inf;
+    }
+    else if(side=="lower"){
+        yUpper[] <- Inf;
+    }
+
     # Get rid of specific models
     object$models <- NULL;
 
