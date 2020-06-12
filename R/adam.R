@@ -606,6 +606,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
         # ARIMA model, names for persistence
         if(arimaModel){
+            # Remove diagonal from the ARIMA part of the matrix
+            matF[j+1:componentsNumberARIMA,j+1:componentsNumberARIMA] <- 0;
             if(componentsNumberARIMA>1){
                 rownames(vecG)[j+1:componentsNumberARIMA] <- paste0("psi",c(1:componentsNumberARIMA));
             }
@@ -869,7 +871,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         # If ARIMA orders are specified, prepare initials
         if(arimaModel){
             if(initialArimaEstimate){
-                matVt[componentsNumberETS+componentsNumberARIMA,
+                matVt[componentsNumberETS+1:componentsNumberARIMA,
                       1:lagsModelARIMA[componentsNumberARIMA]+(lagsModelMax-lagsModelARIMA[componentsNumberARIMA])] <-
                     switch(Etype, "A"=0, "M"=1);
 
@@ -877,7 +879,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 if(!etsModel && initialType!="backcasting"){
                     arimaPolynomials <- polynomialiser(rep(0.1,sum(c(arOrders,maOrders))), arOrders, iOrders, maOrders, lags);
                     if(nrow(nonZeroARI)>0 && nrow(nonZeroARI)>=nrow(nonZeroMA)){
-                        matVt[1:componentsNumberARIMA,lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
+                        matVt[componentsNumberETS+nonZeroARI[,2],
+                              lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
                             switch(Etype,
                                    "A"=arimaPolynomials$ariPolynomial[nonZeroARI[,1]] %*%
                                        t(matVt[componentsNumberARIMA,
@@ -889,7 +892,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                                tail(arimaPolynomials$ariPolynomial,1)));
                     }
                     else{
-                        matVt[1:componentsNumberARIMA,lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
+                        matVt[componentsNumberETS+nonZeroMA[,2],
+                              lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
                             switch(Etype,
                                    "A"=arimaPolynomials$maPolynomial[nonZeroMA[,1]] %*%
                                        t(matVt[componentsNumberARIMA,
@@ -903,6 +907,10 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 }
             }
             else{
+                # Fill in the matrix with 0 / 1, just in case if the state will not be updated anymore
+                matVt[componentsNumberETS+1:componentsNumberARIMA,
+                      1:lagsModelARIMA[componentsNumberARIMA]+(lagsModelMax-lagsModelARIMA[componentsNumberARIMA])] <-
+                    switch(Etype, "A"=0, "M"=1);
                 # Insert the provided initials
                 matVt[componentsNumberETS+componentsNumberARIMA, 1:lagsModelARIMA[componentsNumberARIMA]+
                           (lagsModelMax-lagsModelARIMA[componentsNumberARIMA])] <-
@@ -912,7 +920,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 if(((arRequired && !arEstimate) && !maRequired) ||
                    ((arRequired && !arEstimate) && (maRequired && !maEstimate)) ||
                    (iRequired && !arEstimate && !maEstimate)){
-                    matVt[componentsNumberETS+1:componentsNumberARIMA,lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
+                    matVt[componentsNumberETS+nonZeroARI[,2],lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
                         switch(Etype,
                                "A"=arimaPolynomials$ariPolynomial[nonZeroARI[,1]] %*% t(initialArima[1:initialArimaNumber]) /
                                    tail(arimaPolynomials$ariPolynomial,1),
@@ -921,7 +929,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 }
                 # If only MA is needed, but provided
                 else if(((maRequired && !maEstimate) && !arRequired)){
-                    matVt[componentsNumberETS+1:componentsNumberARIMA,lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
+                    matVt[componentsNumberETS+nonZeroMA[,2],lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
                         switch(Etype,
                                "A"=arimaPolynomials$maPolynomial[nonZeroMA[,1]] %*% t(initialArima[1:initialArimaNumber]) /
                                    tail(arimaPolynomials$maPolynomial,1),
@@ -1099,7 +1107,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             arimaPolynomials <- polynomialiser(B[j+1:sum(c(arOrders,maOrders))], arOrders, iOrders, maOrders, lags);
             # Fill in the transition matrix
             if(nrow(nonZeroARI)>0){
-                matF[componentsNumberETS+nonZeroARI[,2],componentsNumberETS+nonZeroARI[,2]] <-
+                matF[componentsNumberETS+nonZeroARI[,2],componentsNumberETS+1:componentsNumberARIMA] <-
                     -arimaPolynomials$ariPolynomial[nonZeroARI[,1]];
             }
             # Fill in the persistence vector
@@ -1149,7 +1157,10 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         if(arimaModel){
             if((initialType!="backcasting") && initialArimaEstimate){
                 if(nrow(nonZeroARI)>0 && nrow(nonZeroARI)>=nrow(nonZeroMA)){
-                    matVt[componentsNumberETS+1:componentsNumberARIMA,lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
+                    matVt[componentsNumberETS+componentsNumberARIMA,
+                          lagsModelMax-initialArimaNumber+1:initialArimaNumber] <- B[j+1:initialArimaNumber];
+                    matVt[componentsNumberETS+nonZeroARI[,2],
+                          lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
                         switch(Etype,
                                "A"=arimaPolynomials$ariPolynomial[nonZeroARI[,1]] %*% t(B[j+1:initialArimaNumber]) /
                                    tail(arimaPolynomials$ariPolynomial,1),
@@ -1157,7 +1168,10 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                            tail(arimaPolynomials$ariPolynomial,1)));
                 }
                 else{
-                    matVt[componentsNumberETS+1:componentsNumberARIMA,lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
+                    matVt[componentsNumberETS+componentsNumberARIMA,
+                          lagsModelMax-initialArimaNumber+1:initialArimaNumber] <- B[j+1:initialArimaNumber];
+                    matVt[componentsNumberETS+nonZeroMA[,2],
+                          lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
                         switch(Etype,
                                "A"=arimaPolynomials$maPolynomial[nonZeroMA[,1]] %*% t(B[j+1:initialArimaNumber]) /
                                    tail(arimaPolynomials$maPolynomial,1),
@@ -1169,7 +1183,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             # This is needed in order to propagate initials of ARIMA to all components
             else if(any(c(arEstimate,maEstimate))){
                 if(nrow(nonZeroARI)>0 && nrow(nonZeroARI)>=nrow(nonZeroMA)){
-                    matVt[componentsNumberETS+1:componentsNumberARIMA,lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
+                    matVt[componentsNumberETS+nonZeroARI[,2],
+                          lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
                         switch(Etype,
                                "A"= arimaPolynomials$ariPolynomial[nonZeroARI[,1]] %*%
                                    t(matVt[componentsNumberETS+componentsNumberARIMA,
@@ -1181,7 +1196,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                            tail(arimaPolynomials$ariPolynomial,1)));
                 }
                 else{
-                    matVt[componentsNumberETS+1:componentsNumberARIMA,lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
+                    matVt[componentsNumberETS+nonZeroMA[,2],
+                          lagsModelMax-initialArimaNumber+1:initialArimaNumber] <-
                         switch(Etype,
                                "A"=arimaPolynomials$maPolynomial[nonZeroMA[,1]] %*%
                                    t(matVt[componentsNumberETS+componentsNumberARIMA,
@@ -1585,10 +1601,10 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             # Stability / invertibility condition for ETS / ARIMA.
             if(etsModel || arimaModel){
                 # We check the condition only for the last row of matWt
-                eigenValues <- eigen(adamElements$matF - adamElements$vecG %*% adamElements$matWt[obsInSample,],
-                                     symmetric=TRUE, only.values=TRUE)$values;
-                if(any(abs(eigenValues)>1+1E-50)){
-                    return(abs(eigenValues)*1E+100);
+                eigenValues <- abs(eigen(adamElements$matF - adamElements$vecG %*% adamElements$matWt[obsInSample,],
+                                     symmetric=TRUE, only.values=TRUE)$values);
+                if(any(eigenValues>1+1E-50)){
+                    return(1E+100*max(eigenValues));
                 }
             }
         }

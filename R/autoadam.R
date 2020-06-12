@@ -3,7 +3,10 @@
 #' WARNING! Packages \code{foreach} and either \code{doMC} (Linux and Mac only)
 #' or \code{doParallel} are needed in order to run the function in parallel.
 #' @param fast If \code{TRUE}, then some of the orders of ARIMA are
-#' skipped in the order selection. This is not advised for models with \code{lags} greater than 12.
+#' skipped in the order selection. This is not advised for models with \code{lags} greater than 12.#'
+#' @examples
+#' ourModel <- auto.adam(rnorm(100,100,10), model="ZZN", lags=c(1,4), orders=list(ar=c(2,2),ma=c(2,2),select=TRUE))
+#'
 #' @rdname adam
 #' @export
 auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0),ma=c(0),select=FALSE),
@@ -46,9 +49,7 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
     else if(inherits(y,"Mdata")){
         h <- y$h;
         holdout <- TRUE;
-        if(modelDo!="use"){
-            lags <- frequency(y$x);
-        }
+        lags <- frequency(y$x);
         y <- ts(c(y$x,y$xx),start=start(y$x),frequency=frequency(y$x));
     }
 
@@ -354,7 +355,7 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
                                   persistence, phi, initial,
                                   occurrence, ic, bounds, fast,
                                   silent, xreg, xregDo, testModelETS, ...){
-            silentDebug <- FALSE;
+            silentDebug <- TRUE;
 
             # Save the original values
             modelOriginal <- model;
@@ -378,7 +379,7 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
             else{
                 # Fit Naive and get the parameters
                 testModelETS <- adam(y,model="ANN",lags=1,distribution=distribution,
-                                     h=h,holdout=holdout,persistence=1,initial=y[1],
+                                     h=h,holdout=holdout,persistence=0,initial=mean(y),
                                      occurrence=occurrence,bounds="none",silent=TRUE);
                 dataAR <- dataI <- dataMA <- yInSample <- actuals(testModelETS);
 
@@ -631,6 +632,11 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
                 }
             }
 
+            if(!silent && fast){
+                cat(paste0(rep("\b",nchar(round(m/nModels,2)*100)+1),collapse=""));
+                cat(paste0(" ",100,"%"));
+            }
+
             #### Reestimate the best model in order to get rid of bias ####
             # Run the model for MA
             bestModel <- adam(y=y, model=modelOriginal, lags=lags,
@@ -684,14 +690,11 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
                                                          persistence=persistence, phi=phi, initial=initial,
                                                          occurrence=occurrence, ic=ic, bounds=bounds, fast=fast,
                                                          silent=silent, xreg=xreg, xregDo=xregDo, testModelETS=NULL, ...);
-                    if(!silent){
-                        cat("\n");
-                    }
                 }
             }
             else{
                 selectedModels <- foreach(i=1:length(distribution)) %dopar% {
-                    testModel <- arimaSelector(y=residuals(testModel), model=model,
+                    testModel <- arimaSelector(y=y, model=model,
                                                lags=lags, arMax=arMax, iMax=iMax, maMax=maMax,
                                                distribution=distribution[i], h=h, holdout=holdout,
                                                persistence=persistence, phi=phi, initial=initial,

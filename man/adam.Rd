@@ -246,7 +246,7 @@ WARNING! Packages \code{foreach} and either \code{doMC} (Linux and Mac only)
 or \code{doParallel} are needed in order to run the function in parallel.}
 
 \item{fast}{If \code{TRUE}, then some of the orders of ARIMA are
-skipped in the order selection. This is not advised for models with \code{lags} greater than 12.}
+skipped in the order selection. This is not advised for models with \code{lags} greater than 12.#'}
 }
 \value{
 Object of class "adam" is returned. It contains the list of the
@@ -345,6 +345,8 @@ plot(forecast(ourModel))
 
 # Model combination using a specified pool
 ourModel <- adam(rnorm(100,100,10), model=c("ANN","AAN","MNN","CCC"), lags=c(5,10))
+
+ourModel <- auto.adam(rnorm(100,100,10), model="ZZN", lags=c(1,4), orders=list(ar=c(2,2),ma=c(2,2),select=TRUE))
 
 }
 \references{
