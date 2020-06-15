@@ -204,10 +204,65 @@ test_that("ADAM regression (ALM) on N2568", {
     expect_true(is.alm(testModel));
 })
 
-#### ETS + ARIMA / ARIMA ####
 
-#### ARIMAX ####
+#### ETS + ARIMA / ARIMA + ARIMAX ####
+# ETS(ANN) + ARIMA(0,2,2)
+testModel <- adam(Mcomp::M3[[1234]], "ANN", orders=c(0,2,2));
+test_that("ADAM ETS(ANN) + ARIMA(0,2,2) on N1234", {
+    expect_match(modelType(testModel), "ANN");
+})
+
+# ETS(ANN) + ARIMA(0,2,2) backcasting
+testModel <- adam(Mcomp::M3[[1234]], "ANN", orders=c(1,1,2), initial="backcasting");
+test_that("ADAM ETS(ANN) + ARIMA(0,2,2) with backcasting on N1234", {
+    expect_match(modelType(testModel), "ANN");
+})
+
+# ETS(ZZZ) + ARIMA(0,2,2)
+testModel <- adam(Mcomp::M3[[1234]], "ZZZ", orders=c(2,0,2), distribution="dlnorm");
+test_that("ADAM ETS(ZZZ) + ARIMA(0,2,2) with logN on N1234", {
+    expect_match(testModel$distribution, "dlnorm");
+})
+
+# ETS(ZZZ) + SARIMA(2,1,2)(2,1,1)[12]
+testModel <- adam(Mcomp::M3[[2568]], "ZZZ", orders=list(ar=c(2,2),i=c(1,1), ma=c(2,1)), distribution="dls");
+test_that("ADAM ETS(ZZZ) + SARIMA(2,1,2)(2,1,1)[12] with logS on N2568", {
+    expect_match(testModel$distribution, "dls");
+})
+
+# Forecast from ETS(ZZZ) + SARIMA(2,1,2)(2,1,1)[12]
+testForecast <- forecast(testModel, h=18, interval="confidence", side="upper");
+test_that("Forecast of ADAM ETS(ZZZ) + SARIMA(2,1,2)(2,1,1)[12] with logS", {
+    expect_match(testForecast$side, "upper");
+})
+
+# Pure SARIMA(2,1,2)(2,1,1)[12], Normal
+testModel <- adam(Mcomp::M3[[2568]], "NNN", orders=list(ar=c(2,2),i=c(1,1), ma=c(2,2)), distribution="dlogis");
+test_that("ADAM SARIMA(2,1,2)(2,1,2)[12] with Logistic on N2568", {
+    expect_match(testModel$distribution, "dlogis");
+})
+
+# Forecast from SARIMA(2,1,2)(2,1,2)[12]
+testForecast <- forecast(testModel, h=18, interval="approximate", side="lower");
+test_that("Forecast of ADAM SARIMA(2,1,2)(2,1,2)[12]", {
+    expect_match(testForecast$side, "lower");
+})
+
+# ARIMAX
+testModel <- adam(xreg, "NNN", h=18, orders=list(ar=c(2,0),i=c(1,0), ma=c(2,1)), holdout=TRUE, formula=y~x);
+test_that("ADAM ARIMAX on N2568", {
+    expect_match(testModel$distribution, "dnorm");
+})
+
+# ARIMAX with dynamic xreg
+testModel <- adam(xreg, "NNN", h=18, orders=list(ar=c(2,0),i=c(1,0), ma=c(2,1)), holdout=TRUE, formula=y~x, xregDo="adapt");
+test_that("ADAM ARIMAX with dynamic xreg on N2568", {
+    expect_equal(length(testModel$persistence), 14);
+})
+
 
 #### Provided initial / persistence / arma ####
 
+
 #### auto.adam ####
+
