@@ -1,5 +1,11 @@
 library(testthat)
 library(mes)
 library(greybox)
+library(nloptr)
+library(statmod)
+library(smooth)
+library(forecast)
+library(pracma)
+library(zoo)
 
 test_check("mes")

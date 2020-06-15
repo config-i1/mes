@@ -167,11 +167,41 @@ test_that("ADAM ETSX(MMN) + xreg adapt on N2568", {
     expect_match(testModel$xregDo, "adapt");
 })
 
+# Forecast from ETSX with formula
+testForecast <- forecast(testModel, h=18, newxreg=tail(xreg, 18), interval="simulated");
+test_that("Forecast for ADAM adaptive regression on N2568", {
+    expect_equal(testForecast$level, 0.95);
+})
+
 # ETSX with formula
 xreg <- data.frame(y=Mcomp::M3[[2568]]$x, x=factor(xreg %*% c(1:12)));
 testModel <- adam(xreg, "MMN", h=18, holdout=TRUE, formula=y~x);
-test_that("ADAM ETSX(MMN) + xreg adapt on N2568", {
+test_that("ADAM ETSX(MMN) + xreg formula on N2568", {
+    expect_match(testModel$xregDo, "use");
+})
+
+# Forecast from ETSX with formula
+testForecast <- forecast(testModel, h=18, newxreg=tail(xreg, 18), interval="nonp");
+test_that("Forecast for ADAM ETSX(MMN) + xreg formula on N2568", {
+    expect_equal(testForecast$level, 0.95);
+})
+
+# Adaptive regression
+testModel <- adam(xreg, "NNN", h=18, holdout=TRUE, formula=y~x, xregDo="adapt");
+test_that("ADAM adaptive regression on N2568", {
     expect_match(testModel$xregDo, "adapt");
+})
+
+# Forecast from ETSX with formula
+testForecast <- forecast(testModel, h=18, newxreg=tail(xreg, 18), interval="nonp");
+test_that("Forecast for ADAM adaptive regression on N2568", {
+    expect_equal(testForecast$level, 0.95);
+})
+
+# Pure regression
+testModel <- adam(xreg, "NNN", h=18, holdout=TRUE, formula=y~x);
+test_that("ADAM regression (ALM) on N2568", {
+    expect_true(is.alm(testModel));
 })
 
 #### ETS + ARIMA / ARIMA ####
