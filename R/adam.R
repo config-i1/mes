@@ -1316,9 +1316,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
         # Persistence if xreg is provided
         if(xregModel && persistenceXregEstimate){
-            B[j+1:xregNumber] <- rep(switch(Etype,
-                                              "A"=0.1,
-                                              "M"=0.01),xregNumber);
+            B[j+1:xregNumber] <- rep(0.01,xregNumber);
             Bl[j+1:xregNumber] <- rep(-5, xregNumber);
             Bu[j+1:xregNumber] <- rep(5, xregNumber);
             names(B)[j+1:xregNumber] <- paste0("delta",c(1:xregNumber));
@@ -1596,9 +1594,18 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
             # Stability / invertibility condition for ETS / ARIMA.
             if(etsModel || arimaModel){
-                # We check the condition only for the last row of matWt
-                eigenValues <- abs(eigen(adamElements$matF - adamElements$vecG %*% adamElements$matWt[obsInSample,],
-                                     symmetric=TRUE, only.values=TRUE)$values);
+                if(xregModel){
+                    # We check the condition on average
+                    eigenValues <- abs(eigen((adamElements$matF -
+                                                  matrix(adamElements$vecG, ncol(adamElements$matWt), obsInSample) %*%
+                                                  adamElements$matWt[1:obsInSample,,drop=FALSE] / obsInSample),
+                                             symmetric=TRUE, only.values=TRUE)$values);
+                }
+                else{
+                    eigenValues <- abs(eigen(adamElements$matF -
+                                                 adamElements$vecG %*% adamElements$matWt[obsInSample,,drop=FALSE],
+                                             symmetric=TRUE, only.values=TRUE)$values);
+                }
                 if(any(eigenValues>1+1E-50)){
                     return(1E+100*max(eigenValues));
                 }
