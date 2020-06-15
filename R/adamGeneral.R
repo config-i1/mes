@@ -404,6 +404,12 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         if(length(maOrders)!=maxOrder){
             maOrders <- c(maOrders,rep(0,maxOrder-length(maOrders)));
         }
+        if(length(lags)!=maxOrder){
+            lagsNew <- c(lags,rep(0,maxOrder-length(lags)));
+            arOrders <- arOrders[lagsNew!=0];
+            iOrders <- iOrders[lagsNew!=0];
+            maOrders <- maOrders[lagsNew!=0];
+        }
 
         # Define the non-zero values. This is done via the calculation of orders of polynomials
         ariValues <- list(NA);
