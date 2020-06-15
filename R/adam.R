@@ -272,7 +272,6 @@
 #' \item \code{nParam} - the matrix of the estimated / provided parameters,
 #' \item \code{occurrence} - the oes model used for the occurrence part of the model,
 #' \item \code{xreg} - the matrix of explanatory variables after all expansions and transformations,
-#' \item \code{xregPersistence} - the vector of smoothing parameters for the explanatory variables,
 #' \item \code{formula} - the formula used for the explanatory variables expansion,
 #' \item \code{loss} - the type of loss function used in the estimation,
 #' \item \code{lossValue} - the value of that loss function,
@@ -373,9 +372,6 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             }
             xregDo <- model$xregDo;
         }
-
-        initialXreg <- model$initialXreg;
-        xregPersistence <- model$xregPersistence;
 
         # Parameters of the original ARIMA model
         lags <- lags(model);
@@ -2170,7 +2166,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                    initialType, initialEstimate,
                                    initialLevelEstimate, initialTrendEstimate, initialSeasonalEstimate,
                                    initialArimaEstimate, initialXregEstimate,
-                                   arimaModel, arEstimate, maEstimate, nonZeroARI, nonZeroMA, arimaPolynomials,
+                                   arimaModel, arEstimate, maEstimate, nonZeroARI, nonZeroMA, adamCreated$arimaPolynomials,
                                    xregModel, xregNumber);
 
             # Fit the model to the data
@@ -2855,10 +2851,10 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
     if(xregDo=="select"){
         # First, record the original parameters
         xregExistOriginal <- xregModel;
-        xregInitialsProvidedOriginal <- initialXregProvided;
+        initialXregsProvidedOriginal <- initialXregProvided;
         initialXregEstimateOriginal <- initialXregEstimate;
-        xregPersistenceOriginal <- xregPersistence;
-        xregPersistenceProvidedOriginal <- xregPersistenceProvided;
+        persistenceXregOriginal <- persistenceXreg;
+        persistenceXregProvidedOriginal <- persistenceXregProvided;
         persistenceXregEstimateOriginal <- persistenceXregEstimate;
         xregModelOriginal <- xregModelInitials;
         xregDataOriginal <- xregData;
@@ -2869,8 +2865,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         xregModel[] <- FALSE;
         initialXregProvided <- FALSE;
         initialXregEstimate[] <- FALSE;
-        xregPersistence <- 0;
-        xregPersistenceProvided <- FALSE;
+        persistenceXreg <- 0;
+        persistenceXregProvided <- FALSE;
         persistenceXregEstimate[] <- FALSE;
         xregModelInitials[[1]] <- NULL;
         xregModelInitials[[2]] <- NULL;
@@ -4494,8 +4490,8 @@ summary.adam <- function(object, level=0.95, ...){
     parametersConfint <- confint(object, level=level);
     parametersValues <- coef(object);
     if(is.null(parametersValues)){
-        if(!is.null(object$xreg) && all(object$xregPersistence!=0)){
-            parametersValues <- c(object$persistence,object$xregPersistence,object$initial,object$initialXreg);
+        if(!is.null(object$xreg) && all(object$persistenceXreg!=0)){
+            parametersValues <- c(object$persistence,object$persistenceXreg,object$initial,object$initialXreg);
         }
         else{
             parametersValues <- c(object$persistence,object$initial);

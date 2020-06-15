@@ -38,8 +38,11 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         yIndex <- try(time(y),silent=TRUE);
         # If we cannot extract time, do something
         if(inherits(yIndex,"try-error")){
-            if(!is.null(dim(y))){
+            if(!is.data.frame(y) && !is.null(dim(y))){
                 yIndex <- as.POSIXct(rownames(y));
+            }
+            else if(is.data.frame(y)){
+                yIndex <- c(1:nrow(y));
             }
             else{
                 yIndex <- c(1:length(y));
@@ -58,19 +61,30 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         }
         else if(inherits(y,"data.table") || inherits(y,"tbl") || inherits(y,"data.frame")){
             if(ncol(y)>1){
-                xreg <- y[,-1];
+                xreg <- y[,-1,drop=FALSE];
             }
             y <- y[[1]];
+            # Give the indeces another try
+            yIndex <- try(time(y),silent=TRUE);
+            # If we cannot extract time, do something
+            if(inherits(yIndex,"try-error")){
+                if(!is.null(dim(y))){
+                    yIndex <- as.POSIXct(rownames(y));
+                }
+                else{
+                    yIndex <- c(1:length(y));
+                }
+            }
         }
         else if(inherits(y,"zoo")){
             if(ncol(y)>1){
-                xreg <- as.data.frame(y[,-1]);
+                xreg <- as.data.frame(y[,-1,drop=FALSE]);
             }
             y <- zoo(y[,1],order.by=time(y));
         }
         else{
             if(ncol(y)>1){
-                xreg <- y[,-1];
+                xreg <- y[,-1,drop=FALSE];
             }
             y <- y[,1];
         }
