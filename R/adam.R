@@ -969,15 +969,13 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             # Fill in the matrices with the provided parameters
             for(i in 1:length(lags)){
                 if(arOrders[i]*lags[i]!=0){
-                    for(j in 1:arOrders[i]){
-                        if(arEstimate){
-                            arParameters[1+j*lags[i],i] <- -B[nParam];
-                            nParam <- nParam + 1;
-                        }
-                        else if(!arEstimate && arRequired){
-                            arParameters[1+j*lags[i],i] <- -armaParameters[armanParam];
-                            armanParam <- armanParam + 1;
-                        }
+                    if(arEstimate){
+                        arParameters[1+(1:arOrders[i])*lags[i],i] <- -B[nParam+c(1:arOrders[i])-1];
+                        nParam <- nParam + arOrders[i];
+                    }
+                    else if(!arEstimate && arRequired){
+                        arParameters[1+(1:arOrders[i])*lags[i],i] <- -armaParameters[armanParam+c(1:arOrders[i])-1];
+                        armanParam <- armanParam + arOrders[i];
                     }
                 }
 
@@ -986,15 +984,13 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 }
 
                 if(maOrders[i]*lags[i]!=0){
-                    for(j in 1:maOrders[i]){
-                        if(maEstimate){
-                            maParameters[1+j*lags[i],i] <- B[nParam];
-                            nParam <- nParam + 1;
-                        }
-                        else if(!maEstimate && maRequired){
-                            maParameters[1+j*lags[i],i] <- armaParameters[armanParam];
-                            armanParam <- armanParam + 1;
-                        }
+                    if(maEstimate){
+                        maParameters[1+(1:maOrders[i])*lags[i],i] <- B[nParam+c(1:maOrders[i])-1];
+                        nParam <- nParam + maOrders[i];
+                    }
+                    else if(!maEstimate && maRequired){
+                        maParameters[1+(1:maOrders[i])*lags[i],i] <- armaParameters[armanParam+c(1:maOrders[i])-1];
+                        armanParam <- armanParam + maOrders[i];
                     }
                 }
             }
