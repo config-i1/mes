@@ -417,7 +417,13 @@ test_that("Best auto.adam ARIMA on N2568, in parallel", {
 
 # Best ETS+ARIMA+Regression on the 2568
 testModel <- auto.adam(Mcomp::M3[[2568]]$x, "ZZZ", orders=list(ar=c(3,2),i=c(2,1),ma=c(3,2),select=TRUE),
-                       xreg=temporaldummy(Mcomp::M3[[2568]]$x), xregDo="select", parallel=TRUE);
+                       xreg=temporaldummy(Mcomp::M3[[2568]]$x), xregDo="select", initial="back", parallel=TRUE);
 test_that("Best auto.adam ETS+ARIMA+Regression on N2568, in parallel", {
+    expect_match(testModel$loss, "likelihood");
+})
+
+# Summary of the best model
+testSummary <- summary(testModel);
+test_that("Summary of the produced ADAM model", {
     expect_match(testModel$loss, "likelihood");
 })
