@@ -1959,7 +1959,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                componentsNumberARIMA, componentsNamesARIMA,
                                xregModel, xregModelInitials, xregData, xregNumber, xregNames);
 
-        if(is.null(B) && is.null(lb) && is.null(ub)){
+        # If B is not provided, initialise it
+        if(is.null(B)){
             BValues <- initialiser(etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, componentsNumberETSSeasonal,
                                    componentsNumberETS, lags, lagsModel, lagsModelSeasonal, lagsModelARIMA, lagsModelMax,
                                    adamCreated$matVt,
@@ -1971,16 +1972,12 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                    arimaModel, arRequired, maRequired, arEstimate, maEstimate, arOrders, maOrders,
                                    componentsNumberARIMA, componentsNamesARIMA, initialArimaNumber,
                                    xregModel, xregNumber, lambdaEstimate);
-            # Create the vector of initials for the optimisation
-            B <- BValues$B;
-            # lb <- BValues$Bl;
-            # ub <- BValues$Bu;
         }
-        # print(B)
+        # print(BValues$B);
 
-        # Preheat the initial state of ARIMA
-        if(arimaModel && initialType=="optimal" && initialArimaEstimate){
-            adamElements <- filler(B,
+        # Preheat the initial state of ARIMA. Do this only for optimal initials and if B is not provided
+        if(arimaModel && initialType=="optimal" && initialArimaEstimate && is.null(B)){
+            adamElements <- filler(BValues$B,
                                    etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
                                    componentsNumberETS, componentsNumberETSNonSeasonal,
                                    componentsNumberETSSeasonal, componentsNumberARIMA,
@@ -2014,8 +2011,13 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                    arimaModel, arRequired, maRequired, arEstimate, maEstimate, arOrders, maOrders,
                                    componentsNumberARIMA, componentsNamesARIMA, initialArimaNumber,
                                    xregModel, xregNumber, lambdaEstimate);
-            # Create the vector of initials for the optimisation
-            B <- BValues$B;
+        }
+
+        # Create the vector of initials for the optimisation
+        if(is.null(B)){
+            B <- BValues$B
+            # lb <- BValues$Bl;
+            # ub <- BValues$Bu;
         }
 
         # Matrices needed for the polynomials calculation -> stationarity / stability checks
