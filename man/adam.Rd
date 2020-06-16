@@ -120,10 +120,6 @@ likelihood of the function specified in \code{distribution};
 Note that model selection and combination works properly only for the default
 \code{loss="likelihood"}.
 
-There are also available analytical approximations for multistep functions:
-\code{aMSEh}, \code{aTMSE} and \code{aGTMSE}. These can be useful in cases
-of small samples.
-
 Furthermore, just for fun the absolute and half analogues of multistep estimators
 are available: \code{MAEh}, \code{TMAE}, \code{GTMAE}, \code{MACE},
 \code{HAMh}, \code{THAM}, \code{GTHAM}, \code{CHAM}.
