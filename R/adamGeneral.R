@@ -723,22 +723,36 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                     if(any(substr(names(persistence),1,3)=="psi")){
                         persistence <- persistence[substr(names(persistence),1,3)!="psi"];
                     }
-                    j <- 1;
-                    persistenceLevel <- as.vector(persistence)[1];
-                    names(persistenceLevel) <- "alpha";
-                    if(modelIsTrendy && length(persistence)>j){
+                    j <- 0;
+                    if(etsModel){
                         j <- j+1;
-                        persistenceTrend <- as.vector(persistence)[j];
-                        names(persistenceTrend) <- "beta";
-                    }
-                    if(Stype!="N" && length(persistence)>j){
-                        j <- j+1;
-                        persistenceSeasonal <- as.vector(persistence)[j];
-                        names(persistenceSeasonal) <- paste0("gamma",c(1:length(persistenceSeasonal)));
+                        persistenceLevel <- as.vector(persistence)[1];
+                        names(persistenceLevel) <- "alpha";
+                        if(modelIsTrendy && length(persistence)>j){
+                            j <- j+1;
+                            persistenceTrend <- as.vector(persistence)[j];
+                            names(persistenceTrend) <- "beta";
+                        }
+                        if(Stype!="N" && length(persistence)>j){
+                            j <- j+1;
+                            persistenceSeasonal <- as.vector(persistence)[j];
+                            names(persistenceSeasonal) <- paste0("gamma",c(1:length(persistenceSeasonal)));
+                        }
                     }
                     if(xregModel && length(persistence)>j){
-                        persistenceXreg <- as.vector(persistence)[-c(1:j)];
-                        names(persistenceXreg) <- paste0("delta",c(1:length(persistenceXreg)));
+                        if(j>0){
+                            persistenceXreg <- as.vector(persistence)[-c(1:j)];
+                        }
+                        else{
+                            persistenceXreg <- as.vector(persistence);
+                        }
+                        # If there are names, make sure that only deltas are used
+                        if(!is.null(names(persistenceXreg))){
+                            persistenceXreg <- persistenceXreg[substr(names(persistenceXreg),1,5)=="delta"];
+                        }
+                        else{
+                            names(persistenceXreg) <- paste0("delta",c(1:length(persistenceXreg)));
+                        }
                     }
 
                     persistenceEstimate[] <- persistenceLevelEstimate[] <- persistenceTrendEstimate[] <-
@@ -2104,7 +2118,6 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     if(!etsModel && bounds=="usual"){
         bounds[] <- "admissible";
     }
-
 
     #### Return the values to the previous environment ####
     ### Actuals
