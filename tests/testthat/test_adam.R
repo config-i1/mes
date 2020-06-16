@@ -93,8 +93,8 @@ test_that("ADAM ETS(AAN) with custom loss on N1234", {
 
 #### ETS + occurrence model ####
 # Generate intermittent data
-x <- sim.oes("MNN", 120, frequency=12, occurrence="general")
-x <- sim.es("MNN", 120, frequency=12, probability=x$probability)
+x <- sim.oes("MNN", 120, frequency=12, occurrence="general", persistence=0.01, initial=2, initialB=1)
+x <- sim.es("MNN", 120, frequency=12, probability=x$probability, persistence=0.1)
 
 # iETS(M,N,N)_G
 testModel <- adam(x$data, "MNN", occurrence="general")
@@ -375,7 +375,7 @@ test_that("Reuse ADAM ETS(MMdM) on N2568", {
 testModel <- adam(Mcomp::M3[[2568]], "NNN", h=18, orders=list(ar=c(2,0),i=c(1,0), ma=c(2,1)), holdout=TRUE);
 testModelNew <- adam(Mcomp::M3[[2568]], testModel);
 test_that("Reuse ADAM SARIMA(2,1,2)(0,0,1)[12] on N2568", {
-    expect_match(testModel$model,testModelNew$model);
+    expect_equal(testModel$model,testModelNew$model);
     expect_equal(nparam(testModelNew),1);
 })
 
