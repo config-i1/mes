@@ -2610,24 +2610,26 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                            nonZeroARI, nonZeroMA,
                            arimaPolynomials, armaParameters){
 
-        # Fill in the matrices
-        adamElements <- filler(B,
-                               etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
-                               componentsNumberETS, componentsNumberETSNonSeasonal,
-                               componentsNumberETSSeasonal, componentsNumberARIMA,
-                               lags, lagsModel, lagsModelMax,
-                               matVt, matWt, matF, vecG,
-                               persistenceEstimate, persistenceLevelEstimate, persistenceTrendEstimate,
-                               persistenceSeasonalEstimate, persistenceXregEstimate,
-                               phiEstimate,
-                               initialType, initialEstimate,
-                               initialLevelEstimate, initialTrendEstimate, initialSeasonalEstimate,
-                               initialArimaEstimate, initialXregEstimate,
-                               arimaModel, arEstimate, maEstimate, arOrders, iOrders, maOrders,
-                               arRequired, maRequired, armaParameters,
-                               nonZeroARI, nonZeroMA, arimaPolynomials,
-                               xregModel, xregNumber);
-        list2env(adamElements, environment());
+        if(modelDo!="use"){
+            # Fill in the matrices
+            adamElements <- filler(B,
+                                   etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
+                                   componentsNumberETS, componentsNumberETSNonSeasonal,
+                                   componentsNumberETSSeasonal, componentsNumberARIMA,
+                                   lags, lagsModel, lagsModelMax,
+                                   matVt, matWt, matF, vecG,
+                                   persistenceEstimate, persistenceLevelEstimate, persistenceTrendEstimate,
+                                   persistenceSeasonalEstimate, persistenceXregEstimate,
+                                   phiEstimate,
+                                   initialType, initialEstimate,
+                                   initialLevelEstimate, initialTrendEstimate, initialSeasonalEstimate,
+                                   initialArimaEstimate, initialXregEstimate,
+                                   arimaModel, arEstimate, maEstimate, arOrders, iOrders, maOrders,
+                                   arRequired, maRequired, armaParameters,
+                                   nonZeroARI, nonZeroMA, arimaPolynomials,
+                                   xregModel, xregNumber);
+            list2env(adamElements, environment());
+        }
 
         # Write down lambda
         if(lambdaEstimate){
