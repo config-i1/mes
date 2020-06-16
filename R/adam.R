@@ -2225,10 +2225,10 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
             # Extract the errors corrrectly
             errors <- switch(distribution,
-                            "dnorm"=, "dt"=, "dlogis"=, "dlaplace"=, "ds"=, "dalaplace"=adamFitted$errors,
                             "dlnorm"=, "dllaplace"=, "dls"=, "dinvgauss"=switch(Etype,
                                                                                 "A"=1+adamFitted$errors/adamFitted$yFitted,
-                                                                                "M"=adamFitted$errors));
+                                                                                "M"=adamFitted$errors),
+                            "dnorm"=, "dt"=, "dlogis"=, "dlaplace"=, "ds"=, "dalaplace"=,adamFitted$errors);
             # Extract the errors and amend them to correspond to the distribution
             errors[] <- errors + switch(Etype,"A"=0,"M"=1);
 
