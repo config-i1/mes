@@ -367,7 +367,7 @@ test_that("ADAM ARIMA(2,0,2) with provided B on N2568", {
 testModel <- adam(Mcomp::M3[[2568]], "MMdM");
 testModelNew <- adam(Mcomp::M3[[2568]], testModel);
 test_that("Reuse ADAM ETS(MMdM) on N2568", {
-    expect_match(testModel$model,testModelNew$model);
+    expect_equal(testModel$model,testModelNew$model);
     expect_equal(nparam(testModelNew),1);
 })
 
@@ -395,5 +395,29 @@ test_that("Reuse ADAM ETSX(ANN)+SARIMA(2,1,2)(0,0,1)[12] on N2568", {
     expect_equal(nparam(testModelNew),1);
 })
 
-#### auto.adam ####
 
+#### auto.adam ####
+# Select the best distribution for ETS(FFF) on 2568
+testModel <- auto.adam(Mcomp::M3[[2568]], "ZZZ");
+test_that("Best auto.adam on N2568", {
+    expect_match(testModel$loss, "likelihood");
+})
+
+# Select the best distribution for ETS(FFF) on 2568
+testModel2 <- auto.adam(Mcomp::M3[[2568]], "FFF", parallel=TRUE);
+test_that("Best auto.adam ETS(FFF) on N2568, in parallel", {
+    expect_equal(testModel$persistence,testModel2$persistence);
+})
+
+# Best ARIMA on the 2568
+testModel <- auto.adam(Mcomp::M3[[2568]], "NNN", orders=list(ar=c(3,2),i=c(2,1),ma=c(3,2),select=TRUE), parallel=TRUE);
+test_that("Best auto.adam ARIMA on N2568, in parallel", {
+    expect_match(testModel$loss, "likelihood");
+})
+
+# Best ETS+ARIMA+Regression on the 2568
+testModel <- auto.adam(Mcomp::M3[[2568]]$x, "ZZZ", orders=list(ar=c(3,2),i=c(2,1),ma=c(3,2),select=TRUE),
+                       xreg=temporaldummy(Mcomp::M3[[2568]]$x), xregDo="select", parallel=TRUE);
+test_that("Best auto.adam ETS+ARIMA+Regression on N2568, in parallel", {
+    expect_match(testModel$loss, "likelihood");
+})
