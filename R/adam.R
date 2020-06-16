@@ -1374,10 +1374,9 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
         # Initials
         if(etsModel && initialType!="backcasting" && initialEstimate){
-            i <- 1;
             if(initialLevelEstimate){
                 j[] <- j+1;
-                B[j] <- matVt[i,lagsModelMax];
+                B[j] <- matVt[1,lagsModelMax];
                 names(B)[j] <- "level";
                 if(Etype=="A"){
                     Bl[j] <- -Inf;
@@ -1388,10 +1387,9 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                     Bu[j] <- Inf;
                 }
             }
-            i[] <- i+1;
             if(modelIsTrendy && initialTrendEstimate){
                 j[] <- j+1;
-                B[j] <- matVt[i,lagsModelMax];
+                B[j] <- matVt[2,lagsModelMax];
                 names(B)[j] <- "trend";
                 if(Ttype=="A"){
                     Bl[j] <- -Inf;
@@ -1401,24 +1399,24 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                     Bl[j] <- 0;
                     Bu[j] <- Inf;
                 }
-                i[] <- i+1;
             }
             if(modelIsSeasonal && any(initialSeasonalEstimate)){
                 if(componentsNumberETSSeasonal>1){
-                    for(k in i:componentsNumberETS){
-                        if(initialSeasonalEstimate[k-i+1]){
+                    for(k in 1:componentsNumberETSSeasonal){
+                        if(initialSeasonalEstimate[k]){
                             # -1 is needed in order to remove the redundant seasonal element (normalisation)
-                            B[j+2:(lagsModel[k])-1] <- matVt[k,(lagsModelMax-lagsModel[k])+2:lagsModel[k]-1];
-                            names(B)[j+2:(lagsModel[k])-1] <- paste0("seasonal",k-i+1,"_",2:lagsModel[k]-1);
+                            B[j+2:(lagsModelSeasonal[k])-1] <- matVt[componentsNumberETSNonSeasonal+k,
+                                                                     (lagsModelMax-lagsModelSeasonal[k])+2:lagsModelSeasonal[k]-1];
+                            names(B)[j+2:(lagsModelSeasonal[k])-1] <- paste0("seasonal",k,"_",2:lagsModelSeasonal[k]-1);
                             if(Stype=="A"){
-                                Bl[j+2:(lagsModel[k])-1] <- -Inf;
-                                Bu[j+2:(lagsModel[k])-1] <- Inf;
+                                Bl[j+2:(lagsModelSeasonal[k])-1] <- -Inf;
+                                Bu[j+2:(lagsModelSeasonal[k])-1] <- Inf;
                             }
                             else{
-                                Bl[j+2:(lagsModel[k])-1] <- 0;
-                                Bu[j+2:(lagsModel[k])-1] <- Inf;
+                                Bl[j+2:(lagsModelSeasonal[k])-1] <- 0;
+                                Bu[j+2:(lagsModelSeasonal[k])-1] <- Inf;
                             }
-                            j[] <- j+(lagsModel[k]-1);
+                            j[] <- j+(lagsModelSeasonal[k]-1);
                         }
                     }
                 }
