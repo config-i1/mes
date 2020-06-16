@@ -2119,6 +2119,11 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         bounds[] <- "admissible";
     }
 
+    if(modelDo=="select" && loss!="likelihood"){
+        warning("The model selection only works in case of loss='likelihood'. We hope you know what you are doing.",
+                call.=FALSE);
+    }
+
     #### Return the values to the previous environment ####
     ### Actuals
     assign("y",y,ParentEnvironment);
