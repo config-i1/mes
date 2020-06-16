@@ -295,7 +295,7 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
             }
         }
         else{
-            selectedModels <- foreach(i=1:length(distribution)) %dopar% {
+            selectedModels <- foreach::`%dopar%`(foreach::foreach(i=1:length(distribution)),{
                 testModel <- adam(y=y, model=model, lags=lags, orders=ordersToUse,
                                   distribution=distribution[i],
                                   h=h, holdout=holdout,
@@ -314,7 +314,7 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
                                                testModelETS=testModel, ...)
                 }
                 return(testModel);
-            }
+            })
         }
         return(selectedModels);
     }
@@ -693,7 +693,7 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
                 }
             }
             else{
-                selectedModels <- foreach(i=1:length(distribution)) %dopar% {
+                selectedModels <- foreach::`%dopar%`(foreach::foreach(i=1:length(distribution)),{
                     testModel <- arimaSelector(y=y, model=model,
                                                lags=lags, arMax=arMax, iMax=iMax, maMax=maMax,
                                                distribution=distribution[i], h=h, holdout=holdout,
@@ -701,7 +701,7 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
                                                occurrence=occurrence, ic=ic, bounds=bounds, fast=fast,
                                                silent=TRUE, xreg=xreg, xregDo=xregDo, testModelETS=NULL, ...);
                     return(testModel);
-                }
+                })
             }
         }
     }
