@@ -28,14 +28,123 @@ This vignette explains briefly how to use the function `adam()` and the related 
 
 ADAM is Advanced Dynamic Adaptive Model. It is a model that underlies ETS, ARIMA and regression, connecting them in a unified framework. The underlying model for ADAM is a Single Source of Error state space model, which will be explained in detail separately in a bookdown file (under construction at the moment).
 
-The main philosophy of `adam()` function is to be agnostic of the provided data. This means that it will work with `ts`, `msts`, `zoo`, `xts`, `data.frame`, `numeric` and other classes of data. The specification of seasonality in the model is done using a separate parameter `lags`, so you are not obliged to transform the existing data to something specific, and can use it as is. If you provide a `matrix`, or a `data.frame`, or a `data.table`, or any other multivariate structure, then the function will use the first column for the response variable and the others for the explanatory ones.
+The main philosophy of `adam()` function is to be agnostic of the provided data. This means that it will work with `ts`, `msts`, `zoo`, `xts`, `data.frame`, `numeric` and other classes of data. The specification of seasonality in the model is done using a separate parameter `lags`, so you are not obliged to transform the existing data to something specific, and can use it as is. If you provide a `matrix`, or a `data.frame`, or a `data.table`, or any other multivariate structure, then the function will use the first column for the response variable and the others for the explanatory ones. One thing that is currently assumed in the function is that the data is measured at a regular frequency. If this is not the case, you will need to introduce missing values manually.
 
-# ETS
+In order to run the experiments in this vignette, we need to load the following packages:
 
-# ARIMA
+```{r load_libraries, message=FALSE, warning=FALSE}
+require(greybox)
+require(smooth)
+require(forecast)
+require(Mcomp)
+```
 
-# ETSX / ARIMAX
+## ADAM ETS
+First and foremost, ADAM implements ETS model, although in a more flexible way than [@Hyndman2008b]: it supports different distributions for the error term, which are regulated via `distribution` parameter. By default, the additive error model relies on Normal distribution, while the multiplicative error one asumes Inverse Gaussian. If you want to reproduce the classical ETS, you would need to specify `distribution="dnorm"`. Here is an example of ADAM ETS(MMM) with Normal distribution on a N2568 data from M3 competition (if you provide an `Mcomp` object, `adam()` will automatically set the train and test sets, the forecast horizon and even the needed lags):
 
-# ETS + ARIMA + Regression
+```{r}
+testModel <- adam(M3[[2568]], "MMM", lags=c(1,12), distribution="dnorm")
+summary(testModel)
+plot(forecast(testModel,h=18,interval="parametric"))
+```
+
+You might notice that the summary contains more than what is reported by other `smooth` functions. This one also produces standard errors for the estimated parameters based on Fisher Information calculation. Note that this is computationally expensive, so if you have a model with more than 30 variables, the calculation of standard errors might take plenty of time. As for the default `print()` method, it will produce a shorter summary from the model, without the standard errors (similar to what `es()` does):
+
+```{r}
+testModel
+```
+
+Also, note that the prediction interval in case of multiplicative error models are approximate. It is advisable to use simulations instead (which is slower, but more accurate):
+
+```{r}
+plot(forecast(testModel,h=18,interval="simulated"))
+```
+
+By default ADAM will estimate models via maximising likelihood function. But there is also a parameter `loss`, which allows selecting from a list of already implemented loss functions (again, see documentation for `adam()` for the full list) or using a function written by a user. Here is how to do the latter on the example of another M3 series:
+
+```{r}
+lossFunction <- function(actual, fitted, B){
+  return(sum(abs(actual-fitted)^3))
+}
+testModel <- adam(M3[[1234]], "AAN", silent=FALSE, loss=lossFunction)
+testModel
+```
+
+Note that you need to have parameters actual, fitted and B in the function, which correspond to the vector of actual values, vector of fitted values on each iteration and a vector of the optimised parameters.
+
+`loss` and `distribution` parameters are independent, so in the example above, we have assumed that the error term follows Normal distribution, but we have estimated its parameters using a non-conventional loss because we can.
+
+The model selection in ADAM ETS relies on information criteria and works correctly only available for the `loss="likelihood"`. There are several options, how to select the model, see them in the description of the function: `?adam`. The default one uses branch-and-bound algorithm, similar to the one used in `es()`, but only considers additive trend models (the multiplicative trend ones are less stable and need more attention from a forecaster):
+
+```{r}
+testModel <- adam(M3[[2568]], "ZXZ", lags=c(1,12), silent=FALSE)
+testModel
+```
+
+Note that the function produces point forecasts if `h>0`, but it won't generate predictin interval. This is why you need to use `forecast()` method (as shown in a previous example).
+
+Similarly to `es()` function supports combination of models, but it saves all the tested models in the output for a potential reuse. Here how it works:
+
+```{r}
+testModel <- adam(M3[[2568]], "CXC", lags=c(1,12))
+testForecast <- forecast(testModel,h=18,interval="semiparametric", level=c(0.9,0.95))
+testForecast
+plot(testForecast)
+```
+
+Yes, now we support vectors for the levels in case you want to produce several. In fact, we also support side for prediction interval, so you can extract specific quantiles without a hustle:
+
+```{r}
+forecast(testModel,h=18,interval="semiparametric", level=c(0.9,0.95,0.99), side="upper")
+```
+
+A brand new thing in the function is the possibility to use several frequency (double / triple / quadruple / ... seasonal models). Here what we can have in case of half-hourly data:
+
+```{r}
+testModel <- adam(forecast::taylor, "MMdM", lags=c(1,48,336), silent=FALSE, h=336, holdout=TRUE)
+testModel
+```
+
+Note that the more lags you have, the more initial seasonal components the function will need to estimate, which is a difficult task. The optimiser might not get close to the optimal value, so we can help it. First, we can give more time for the calculation, increasing the number of iterations via `maxeval` (the default value is 200):
+
+```{r}
+testModel <- adam(forecast::taylor, "MMdM", lags=c(1,48,336), silent=FALSE, h=336, holdout=TRUE, maxeval=5000)
+testModel
+```
+
+This will take more time, but will typically lead to more refined parameters. You can control other parameters of the optimiser as well, such as `algorithm`, `xtol_rel`, `print_level` and others, which are explained in the documentation for `nloptr` function from nloptr package (run `nloptr.print.options()` for details). Second, we can give a different set of initial parameters for the optimiser, have a look at what the function saves:
+
+```{r}
+testModel$B
+```
+
+and use this as a starting point (e.g. with a different algorithm):
+
+```{r}
+testModel <- adam(forecast::taylor, "MMdM", lags=c(1,48,336), silent=FALSE, h=336, holdout=TRUE, B=testModel$B)
+testModel
+```
+
+Finally, we can speed up the process by using a different initialisation of the state vector, such as backcasting:
+
+```{r}
+testModel <- adam(forecast::taylor, "MMdM", lags=c(1,48,336), silent=TRUE, h=336, holdout=TRUE, initial="b")
+```
+
+The result might be less accurate than in case of the optimisation, but it should be faster.
+
+The function also handles intermittent data (the data with zeroes) and the data with missing values. This is partially covered in the vignette on the [oes()](oes.html) function. Here is a simple example:
+
+```{r}
+testModel <- adam(rpois(120,0.5), "MNN", silent=FALSE, h=12, holdout=TRUE, occurrence="odds-ratio")
+testModel
+```
+
+
+# ADAM ARIMA
+
+# ADAM ETSX / ARIMAX
+
+# ADAM ETS + ARIMA + Regression
 
 # Auto ADAM
