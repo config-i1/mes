@@ -60,6 +60,15 @@ Also, note that the prediction interval in case of multiplicative error models a
 plot(forecast(testModel,h=18,interval="simulated"))
 ```
 
+If you want to do the residuals diagnostics, then it is recommended to use `plot` function, something like this (you can select, which of the plots to produce):
+
+```{r}
+par(mfcol=c(3,4))
+plot(testModel,which=c(1:11))
+par(mfcol=c(1,1))
+plot(testModel,which=12)
+```
+
 By default ADAM will estimate models via maximising likelihood function. But there is also a parameter `loss`, which allows selecting from a list of already implemented loss functions (again, see documentation for `adam()` for the full list) or using a function written by a user. Here is how to do the latter on the example of another M3 series:
 
 ```{r}
@@ -133,6 +142,15 @@ testModel <- adam(forecast::taylor, "MMdM", lags=c(1,48,336), silent=TRUE, h=336
 
 The result might be less accurate than in case of the optimisation, but it should be faster.
 
+In addition, you can specify some parts of the initial state vector or some parts of the persistence vector, here is an example:
+
+```{r}
+testModel <- adam(forecast::taylor, "MMdM", lags=c(1,48,336), silent=TRUE, h=336, holdout=TRUE,
+                  initial=list(level=30000, trend=1), persistence=list(beta=0.1))
+testModel
+```
+
+
 The function also handles intermittent data (the data with zeroes) and the data with missing values. This is partially covered in the vignette on the [oes()](oes.html) function. Here is a simple example:
 
 ```{r}
@@ -140,8 +158,67 @@ testModel <- adam(rpois(120,0.5), "MNN", silent=FALSE, h=12, holdout=TRUE, occur
 testModel
 ```
 
+Finally, `adam()` is faster than `es()` function, because its code is more efficient and it uses a different optimisation algorithm by with more finely tuned parameters by default. Let's compare:
+```{r}
+adamModel <- adam(M3[[2568]], "CCC", lags=c(1,12))
+esModel <- es(M3[[2568]], "CCC")
+"adam:"
+adamModel
+"es():"
+esModel
+```
+
 
 # ADAM ARIMA
+As mentioned above, ADAM does not only contain ETS, it also contains ARIMA model, which is regulated via `orders` parameter. If you want to have a pure ARIMA, you need to switch off ETS, which is done via `model="NNN"`:
+
+```{r}
+testModel <- adam(M3[[1234]], "NNN", silent=FALSE, orders=c(0,2,2))
+testModel
+```
+
+Given that both models are implemented in the same framework, they can be compared using information criteria.
+
+The functionality of ADAM ARIMA is similar to the one of `msarima` function in `smooth` package, although there are several differences.
+
+First, changing the `distribution` parameter will allow switching between additive / multiplicative models. For example, `distribution="dlnorm"` will create an ARIMA, equivalent to the one on logarithms of the data:
+
+```{r}
+testModel <- adam(M3[[2568]], "NNN", silent=FALSE, lags=c(1,12), orders=list(ar=c(1,1),i=c(1,1),ma=c(2,2)), distribution="dlnorm")
+testModel
+```
+
+Second, it does not have intercept. If you want to have one, you can do this reintroducing ETS component and imposing some restrictions:
+
+```{r}
+testModel <- adam(M3[[2568]], "ANN", silent=FALSE, persistence=0,
+                  lags=c(1,12), orders=list(ar=c(1,1),i=c(1,1),ma=c(2,2)), distribution="dnorm")
+testModel
+```
+
+This way we get the global level, which acts as an intercept. The drift is not supported in the model either.
+
+Third, you can specify parameters of ARIMA via the `arma` parameter in the following manner:
+
+```{r}
+testModel <- adam(M3[[2568]], "NNN", silent=FALSE, lags=c(1,12), arma=list(ar=c(0.1,0.1), ma=c(-0.96, 0.03, -0.12, 0.03)),
+                  orders=list(ar=c(1,1),i=c(1,1),ma=c(2,2)), distribution="dnorm")
+testModel
+```
+
+Finally, the initials for the states can also be provided, although getting the correct ones might be a challenging task (you also need to know how many of them to provide; checking `testModel$initial` might help):
+
+```{r}
+testModel <- adam(M3[[2568]], "NNN", silent=FALSE, lags=c(1,12), initial=list(arima=M3[[2568]]$x[1:24]),
+                  orders=list(ar=c(1,1),i=c(1,1),ma=c(2,0)), distribution="dnorm")
+testModel
+```
+
+If you work with ADAM ARIMA model, then there is no such thing as "usual" bounds for the parameters, so the function will use the `bounds="admissible"`, checking the AR / MA polynomials in order to make sure that the model is stationary and invertible (aka stable).
+
+Similarly to ETS, you can use different distributions and losses for the estimation. **Note that the order selection for ARIMA is done in `auto.adam` function, not in the `adam`!**
+
+Finally, ARIMA is typically slower than ETS, mainly because the `maxeval` is set by default to 400. But this is inevitable due to an increased complexity of the model - otherwise it won't be estimated properly. If you want to speed things up, use `initial="backcasting"` and reduce the number of iterations.
 
 # ADAM ETSX / ARIMAX
 
