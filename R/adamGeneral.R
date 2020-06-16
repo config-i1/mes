@@ -1464,22 +1464,40 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         }
         else{
             initialXregProvided <- TRUE;
+            if(is.null(formulaProvided)){
+                formulaProvided <- as.formula(paste0("`",responseName,"`~."));
+            }
+            # Extract names and form a proper matrix for the regression
+            else{
+                formulaProvided <- as.formula(formulaProvided);
+                responseName <- all.vars(formulaProvided)[1];
+            }
 
             xregModelInitials[[1]]$initialXreg <- initialXreg;
             if(Etype=="Z"){
                 xregModelInitials[[2]]$initialXreg <- initialXreg;
             }
 
-            # Write down the number and names of parameters
-            if(nrow(xreg)>obsAll){
-                xregData <- xreg[1:obsAll,];
+            obsXreg <- nrow(xreg);
+            # If there are more xreg values than the obsAll, redo stuff and use them
+            if(obsXreg>=obsAll){
+                xregData <- cbind(as.data.frame(y),as.data.frame(xreg));
+                colnames(xregData)[1] <- responseName;
+                xregData <- model.frame(formulaProvided,data=xregData);
+                # Create a model matrix and remove intercept
+                xregData <- as.matrix(model.matrix(xregData,data=xregData))[1:obsAll,-1,drop=FALSE];
             }
-            else if(nrow(xreg)<obsAll){
-                stop("The xreg contains less observations than the in-sample. Cannot proceed.",call.=FALSE);
-            }
+            # If there are less xreg observations than obsAll, use Naive
             else{
-                xregData <- xreg;
+                warning(paste0("The xreg has ",obsXreg," observations, while ",obsAll," are needed. ",
+                               "Using the last available values as future ones."),
+                        call.=FALSE);
+                newnRows <- obsAll-obsXreg;
+                xregData <- model.frame(formulaProvided,data=as.data.frame(xreg));
+                xregData <- as.matrix(model.matrix(xregData,data=xregData))[,-1,drop=FALSE];
+                xregData <- rbind(xregData,matrix(rep(tail(xregData,1),each=newnRows),newnRows,xregNumber));
             }
+
             xregNumber <- ncol(xregData);
             xregNames <- names(xregModelInitials[[1]]$initialXreg);
             parametersNumber[2,2] <- parametersNumber[2,2] + xregNumber;
@@ -2086,6 +2104,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     if(!etsModel && bounds=="usual"){
         bounds[] <- "admissible";
     }
+
 
     #### Return the values to the previous environment ####
     ### Actuals
