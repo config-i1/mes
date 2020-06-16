@@ -1479,6 +1479,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
     ##### Function returns scale parameter for the provided parameters #####
     scaler <- function(distribution, Etype, errors, yFitted, obsInSample, lambda){
+        # as.complex() is needed in order to make the optimiser work in exotic cases
         scale <- switch(distribution,
                         "dnorm"=,
                         "dt"=sqrt(sum(errors^2)/obsInSample),
@@ -1487,13 +1488,13 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                         "ds"=sum(sqrt(abs(errors))) / (obsInSample*2),
                         "dalaplace"=sum(errors*(lambda-(errors<=0)*1))/obsInSample,
                         "dlnorm"=switch(Etype,
-                                        "A"=sqrt(sum(log(1+errors/yFitted)^2)/obsInSample),
+                                        "A"=Re(sqrt(sum(log(as.complex(1+errors/yFitted))^2)/obsInSample)),
                                         "M"=sqrt(sum(log(1+errors)^2)/obsInSample)),
                         "dllaplace"=switch(Etype,
-                                           "A"=sum(abs(log(1+errors/yFitted))/obsInSample),
+                                           "A"=Re(sum(abs(log(as.complex(1+errors/yFitted))))/obsInSample),
                                            "M"=sum(abs(log(1+errors))/obsInSample)),
                         "dls"=switch(Etype,
-                                     "A"=sum(sqrt(abs(log(1+errors/yFitted)))/obsInSample),
+                                     "A"=Re(sum(sqrt(abs(log(as.complex(1+errors/yFitted))))/obsInSample)),
                                      "M"=sum(sqrt(abs(log(1+errors)))/obsInSample)),
                         "dinvgauss"=switch(Etype,
                                            "A"=sum((errors/yFitted)^2/(1+errors/yFitted))/obsInSample,
@@ -1648,6 +1649,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                 adamFitted$yFitted[otLogical], obsInSample, lambda);
 
                 # Calculate the likelihood
+                ## as.complex() is needed for failsafe in case of exotic models
                 CFValue <- -sum(switch(distribution,
                                        "dnorm"=switch(Etype,
                                                       "A"=dnorm(x=yInSample[otLogical], mean=adamFitted$yFitted[otLogical],
@@ -1678,11 +1680,11 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                                                         scale=scale, alpha=lambda, log=TRUE),
                                                           "M"=dalaplace(q=yInSample[otLogical], mu=adamFitted$yFitted[otLogical],
                                                                         scale=scale*adamFitted$yFitted[otLogical], alpha=lambda, log=TRUE)),
-                                       "dlnorm"=dlnorm(x=yInSample[otLogical], meanlog=log(adamFitted$yFitted[otLogical]),
+                                       "dlnorm"=dlnorm(x=yInSample[otLogical], meanlog=Re(log(as.complex(adamFitted$yFitted[otLogical]))),
                                                        sdlog=scale, log=TRUE),
-                                       "dllaplace"=dlaplace(q=log(yInSample[otLogical]), mu=log(adamFitted$yFitted[otLogical]),
+                                       "dllaplace"=dlaplace(q=log(yInSample[otLogical]), mu=Re(log(as.complex(adamFitted$yFitted[otLogical]))),
                                                             scale=scale, log=TRUE)-log(yInSample[otLogical]),
-                                       "dls"=ds(q=log(yInSample[otLogical]), mu=log(adamFitted$yFitted[otLogical]),
+                                       "dls"=ds(q=log(yInSample[otLogical]), mu=Re(log(as.complex(adamFitted$yFitted[otLogical]))),
                                                 scale=scale, log=TRUE)-log(yInSample[otLogical]),
                                        # "dinvgauss"=dinvgauss(x=1+adamFitted$errors, mean=1,
                                        #                       dispersion=scale, log=TRUE)));
@@ -2221,8 +2223,14 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                          lagsModelAll, Etype, Ttype, Stype, componentsNumberETS, componentsNumberETSSeasonal,
                                          componentsNumberARIMA, xregNumber, yInSample, ot, initialType=="backcasting");
 
+            # Extract the errors corrrectly
+            errors <- switch(distribution,
+                            "dnorm"=, "dt"=, "dlogis"=, "dlaplace"=, "ds"=, "dalaplace"=adamFitted$errors,
+                            "dlnorm"=, "dllaplace"=, "dls"=, "dinvgauss"=switch(Etype,
+                                                                                "A"=1+adamFitted$errors/adamFitted$yFitted,
+                                                                                "M"=adamFitted$errors));
             # Extract the errors and amend them to correspond to the distribution
-            errors <- adamFitted$errors+switch(Etype,"A"=0,"M"=1);
+            errors[] <- errors + switch(Etype,"A"=0,"M"=1);
 
             # Call the xregSelector providing the original matrix with the data
             xregIndex <- switch(Etype,"A"=1,"M"=2);
