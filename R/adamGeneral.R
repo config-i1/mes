@@ -1499,7 +1499,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
             }
 
             xregNumber <- ncol(xregData);
-            xregNames <- names(xregModelInitials[[1]]$initialXreg);
+            xregNames <- colnames(xregData);
             parametersNumber[2,2] <- parametersNumber[2,2] + xregNumber;
         }
 
