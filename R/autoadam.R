@@ -23,6 +23,9 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
     # Start measuring the time of calculations
     startTime <- Sys.time();
 
+    # paste0() is needed in order to get rid of potential issues with names
+    responseName <- paste0(deparse(substitute(y)),collapse="");
+
     #### modelDo, ic ####
     if(any(unlist(strsplit(model,""))=="C")){
         modelDo <- "combine";
@@ -724,6 +727,9 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
         plot(selectedModels[[which.min(ICValues)]],7);
     }
     selectedModels[[which.min(ICValues)]]$timeElapsed <- Sys.time()-startTime;
+    selectedModels[[which.min(ICValues)]]$formula <- as.formula(do.call("substitute",
+                                                                        list(expr=selectedModels[[which.min(ICValues)]]$formula,
+                                                                             env=list(y=as.name(responseName)))));
     # names(ICValues) <- sapply(selectedModels, modelType);
     # selectedModels[[which.min(ICValues)]]$ICValues <- ICValues;
 
