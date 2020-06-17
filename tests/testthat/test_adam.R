@@ -201,7 +201,7 @@ test_that("Forecast for ADAM adaptive regression on N2568", {
 # Pure regression
 testModel <- adam(xreg, "NNN", h=18, holdout=TRUE, formula=y~x);
 test_that("ADAM regression (ALM) on N2568", {
-    expect_true(is.alm(testModel));
+    expect_equal(modelType(testModel),"NNN");
 })
 
 

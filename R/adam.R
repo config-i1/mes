@@ -450,8 +450,125 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                        xreg, xregDo, responseName,
                                        silent, modelDo, ParentEnvironment=environment(), ellipsis, fast=FALSE);
 
+    #### Return regression if it is pure ####
     if(is.alm(checkerReturn)){
-        return(checkerReturn);
+        obsInSample <- nobs(checkerReturn);
+        nParam <- nparam(checkerReturn)-1;
+        if(!is.null(dim(y))){
+            xreg <- y[,-1,drop=FALSE];
+        }
+        modelReturned <- list(model="Regression");
+        modelReturned$timeElapsed <- Sys.time()-startTime;
+        modelReturned$y <- actuals(checkerReturn);
+        if(holdout){
+            if(is.null(dim(y))){
+                yHoldout <- y[obsInSample+c(1:h)];
+            }
+            else{
+                yHoldout <- y[obsInSample+c(1:h),1];
+            }
+            modelReturned$holdout <- yHoldout;
+        }
+        else{
+            modelReturned$holdout <- NULL;
+        }
+        # Extract indeces from the data
+        yIndex <- try(time(y),silent=TRUE);
+        # If we cannot extract time, do something
+        if(inherits(yIndex,"try-error")){
+            if(!is.data.frame(y) && !is.null(dim(y))){
+                yIndex <- as.POSIXct(rownames(y));
+            }
+            else if(is.data.frame(y)){
+                yIndex <- c(1:nrow(y));
+            }
+            else{
+                yIndex <- c(1:length(y));
+            }
+        }
+        # Prepare fitted, residuals and the forecasts
+        if(inherits(y,"zoo")){
+            modelReturned$y <- zoo(modelReturned$y, order.by=yIndex[1:obsInSample]);
+            modelReturned$fitted <- zoo(fitted(checkerReturn), order.by=yIndex[1:obsInSample]);
+            modelReturned$residuals <- zoo(residuals(checkerReturn), order.by=yIndex[1:obsInSample]);
+            if(h>0){
+                modelReturned$forecast <- zoo(forecast(checkerReturn,h=h,newdata=tail(xreg,h))$mean,
+                                              order.by=yIndex[obsInSample+1:h]);
+            }
+            else{
+                modelReturned$forecast <- zoo(NA, order.by=yIndex[obsInSample+1]);
+            }
+            modelReturned$states <- zoo(matrix(coef(checkerReturn), obsInSample+1, nParam, byrow=TRUE,
+                                               dimnames=list(NULL, names(coef(checkerReturn)))),
+                                        order.by=c(yIndex[1]-diff(yIndex[1:2]),yIndex[1:obsInSample]));
+        }
+        else{
+            yFrequency <- frequency(y);
+            modelReturned$y <- ts(modelReturned$y, start=yIndex[1], frequency=yFrequency);
+            modelReturned$fitted <- ts(fitted(checkerReturn), start=yIndex[1], frequency=yFrequency);
+            modelReturned$residuals <- ts(residuals(checkerReturn), start=yIndex[1], frequency=yFrequency);
+            if(h>0){
+                modelReturned$forecast <- ts(forecast(checkerReturn,h=h,newdata=tail(xreg,h))$mean,
+                                             start=yIndex[obsInSample+1], frequency=yFrequency);
+            }
+            else{
+                modelReturned$forecast <- ts(NA, start=yIndex[obsInSample]+diff(yIndex[1:2]), frequency=yFrequency);
+            }
+            modelReturned$states <- ts(matrix(coef(checkerReturn), obsInSample+1, nParam, byrow=TRUE,
+                                           dimnames=list(NULL, names(coef(checkerReturn)))),
+                                       start=yIndex-diff(yIndex[1:2]), frequency=yFrequency);
+        }
+        modelReturned$persistence <- rep(0, nParam);
+        names(modelReturned$persistence) <- paste0("delta",c(1:nParam));
+        modelReturned$phi <- 1;
+        modelReturned$transition <- diag(nParam);
+        modelReturned$measurement <- checkerReturn$data;
+        modelReturned$measurement[,1] <- 1;
+        colnames(modelReturned$measurement) <- colnames(modelReturned$states);
+        modelReturned$initial <- list(xreg=coef(checkerReturn));
+        modelReturned$initialType <- "optimal";
+        modelReturned$initialEstimated <- TRUE;
+        names(modelReturned$initialEstimated) <- "xreg";
+        modelReturned$orders <- list(ar=0,i=0,ma=0);
+        modelReturned$arma <- NULL;
+        # Number of estimated parameters
+        parametersNumber <- matrix(0,2,4,
+                                   dimnames=list(c("Estimated","Provided"),
+                                                 c("nParamInternal","nParamXreg","nParamOccurrence","nParamAll")));
+        parametersNumber[1,2] <- nParam;
+        if(is.occurrence(checkerReturn$occurrence)){
+            parametersNumber[1,3] <- nParam;
+        }
+        parametersNumber[1,4] <- sum(parametersNumber[1,1:3]);
+        modelReturned$nParam <- parametersNumber;
+        modelReturned$occurrence <- checkerReturn$occurrence;
+        modelReturned$xreg <- checkerReturn$data[,-1,drop=FALSE];
+        modelReturned$formula <- formula(checkerReturn);
+        modelReturned$xregDo <- "use";
+        modelReturned$loss <- "likelihood";
+        modelReturned$lossValue <- logLik(checkerReturn);
+        modelReturned$logLik <- logLik(checkerReturn);
+        modelReturned$distribution <- checkerReturn$distribution;
+        modelReturned$scale <- checkerReturn$scale;
+        modelReturned$lambda <- checkerReturn$other;
+        modelReturned$B <- coef(checkerReturn);
+        modelReturned$lags <- 1;
+        modelReturned$lagsAll <- rep(1,nParam);
+        if(!is.null(checkerReturn$vcov)){
+            modelReturned$FI <- chol2inv(chol(checkerReturn$vcov));
+        }
+        else{
+            modelReturned$FI <- NULL;
+        }
+        if(holdout){
+            modelReturned$accuracy <- measures(modelReturned$holdout,modelReturned$forecast,modelReturned$y)
+        }
+        else{
+            modelReturned$accuracy <- NULL;
+        }
+
+        return(structure(modelReturned,class=c("adam","smooth")));
+
     }
 
     # Remove xreg if it was provided, just to preserve some memory
@@ -4091,14 +4208,14 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
 
         ellipsis$actuals <- actuals(x);
         if(!is.null(x$holdout)){
-            if(is.ts(ellipsis$actuals)){
+            if(is.zoo(ellipsis$actuals)){
+                ellipsis$actuals <- zoo(c(as.vector(ellipsis$actuals),as.vector(x$holdout)),
+                                        order.by=c(time(ellipsis$actuals),time(x$holdout)));
+            }
+            else{
                 ellipsis$actuals <- ts(c(ellipsis$actuals,x$holdout),
                                        start=start(ellipsis$actuals),
                                        frequency=frequency(ellipsis$actuals));
-            }
-            else{
-                ellipsis$actuals <- zoo(c(as.vector(ellipsis$actuals),as.vector(x$holdout)),
-                                order.by=c(time(ellipsis$actuals),time(x$holdout)));
             }
         }
         if(is.null(ellipsis$main)){
@@ -4694,7 +4811,8 @@ vcov.adam <- function(object, ...){
     else{
         h <- 0;
     }
-    modelReturn <- suppressWarnings(adam(actuals(object), h=h, model=object, FI=TRUE));
+    y <- actuals(object);
+    modelReturn <- suppressWarnings(adam(y, h=0, model=object, FI=TRUE));
     vcovMatrix <- try(chol2inv(chol(modelReturn$FI)), silent=TRUE);
     if(inherits(vcovMatrix,"try-error")){
         vcovMatrix <- try(solve(modelReturn$FI, diag(ncol(modelReturn$FI)), tol=1e-20), silent=TRUE);

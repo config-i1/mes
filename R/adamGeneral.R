@@ -1379,17 +1379,34 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                 }
                 # Either use or select the model via greybox functions
                 if(xregDo=="use"){
-                    warning("The specified model is just a regression. Returning the ALM instead.",
+                    warning("The specified model is just a regression. It is recommended to use alm() from greybox instead.",
                             call.=FALSE);
+                    if(occurrenceModel){
+                        occurrence <- "plogis";
+                    }
+                    # Fisher Information
+                    if(is.null(ellipsis$FI)){
+                        vcovProduce <- FALSE;
+                    }
+                    else{
+                        vcovProduce <- ellipsis$FI;
+                    }
                     almModel <- do.call("alm", list(formula=formulaProvided, data=xregData,
-                                                    distribution=distribution, subset=c(1:obsInSample)));
+                                                    distribution=distribution, subset=c(1:obsInSample),
+                                                    occurrence=occurrence,vcovProduce=vcovProduce));
                     almModel$call$data <- as.name("xreg");
                     return(almModel);
                 }
                 else if(xregDo=="select"){
-                    warning("The specified model is just a stepwise regression. Returning the stepwise instead.",
+                    warning(paste0("The specified model is just a stepwise regression. ",
+                                   "It is advised to use stepwise() function from greybox instead."),
                             call.=FALSE);
-                    return(stepwise(xregData, distribution=distribution, subset=c(1:obsInSample)));
+                    almModel <- stepwise(xregData, distribution=distribution, subset=c(1:obsInSample));
+                    almModel <- do.call("alm", list(formula=formula(almModel), data=xregData,
+                                                    distribution=distribution, subset=c(1:obsInSample),
+                                                    occurrence=occurrence,vcovProduce=vcovProduce));
+                    almModel$call$data <- as.name("xreg");
+                    return(almModel);
                 }
             }
 
@@ -1477,44 +1494,91 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
             formulaProvided <- formula(testModel);
         }
         else{
-            initialXregProvided <- TRUE;
-            if(is.null(formulaProvided)){
+            #### If this is just a regression, then this must be the reuse of alm.
+            if((!etsModel && !arimaModel) && xregDo!="adapt" && loss=="likelihood"){
+                # Return the estimated model based on the provided xreg
                 formulaProvided <- as.formula(paste0("`",responseName,"`~."));
+                if(distribution=="default"){
+                    distribution[] <- switch(Etype,
+                                             "M"="dlnorm",
+                                             "dnorm");
+                }
+                xregData <- matrix(c(yInSample,xreg[1:obsInSample,,drop=FALSE]),nrow=obsInSample,ncol=ncol(xreg)+1,
+                                   dimnames=list(NULL,c(all.vars(formulaProvided)[1],colnames(xreg))));
+
+                # Either use or select the model via greybox functions
+                if(occurrenceModel){
+                    occurrence <- "plogis";
+                }
+                # Fisher Information
+                if(is.null(ellipsis$FI)){
+                    vcovProduce <- FALSE;
+                }
+                else{
+                    vcovProduce <- ellipsis$FI;
+                }
+                if(is.null(ellipsis$B)){
+                    B <- initialXreg;
+                }
+                else{
+                    B <- ellipsis$B;
+                }
+                almModel <- do.call("alm", list(formula=formulaProvided, data=xregData,
+                                                distribution=distribution,
+                                                occurrence=occurrence,vcovProduce=vcovProduce,
+                                                parameters=B,fast=TRUE));
+                almModel$call$data <- as.name("xreg");
+                # For some reason, this does not work with the normal distribution... So calculate it analytically
+                if(vcovProduce && distribution=="dnorm"){
+                    xregData[,1] <- 1;
+                    colnames(xregData)[1] <- "(Intercept)";
+                    nVariables <- ncol(xregData);
+                    xregData <- crossprod(xregData);
+                    vcovMatrix <- chol2inv(chol(xregData));
+                    almModel$vcov <- sigma(almModel, all=FALSE)^2 * vcovMatrix;
+                }
+                return(almModel);
             }
-            # Extract names and form a proper matrix for the regression
             else{
-                formulaProvided <- as.formula(formulaProvided);
-                responseName <- all.vars(formulaProvided)[1];
-            }
+                initialXregProvided <- TRUE;
+                if(is.null(formulaProvided)){
+                    formulaProvided <- as.formula(paste0("`",responseName,"`~."));
+                }
+                # Extract names and form a proper matrix for the regression
+                else{
+                    formulaProvided <- as.formula(formulaProvided);
+                    responseName <- all.vars(formulaProvided)[1];
+                }
 
-            xregModelInitials[[1]]$initialXreg <- initialXreg;
-            if(Etype=="Z"){
-                xregModelInitials[[2]]$initialXreg <- initialXreg;
-            }
+                xregModelInitials[[1]]$initialXreg <- initialXreg;
+                if(Etype=="Z"){
+                    xregModelInitials[[2]]$initialXreg <- initialXreg;
+                }
 
-            obsXreg <- nrow(xreg);
-            # If there are more xreg values than the obsAll, redo stuff and use them
-            if(obsXreg>=obsAll){
-                xregData <- cbind(as.data.frame(y),as.data.frame(xreg));
-                colnames(xregData)[1] <- responseName;
-                xregData <- model.frame(formulaProvided,data=xregData);
-                # Create a model matrix and remove intercept
-                xregData <- as.matrix(model.matrix(xregData,data=xregData))[1:obsAll,-1,drop=FALSE];
-            }
-            # If there are less xreg observations than obsAll, use Naive
-            else{
-                warning(paste0("The xreg has ",obsXreg," observations, while ",obsAll," are needed. ",
-                               "Using the last available values as future ones."),
-                        call.=FALSE);
-                newnRows <- obsAll-obsXreg;
-                xregData <- model.frame(formulaProvided,data=as.data.frame(xreg));
-                xregData <- as.matrix(model.matrix(xregData,data=xregData))[,-1,drop=FALSE];
-                xregData <- rbind(xregData,matrix(rep(tail(xregData,1),each=newnRows),newnRows,xregNumber));
-            }
+                obsXreg <- nrow(xreg);
+                # If there are more xreg values than the obsAll, redo stuff and use them
+                if(obsXreg>=obsAll){
+                    xregData <- cbind(as.data.frame(y),as.data.frame(xreg));
+                    colnames(xregData)[1] <- responseName;
+                    xregData <- model.frame(formulaProvided,data=xregData);
+                    # Create a model matrix and remove intercept
+                    xregData <- as.matrix(model.matrix(xregData,data=xregData))[1:obsAll,-1,drop=FALSE];
+                }
+                # If there are less xreg observations than obsAll, use Naive
+                else{
+                    warning(paste0("The xreg has ",obsXreg," observations, while ",obsAll," are needed. ",
+                                   "Using the last available values as future ones."),
+                            call.=FALSE);
+                    newnRows <- obsAll-obsXreg;
+                    xregData <- model.frame(formulaProvided,data=as.data.frame(xreg));
+                    xregData <- as.matrix(model.matrix(xregData,data=xregData))[,-1,drop=FALSE];
+                    xregData <- rbind(xregData,matrix(rep(tail(xregData,1),each=newnRows),newnRows,xregNumber));
+                }
 
-            xregNumber <- ncol(xregData);
-            xregNames <- colnames(xregData);
-            parametersNumber[2,2] <- parametersNumber[2,2] + xregNumber;
+                xregNumber <- ncol(xregData);
+                xregNames <- colnames(xregData);
+                parametersNumber[2,2] <- parametersNumber[2,2] + xregNumber;
+            }
         }
 
         # Process the persistence for xreg
