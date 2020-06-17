@@ -53,18 +53,11 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
 
     # If this is something like a matrix
     if(!is.null(ncol(y))){
-        # If we deal with data.table / tibble / data.frame, the syntax is different.
-        # We don't want to import specific classes, so just use inherits()
-        if(inherits(y,"tbl_ts")){
-            # With tsibble we cannot extract explanatory variables easily...
-            y <- y$value;
-        }
-        else if(inherits(y,"data.table") || inherits(y,"tbl") || inherits(y,"data.frame")){
-            if(ncol(y)>1){
-                xreg <- y[,-1,drop=FALSE];
-            }
-            y <- y[[1]];
-            # Give the indeces another try
+        if(!is.null(formulaProvided)){
+            responseName <- all.vars(formulaProvided)[1];
+            xregData <- y;
+            y <- y[,responseName];
+            # Give the indeces a try
             yIndex <- try(time(y),silent=TRUE);
             # If we cannot extract time, do something
             if(inherits(yIndex,"try-error")){
@@ -76,18 +69,47 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                 }
             }
         }
-        else if(inherits(y,"zoo")){
-            if(ncol(y)>1){
-                xreg <- as.data.frame(y[,-1,drop=FALSE]);
-            }
-            y <- zoo(y[,1],order.by=time(y));
-        }
         else{
-            if(ncol(y)>1){
-                xreg <- y[,-1,drop=FALSE];
+            xregData <- NULL;
+            # If we deal with data.table / tibble / data.frame, the syntax is different.
+            # We don't want to import specific classes, so just use inherits()
+            if(inherits(y,"tbl_ts")){
+                # With tsibble we cannot extract explanatory variables easily...
+                y <- y$value;
             }
-            y <- y[,1];
+            else if(inherits(y,"data.table") || inherits(y,"tbl") || inherits(y,"data.frame")){
+                if(ncol(y)>1){
+                    xreg <- y[,-1,drop=FALSE];
+                }
+                y <- y[[1]];
+                # Give the indeces another try
+                yIndex <- try(time(y),silent=TRUE);
+                # If we cannot extract time, do something
+                if(inherits(yIndex,"try-error")){
+                    if(!is.null(dim(y))){
+                        yIndex <- as.POSIXct(rownames(y));
+                    }
+                    else{
+                        yIndex <- c(1:length(y));
+                    }
+                }
+            }
+            else if(inherits(y,"zoo")){
+                if(ncol(y)>1){
+                    xreg <- as.data.frame(y[,-1,drop=FALSE]);
+                }
+                y <- zoo(y[,1],order.by=time(y));
+            }
+            else{
+                if(ncol(y)>1){
+                    xreg <- y[,-1,drop=FALSE];
+                }
+                y <- y[,1];
+            }
         }
+    }
+    else{
+        xregData <- NULL;
     }
 
     # Substitute NAs with mean values.
@@ -621,7 +643,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
 
     #### Explanatory variables: xregModel and xregDo ####
     xregDo <- match.arg(xregDo,c("use","select","adapt"));
-    xregModel <- !is.null(xreg);
+    xregModel <- !is.null(xreg) | !is.null(xregData);
 
     #### Persistence provided ####
     # Vectors for persistence of different components
@@ -1351,20 +1373,28 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                 responseName <- all.vars(formulaProvided)[1];
             }
 
-            # If this is not a matrix / data.frame, then convert to one
-            if(!is.data.frame(xreg) && !is.matrix(xreg)){
-                xreg <- as.data.frame(xreg);
-            }
+            # If xregData is NULL (not provided in y), prepare one
+            if(is.null(xregData)){
+                # If this is not a matrix / data.frame, then convert to one
+                if(!is.data.frame(xreg) && !is.matrix(xreg)){
+                    xreg <- as.data.frame(xreg);
+                }
 
-            xregNames <- c(responseName,colnames(xreg));
-            if(nrow(xreg)>=obsInSample){
-                xregData <- cbind(yInSample,as.data.frame(xreg[1:obsInSample,,drop=FALSE]));
+                xregNames <- c(responseName,colnames(xreg));
+                if(nrow(xreg)>=obsInSample){
+                    xregData <- cbind(yInSample,as.data.frame(xreg[1:obsInSample,,drop=FALSE]));
+                }
+                else{
+                    stop(paste0("xreg contains less observations than needed: ", nrow(xreg),
+                                " instead of ", obsInSample), call.=FALSE);
+                }
+                colnames(xregData) <- xregNames;
+                obsXreg <- nrow(xreg);
             }
             else{
-                stop(paste0("xreg contains less observations than needed: ", nrow(xreg),
-                            " instead of ", obsInSample), call.=FALSE);
+                xreg <- xregData;
+                obsXreg <- nrow(xregData);
             }
-            colnames(xregData) <- xregNames;
 
             #### If this is just a regression, use stepwise / ALM
             if((!etsModel && !arimaModel) && xregDo!="adapt" && loss=="likelihood"){
@@ -1475,7 +1505,6 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
             # This is needed in order to succesfully expand the data
             formulaProvided[[2]] <- NULL;
 
-            obsXreg <- nrow(xreg);
             # If there are more xreg values than the obsAll, redo stuff and use them
             if(obsXreg>=obsAll){
                 xregData <- model.frame(formulaProvided,data=as.data.frame(xreg));
