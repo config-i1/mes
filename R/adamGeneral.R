@@ -1197,14 +1197,14 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     # xreg
     if(!is.null(initialXreg)){
         initialXregEstimate[] <- FALSE;
-        parametersNumber[2,1] <- parametersNumber[2,1] + length(initialXreg);
     }
 
     #### Check ARIMA parameters, if they are provided ####
     if(arimaModel){
         # Check the provided parameters for AR and MA
         if(!is.null(arma)){
-            arEstimate <- maEstimate <- TRUE;
+            arEstimate <- arRequired;
+            maEstimate <- maRequired;
             # If this is a proper list, extract parameters separately
             if(is.list(arma)){
                 armaParameters <- vector("numeric",sum(sapply(arma,length)));
@@ -1296,6 +1296,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                     maEstimate <- arEstimate[] <- FALSE;
                 }
             }
+            parametersNumber[2,1] <- parametersNumber[2,1] + length(armaParameters);
         }
         else{
             arEstimate <- arRequired;
@@ -1434,7 +1435,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                     almModel <- stepwise(xregData, distribution=distribution, subset=c(1:obsInSample));
                     almModel <- do.call("alm", list(formula=formula(almModel), data=xregData,
                                                     distribution=distribution, subset=c(1:obsInSample),
-                                                    occurrence=occurrence,vcovProduce=vcovProduce));
+                                                    occurrence=occurrence));
                     almModel$call$data <- as.name("xreg");
                     return(almModel);
                 }
@@ -1800,7 +1801,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                       etsModel*(persistenceLevelEstimate + modelIsTrendy*persistenceTrendEstimate +
                                     modelIsSeasonal*sum(persistenceSeasonalEstimate) +
                                     phiEstimate + (initialType=="optimal") *
-                                    (initialLevelEstimate + initialTrendEstimate + sum(initialSeasonalEstimate))) +
+                                    (initialLevelEstimate + initialTrendEstimate + sum(initialSeasonalEstimate*lagsModelSeasonal))) +
                       # ARIMA components: initials + parameters
                       arimaModel*((initialType=="optimal")*initialArimaNumber +
                                       arRequired*arEstimate*sum(arOrders) + maRequired*maEstimate*sum(maOrders)) +
@@ -2087,12 +2088,12 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     #### Process ellipsis ####
     # Parameters for the optimiser
     if(is.null(ellipsis$maxeval)){
-        if(arimaModel){
+        # if(arimaModel || xregModel){
             maxeval <- 400;
-        }
-        else{
-            maxeval <- 200;
-        }
+        # }
+        # else{
+        #     maxeval <- 200;
+        # }
         # Make a warning if this is a big computational task
         if(any(lags>24) && arimaModel && initialType=="optimal"){
             warning(paste0("The estimation of ARIMA model with initial='optimal' on high frequency data might ",
@@ -2136,8 +2137,12 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         ftol_abs <- ellipsis$ftol_abs;
     }
     if(is.null(ellipsis$algorithm)){
-        algorithm <- "NLOPT_LN_SBPLX";
-        # algorithm <- "NLOPT_LN_NELDERMEAD";
+        # if(xregModel){
+        #     algorithm <- "NLOPT_LN_NELDERMEAD";
+        # }
+        # else{
+            algorithm <- "NLOPT_LN_SBPLX";
+        # }
     }
     else{
         algorithm <- ellipsis$algorithm;

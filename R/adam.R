@@ -224,8 +224,7 @@
 #' }
 #' You can also pass parameters to the optimiser in order to fine tune its work:
 #' \itemize{
-#' \item \code{maxeval} - maximum number of evaluations to carry out (default is 200, when
-#' there's no ARIMA and 400 otherwise);
+#' \item \code{maxeval} - maximum number of evaluations to carry out (default is 400);
 #' \item \code{maxtime} - stop, when the optimisation time (in seconds) exceeds this;
 #' \item \code{xtol_rel} - the relative precision of the optimiser (the default is 1E-6);
 #' \item \code{xtol_abs} - the absolute precision of the optimiser (the default is 1E-8);
@@ -566,8 +565,12 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         else{
             modelReturned$accuracy <- NULL;
         }
+        class(modelReturned) <- c("adam","smooth");
+        if(!silent){
+            plot(modelReturned,7)
+        }
 
-        return(structure(modelReturned,class=c("adam","smooth")));
+        return(modelReturned);
 
     }
 
@@ -1240,7 +1243,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             if(nrow(nonZeroARI)>0){
                 vecG[componentsNumberETS+nonZeroARI[,2]] <- -arimaPolynomials$ariPolynomial[nonZeroARI[,1]];
             }
-            if(maEstimate && nrow(nonZeroMA)>0){
+            if(nrow(nonZeroMA)>0){
                 vecG[componentsNumberETS+nonZeroMA[,2]] <- vecG[componentsNumberETS+nonZeroMA[,2]] +
                     arimaPolynomials$maPolynomial[nonZeroMA[,1]];
             }
@@ -1476,7 +1479,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                         j[] <- j + arOrders[i];
                     }
                     if(maRequired && maEstimate && maOrders[i]>0){
-                        B[j+c(1:maOrders[i])] <- rep(0.1,maOrders[i]);
+                        B[j+c(1:maOrders[i])] <- rep(-0.9,maOrders[i]);
                         Bl[j+c(1:maOrders[i])] <- -5;
                         Bu[j+c(1:maOrders[i])] <- 5;
                         names(B)[j+1:maOrders[i]] <- paste0("theta",1:maOrders[i],"[",lags[i],"]");
@@ -2366,7 +2369,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             # Call the xregSelector providing the original matrix with the data
             xregIndex <- switch(Etype,"A"=1,"M"=2);
             xregModelInitials[[xregIndex]] <- xregSelector(errors=errors, xregData=xregDataOriginal, ic=ic,
-                                           df=length(B)+1, distribution=distributionNew, occurrence=oesModel);
+                                                           df=length(B)+1, distribution=distributionNew, occurrence=oesModel);
             xregNumber <- length(xregModelInitials[[xregIndex]]$initialXreg);
             xregNames <- names(xregModelInitials[[xregIndex]]$initialXreg);
 
@@ -2379,6 +2382,14 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 initialXregEstimate[] <- initialXregEstimateOriginal;
                 persistenceXregEstimate[] <- persistenceXregEstimateOriginal;
                 xregData <- xregDataOriginal[,xregNames,drop=FALSE];
+
+                # Estimate alm again in order to get proper initials
+                almModel <- do.call(alm,list(formula=as.formula("y~."),
+                                             data=matrix(c(yInSample,xregData[1:obsInSample,,drop=FALSE]),
+                                                         obsInSample,xregNumber+1,
+                                                         dimnames=list(NULL,c("y",xregNames))),
+                                             distribution=distributionNew, occurrence=oesModel));
+                xregModelInitials[[xregIndex]]$initialXreg <- coef(almModel)[-1];
 
                 return(estimator(etsModel, Etype, Ttype, Stype, lags, lagsModelSeasonal, lagsModelARIMA,
                                  obsStates, obsInSample,
@@ -2727,7 +2738,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
     xregSelector <- function(errors, xregData, ic, df, distribution, occurrence){
         stepwiseModel <- suppressWarnings(stepwise(cbind(as.data.frame(errors),xregData[1:obsInSample,,drop=FALSE]),
                                                    ic=ic, df=df, distribution=distribution, occurrence=occurrence, silent=TRUE));
-        return(list(initialXreg=coef(stepwiseModel)[-1],other=stepwiseModel$other));
+        return(list(initialXreg=coef(stepwiseModel)[-1],other=stepwiseModel$other,formula=formula(stepwiseModel)));
     }
 
     ##### Function prepares all the matrices and vectors for return #####
@@ -2992,6 +3003,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             yStatesIndex <- c(yStatesIndex, yInSampleIndex);
             matVt <- zoo(t(matVt), order.by=yStatesIndex);
         }
+
+        parametersNumber[2,4] <- sum(parametersNumber[2,1:3]);
 
         return(list(model=NA, timeElapsed=NA,
                     y=NA, holdout=NA, fitted=yFitted, residuals=errors,
@@ -3808,6 +3821,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         }
         modelReturned$forecast <- ts(yForecastCombined,start=yForecastStart, frequency=yFrequency);
         parametersNumberOverall[1,4] <- sum(parametersNumberOverall[1,1:3]);
+        parametersNumberOverall[2,4] <- sum(parametersNumberOverall[2,1:3]);
         modelReturned$nParam <- parametersNumberOverall;
         modelReturned$ICw <- adamSelected$icWeights;
         # These two are needed just to make basic methods work
