@@ -137,7 +137,7 @@ testModel
 Finally, we can speed up the process by using a different initialisation of the state vector, such as backcasting:
 
 ```{r}
-testModel <- adam(forecast::taylor, "MMdM", lags=c(1,48,336), silent=TRUE, h=336, holdout=TRUE, initial="b")
+testModel <- adam(forecast::taylor, "MMdM", lags=c(1,48,336), silent=FALSE, h=336, holdout=TRUE, initial="b")
 ```
 
 The result might be less accurate than in case of the optimisation, but it should be faster.
@@ -221,7 +221,54 @@ Similarly to ETS, you can use different distributions and losses for the estimat
 Finally, ARIMA is typically slower than ETS, mainly because the `maxeval` is set by default to 400. But this is inevitable due to an increased complexity of the model - otherwise it won't be estimated properly. If you want to speed things up, use `initial="backcasting"` and reduce the number of iterations.
 
 # ADAM ETSX / ARIMAX
+Another important feature of ADAM is introduction of explanatory variables. This is done in a similar way to `es()`. Here is a brief example:
+
+```{r}
+testModel <- adam(BJsales, "AAN", xreg=BJsales.lead, h=18, silent=FALSE)
+```
+
+If you work with data.frame or similar structures, then you can use them directly, ADAM will extract the response variable either assuming that it is in the first column or from the provided formula (is you specify one via `formula` parameter). Here is an example, where we create a matrix with lags and leads of an explanatory variable:
+
+```{r}
+xreg <- cbind(as.data.frame(BJsales),as.data.frame(xregExpander(BJsales.lead,c(-7:7))))
+colnames(xreg)[1] <- "y"
+testModel <- adam(xreg, "ANN", h=18, silent=FALSE, holdout=TRUE, formula=y~xLag1+xLag2+xLag3)
+testModel
+```
+
+Similarly to `es()`, there is a support for variables selection via `xregDo` parameter, which will then use `stepwise()` function from `greybox` package on the residuals of the model:
+
+```{r}
+testModel <- adam(xreg, "ANN", h=18, silent=FALSE, holdout=TRUE, xregDo="select")
+```
+
+The same functionality is supported with ARIMA, so you can have, for example, ARIMAX(0,1,1), which is equivalent to ETSX(A,N,N):
+```{r}
+testModel <- adam(xreg, "NNN", h=18, silent=FALSE, holdout=TRUE, xregDo="select", orders=c(0,1,1))
+```
+
+The two models might differ because they have different initialisation in the optimiser. It is possible to make them identical if the number of iterations is increased and the initial parameters are the same. Here is an example on what happens, when the two models have exactly the same parameters:
+
+```{r}
+xreg <- xreg[,c("y",names(testModel$initial$xreg))];
+testModel <- adam(xreg, "NNN", h=18, silent=TRUE, holdout=TRUE, orders=c(0,1,1), initial=testModel$initial, arma=testModel$arma)
+testModel
+names(testModel$initial)[1] <- names(testModel$initial)[[1]] <- "level"
+testModel2 <- adam(xreg, "ANN", h=18, silent=TRUE, holdout=TRUE, initial=testModel$initial, persistence=testModel$arma$ma+1)
+testModel2
+```
+
+Another feature of ADAM is the time varying parameters in the SSOE framework, which can be switched on via `xregDo="adapt"`:
+
+```{r}
+testModel <- adam(xreg, "ANN", h=18, silent=FALSE, holdout=TRUE, xregDo="adapt")
+testModel$persistence
+```
+
+Note that the default number of iterations might not be sufficient in order to get to close to the optimum of the function, so setting `maxeval` to something bigger might help. If you want to explore, why the optimisation stopped, you can provide `print_level=41` parameter to the function, and it will print out the report from the optimiser. In the end, the default parameters are tuned in order to give a reasonable solution, but given the complexity of the model, they might not guarantee to give the best one all the time.
 
 # ADAM ETS + ARIMA + Regression
 
+
 # Auto ADAM
+
