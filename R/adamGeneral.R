@@ -1382,7 +1382,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                 }
 
                 xregNames <- c(responseName,colnames(xreg));
-                if(nrow(xreg)>=obsInSample){
+                obsXreg <- nrow(xreg);
+                if(obsXreg>=obsInSample){
                     xregData <- cbind(yInSample,as.data.frame(xreg[1:obsInSample,,drop=FALSE]));
                 }
                 else{
@@ -1390,7 +1391,6 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                                 " instead of ", obsInSample), call.=FALSE);
                 }
                 colnames(xregData) <- xregNames;
-                obsXreg <- nrow(xreg);
             }
             else{
                 xreg <- xregData;
@@ -1581,32 +1581,52 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                 }
 
                 xregModelInitials[[1]]$initialXreg <- initialXreg;
-                if(Etype=="Z"){
+                if(any(Etype==c("Z","M"))){
                     xregModelInitials[[2]]$initialXreg <- initialXreg;
                 }
 
-                obsXreg <- nrow(xreg);
-                # If there are more xreg values than the obsAll, redo stuff and use them
-                if(obsXreg>=obsAll){
-                    xregData <- cbind(as.data.frame(y),as.data.frame(xreg));
-                    colnames(xregData)[1] <- responseName;
-                    xregData <- model.frame(formulaProvided,data=xregData);
-                    # Create a model matrix and remove intercept
-                    xregData <- as.matrix(model.matrix(xregData,data=xregData))[1:obsAll,-1,drop=FALSE];
+                # If xregData is NULL (not provided in y), prepare one
+                if(is.null(xregData)){
+                    # If this is not a matrix / data.frame, then convert to one
+                    if(!is.data.frame(xreg) && !is.matrix(xreg)){
+                        xreg <- as.data.frame(xreg);
+                    }
+
+                    xregNames <- c(responseName,colnames(xreg));
+                    obsXreg <- nrow(xreg);
+                    if(obsXreg>=obsInSample){
+                        xregData <- cbind(yInSample,as.data.frame(xreg[1:obsInSample,,drop=FALSE]));
+                    }
+                    else{
+                        stop(paste0("xreg contains less observations than needed: ", nrow(xreg),
+                                    " instead of ", obsInSample), call.=FALSE);
+                    }
+                    colnames(xregData) <- xregNames;
                 }
-                # If there are less xreg observations than obsAll, use Naive
                 else{
+                    xreg <- xregData;
+                }
+                obsXreg <- nrow(xregData);
+
+                # Expand xregData
+                xregData <- model.frame(formulaProvided,data=xregData);
+
+                # If there are more xreg values than the obsAll, redo stuff and use them
+                if(obsXreg<obsAll){
                     warning(paste0("The xreg has ",obsXreg," observations, while ",obsAll," are needed. ",
                                    "Using the last available values as future ones."),
                             call.=FALSE);
                     newnRows <- obsAll-obsXreg;
-                    xregData <- model.frame(formulaProvided,data=as.data.frame(xreg));
                     xregData <- as.matrix(model.matrix(xregData,data=xregData))[,-1,drop=FALSE];
                     xregData <- rbind(xregData,matrix(rep(tail(xregData,1),each=newnRows),newnRows,xregNumber));
+                }
+                else{
+                    xregData <- as.matrix(model.matrix(xregData,data=xregData))[1:obsAll,-1,drop=FALSE];
                 }
 
                 xregNumber <- ncol(xregData);
                 xregNames <- colnames(xregData);
+                obsXreg <- nrow(xregData);
                 parametersNumber[2,2] <- parametersNumber[2,2] + xregNumber;
             }
         }
@@ -2088,8 +2108,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     #### Process ellipsis ####
     # Parameters for the optimiser
     if(is.null(ellipsis$maxeval)){
+        maxeval <- nParamMax * 20;
         # if(arimaModel || xregModel){
-            maxeval <- 400;
+        #     maxeval <- 400;
         # }
         # else{
         #     maxeval <- 200;

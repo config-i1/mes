@@ -783,6 +783,16 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                         # level
                         if(initialLevelEstimate){
                             matVt[j,1:lagsModelMax] <- mean(yInSample[1:lagsModelMax]);
+                            if(xregModel){
+                                if(Etype=="A"){
+                                    matVt[j,1:lagsModelMax] <- matVt[j,1:lagsModelMax] -
+                                        as.vector(xregModelInitials[[1]]$initialXreg %*% xregData[1,]);
+                                }
+                                else{
+                                    matVt[j,1:lagsModelMax] <- matVt[j,1:lagsModelMax] /
+                                        as.vector(exp(xregModelInitials[[2]]$initialXreg %*% xregData[1,]));
+                                }
+                            }
                         }
                         else{
                             matVt[j,1:lagsModelMax] <- initialLevel;
@@ -875,6 +885,16 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                         # level
                         if(initialLevelEstimate){
                             matVt[j,1:lagsModelMax] <- mean(yInSample[1:lagsModelMax]);
+                            if(xregModel){
+                                if(Etype=="A"){
+                                    matVt[j,1:lagsModelMax] <- matVt[j,1:lagsModelMax] -
+                                        as.vector(xregModelInitials[[1]]$initialXreg %*% xregData[1,]);
+                                }
+                                else{
+                                    matVt[j,1:lagsModelMax] <- matVt[j,1:lagsModelMax] /
+                                        as.vector(exp(xregModelInitials[[2]]$initialXreg %*% xregData[1,]));
+                                }
+                            }
                         }
                         else{
                             matVt[j,1:lagsModelMax] <- initialLevel;
@@ -944,6 +964,16 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                     # level
                     if(initialLevelEstimate){
                         matVt[1,lagsModelMax] <- mean(yInSample[1:max(lagsModelMax,ceiling(obsInSample*0.2))]);
+                        if(xregModel){
+                            if(Etype=="A"){
+                                matVt[1,lagsModelMax] <- matVt[1,lagsModelMax] -
+                                    as.vector(xregModelInitials[[1]]$initialXreg %*% xregData[1,]);
+                            }
+                            else{
+                                matVt[1,lagsModelMax] <- matVt[1,lagsModelMax] /
+                                    as.vector(exp(xregModelInitials[[2]]$initialXreg %*% xregData[1,]));
+                            }
+                        }
                     }
                     else{
                         matVt[1,lagsModelMax] <- initialLevel;
@@ -1479,7 +1509,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                         j[] <- j + arOrders[i];
                     }
                     if(maRequired && maEstimate && maOrders[i]>0){
-                        B[j+c(1:maOrders[i])] <- rep(-0.9,maOrders[i]);
+                        B[j+c(1:maOrders[i])] <- rep(-0.1,maOrders[i]);
                         Bl[j+c(1:maOrders[i])] <- -5;
                         Bu[j+c(1:maOrders[i])] <- 5;
                         names(B)[j+1:maOrders[i]] <- paste0("theta",1:maOrders[i],"[",lags[i],"]");
