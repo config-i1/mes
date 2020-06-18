@@ -336,22 +336,22 @@ test_that("ADAM ETS(MMdM) with provided phi on N2568", {
 
 ### arma parameters
 # Provided AR parameters
-testModel <- adam(Mcomp::M3[[2568]], "MMM", orders=c(2,0,2), arma=list(ar=c(0.9,0.3)));
+testModel <- adam(Mcomp::M3[[2568]], "MMM", orders=c(2,0,2), arma=list(ar=c(0.2,0.3)));
 test_that("ADAM ETS(MMM)+ARIMA(2,0,2) with provided AR on N2568", {
-    expect_equivalent(testModel$arma$ar,c(0.9,0.3));
+    expect_equivalent(testModel$arma$ar,c(0.2,0.3));
 })
 
 # Provided MA parameters
-testModel <- adam(Mcomp::M3[[2568]], "MMM", orders=c(2,0,2), arma=list(ma=c(-0.8,-0.4)));
+testModel <- adam(Mcomp::M3[[2568]], "MMM", orders=c(2,0,2), arma=list(ma=c(-0.2,-0.4)));
 test_that("ADAM ETS(MMM)+ARIMA(2,0,2) with provided MA on N2568", {
-    expect_equivalent(testModel$arma$ma,c(-0.8,-0.4));
+    expect_equivalent(testModel$arma$ma,c(-0.2,-0.4));
 })
 
 # Provided ARMA parameters
-testModel <- adam(Mcomp::M3[[2568]], "MMM", orders=c(2,0,2), arma=list(ar=c(0.9,0.3), ma=c(-0.8,-0.4)));
+testModel <- adam(Mcomp::M3[[2568]], "MMM", orders=c(2,0,2), arma=list(ar=c(0.2,0.3), ma=c(-0.2,-0.4)));
 test_that("ADAM ETS(MMM)+ARIMA(2,0,2) with provided ARMA on N2568", {
-    expect_equivalent(testModel$arma$ar,c(0.9,0.3));
-    expect_equivalent(testModel$arma$ma,c(-0.8,-0.4));
+    expect_equivalent(testModel$arma$ar,c(0.2,0.3));
+    expect_equivalent(testModel$arma$ma,c(-0.2,-0.4));
 })
 
 ### B
@@ -397,15 +397,15 @@ test_that("Reuse ADAM ETSX(ANN)+SARIMA(2,1,2)(0,0,1)[12] on N2568", {
 
 
 #### auto.adam ####
-# Select the best distribution for ETS(FFF) on 2568
+# Select the best distribution for ETS(ZZZ) on 2568
 testModel <- auto.adam(Mcomp::M3[[2568]], "ZZZ");
 test_that("Best auto.adam on N2568", {
     expect_match(testModel$loss, "likelihood");
 })
 
-# Select the best distribution for ETS(FFF) on 2568
-testModel2 <- auto.adam(Mcomp::M3[[2568]], "FFF", parallel=TRUE);
-test_that("Best auto.adam ETS(FFF) on N2568, in parallel", {
+# Select the best distribution for ETS(ZZZ) on 2568 in parallel
+testModel2 <- auto.adam(Mcomp::M3[[2568]], "ZZZ", parallel=TRUE);
+test_that("Best auto.adam ETS(ZZZ) on N2568, in parallel", {
     expect_equal(testModel$persistence,testModel2$persistence);
 })
 
