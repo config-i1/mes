@@ -367,6 +367,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             }
             xregDo <- model$xregDo;
         }
+        formula <- formula(model);
 
         # Parameters of the original ARIMA model
         lags <- lags(model);
@@ -440,13 +441,13 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         model <- "ZZZ";
     }
     # paste0() is needed in order to get rid of potential issues with names
-    responseName <- paste0(deparse(substitute(y)),collapse="");
+    yName <- paste0(deparse(substitute(y)),collapse="");
 
     #### Check the parameters of the function and create variables based on them ####
     checkerReturn <- parametersChecker(y, model, lags, formula, orders, arma,
                                        persistence, phi, initial,
                                        distribution, loss, h, holdout, occurrence, ic, bounds,
-                                       xreg, xregDo, responseName,
+                                       xreg, xregDo, yName,
                                        silent, modelDo, ParentEnvironment=environment(), ellipsis, fast=FALSE);
 
     #### Return regression if it is pure ####
@@ -2991,6 +2992,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         # Remove xreg persistence from the returned vector
         if(xregModel && xregDo!="adapt"){
             persistence <- persistence[substr(names(persistence),1,5)!="delta"];
+            # We've selected the variables, so there's nothing to select anymore
+            xregDo <- "use";
         }
 
         if(arimaModel){
