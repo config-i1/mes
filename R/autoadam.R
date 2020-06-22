@@ -149,7 +149,7 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
         }
 
         # Define maxorder and make all the values look similar (for the polynomials)
-        maxorder <- max(length(arMax),length(iMax),length(maMax));
+        maxorder <- max(length(arMax),length(iMax),length(maMax),length(lags));
         if(length(arMax)!=maxorder){
             arMax <- c(arMax,rep(0,maxorder-length(arMax)));
         }
