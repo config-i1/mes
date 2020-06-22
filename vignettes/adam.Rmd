@@ -114,10 +114,10 @@ testModel <- adam(forecast::taylor, "MMdM", lags=c(1,48,336), silent=FALSE, h=33
 testModel
 ```
 
-Note that the more lags you have, the more initial seasonal components the function will need to estimate, which is a difficult task. The optimiser might not get close to the optimal value, so we can help it. First, we can give more time for the calculation, increasing the number of iterations via `maxeval` (the default value is 200):
+Note that the more lags you have, the more initial seasonal components the function will need to estimate, which is a difficult task. The optimiser might not get close to the optimal value, so we can help it. First, we can give more time for the calculation, increasing the number of iterations via `maxeval` (the default value is 20 iterations for each optimised parameter. So, in case of the previous model it is 389*20=7780):
 
 ```{r}
-testModel <- adam(forecast::taylor, "MMdM", lags=c(1,48,336), silent=FALSE, h=336, holdout=TRUE, maxeval=5000)
+testModel <- adam(forecast::taylor, "MMdM", lags=c(1,48,336), silent=FALSE, h=336, holdout=TRUE, maxeval=10000)
 testModel
 ```
 
@@ -220,7 +220,7 @@ Similarly to ETS, you can use different distributions and losses for the estimat
 
 Finally, ARIMA is typically slower than ETS, mainly because the `maxeval` is set by default to 400. But this is inevitable due to an increased complexity of the model - otherwise it won't be estimated properly. If you want to speed things up, use `initial="backcasting"` and reduce the number of iterations.
 
-# ADAM ETSX / ARIMAX
+# ADAM ETSX / ARIMAX / ETSX+ARIMA
 Another important feature of ADAM is introduction of explanatory variables. This is done in a similar way to `es()`. Here is a brief example:
 
 ```{r}
@@ -267,8 +267,43 @@ testModel$persistence
 
 Note that the default number of iterations might not be sufficient in order to get to close to the optimum of the function, so setting `maxeval` to something bigger might help. If you want to explore, why the optimisation stopped, you can provide `print_level=41` parameter to the function, and it will print out the report from the optimiser. In the end, the default parameters are tuned in order to give a reasonable solution, but given the complexity of the model, they might not guarantee to give the best one all the time.
 
-# ADAM ETS + ARIMA + Regression
+Finally, you can produce a mixture of ETS, ARIMA and regression, by using the respective parameters, like this:
 
+```{r}
+testModel <- adam(xreg, "AAN", h=18, silent=FALSE, holdout=TRUE, xregDo="use", orders=c(1,0,1))
+summary(testModel)
+```
+
+This might be handy, when you explore a high frequency data, want to add calendar events, apply ETS and add AR/MA errors to it.
 
 # Auto ADAM
+While the original `adam()` function allows selecting ETS components and explanatory variables, it does not allow selecting the most suitable distribution and / or ARIMA components. This is what `auto.adam()` function is for.
 
+In order to do the selection of the most appropriate distribution, you need to provide a vector of those that you want to check:
+
+```{r}
+testModel <- auto.adam(M3[[1234]], "XXX", silent=FALSE, distribution=c("dnorm","dlogis","dlaplace","ds"))
+testModel
+```
+
+This process can also be done in parallel on either the automatically selected number of cores (e.g. `parallel=TRUE`) or on the specified by user (e.g. `parallel=4`):
+
+```{r}
+testModel <- auto.adam(M3[[1234]], "ZZZ", silent=FALSE, parallel=TRUE)
+testModel
+```
+
+If you want to add ARIMA or regression components, you can do it in the exactly the same way as for the `adam()` function. Here is an example of ETS+ARIMA:
+
+```{r}
+testModel <- auto.adam(M3[[1234]], "AAN", orders=list(ar=2,i=2,ma=2), silent=TRUE, parallel=TRUE)
+testModel
+```
+
+However, this way the function will just use ARIMA(2,2,2) and fit it together with ETS. If you want it to select the most appropriate ARIMA orders, you need to add parameter `select=TRUE` to the list in `orders`:
+
+```{r}
+testModel <- auto.adam(M3[[1234]], "XXN", orders=list(ar=2,i=2,ma=2,select=TRUE), silent=FALSE, parallel=TRUE)
+```
+
+Knowing how to work with `adam()`, you can use similar principles, when dealing with `auto.adam()`. Just keep in mind that the provided `persistence`, `phi`, `initial`, `arma` and `B` won't work, because this contradicts the idea of the model building idea.
