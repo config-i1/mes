@@ -3567,18 +3567,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             if(arimaModel){
                 maEstimateFI <- maRequired;
                 arEstimateFI <- arRequired;
-
-                # Matrices needed for the polynomials calculation
-                # # AR polynomials
-                # arPolynomialMatrix <- matrix(0, arOrders %*% lags, arOrders %*% lags);
-                # arPolynomialMatrix[2:nrow(arPolynomialMatrix)-1,2:nrow(arPolynomialMatrix)] <- diag(nrow(arPolynomialMatrix)-1);
-                # # MA polynomials
-                # maPolynomialMatrix <- matrix(0, maOrders %*% lags, maOrders %*% lags);
-                # maPolynomialMatrix[2:nrow(maPolynomialMatrix)-1,2:nrow(maPolynomialMatrix)] <- diag(nrow(maPolynomialMatrix)-1);
-            }
-            # else{
                 maPolynomialMatrix <- arPolynomialMatrix <- NULL;
-            # }
+            }
 
             FI <- -hessian(logLikADAM, B, etsModel=etsModel, Etype=Etype, Ttype=Ttype, Stype=Stype, modelIsTrendy=modelIsTrendy,
                            modelIsSeasonal=modelIsSeasonal, yInSample=yInSample,
