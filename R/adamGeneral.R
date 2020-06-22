@@ -2251,8 +2251,21 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
 
     # If there is no model, stop
     if(!etsModel && !arimaModel && !xregModel){
-        stop("No model specified. You either need to set model, or orders, or xreg.",
-             call.=FALSE);
+        etsModel <- TRUE;
+        modelsPool <- NULL;
+        persistenceLevel <- 0;
+        persistenceEstimate <- persistenceLevelEstimate <- FALSE;
+        initialLevel <- mean(yInSample);
+        initialType <- "provided";
+        initialEstimate <- initialLevelEstimate <- FALSE;
+        modelDo <- "use";
+        model <- "ANN";
+        Etype <- "A";
+        Ttype <- "N";
+        Stype <- "N";
+        phiEstimate <- FALSE;
+        parametersNumber[1,1] <- 0;
+        parametersNumber[2,1] <- 2;
     }
 
     # Switch usual bounds to the admissible if there's no ETS - this speeds up ARIMA

@@ -380,10 +380,9 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
                 nParamOriginal <- nparam(testModelETS)-1;
             }
             else{
-                # Fit Naive and get the parameters
-                testModelETS <- adam(y,model="ANN",lags=1,distribution=distribution,
-                                     h=h,holdout=holdout,persistence=0,initial=mean(y),
-                                     occurrence=occurrence,bounds="none",silent=TRUE);
+                # Fit just mean
+                testModelETS <- adam(y, model="NNN",lags=1, distribution=distribution,
+                                     h=h,holdout=holdout, occurrence=occurrence, bounds=bounds, silent=TRUE);
                 dataAR <- dataI <- dataMA <- yInSample <- actuals(testModelETS);
 
                 # Originally, we only have a constant
@@ -719,7 +718,8 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
     else{
         ICValues <- vector("numeric",length(distribution));
         for(i in 1:length(distribution)){
-            ICValues[i] <- selectedModels[[i]]$ICs %*% selectedModels[[i]]$ICw;
+            ICValues[i] <- selectedModels[[i]]$ICs[is.finite(selectedModels[[i]]$ICs)] %*%
+                selectedModels[[i]]$ICw[is.finite(selectedModels[[i]]$ICs)];
         }
     }
 
