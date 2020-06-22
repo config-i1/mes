@@ -42,6 +42,8 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
                          "BIC"=BIC,
                          "BICc"=BICc);
 
+    initial <- match.arg(initial);
+
     # The function checks the provided parameters of adam and/or oes
     ##### data #####
     # If this is simulated, extract the actuals
@@ -331,22 +333,28 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
         }
 
         #### Function corrects IC taking number of parameters on previous step ####
-        icCorrector <- function(icValue, ic, nParam, obsNonzero, nParamNew){
+        icCorrector <- function(llikelihood, ic, nParam, obsNonzero){
             if(ic=="AIC"){
-                llikelihood <- (2*nParam - icValue)/2;
-                correction <- 2*nParamNew - 2*llikelihood;
+                correction <- 2*nParam - 2*llikelihood;
             }
             else if(ic=="AICc"){
-                llikelihood <- (2*nParam*obsNonzero/(obsNonzero-nParam-1) - icValue)/2;
-                correction <- 2*nParamNew*obsNonzero/(obsNonzero-nParamNew-1) - 2*llikelihood;
+                if(nParam>=obsNonzero-1){
+                    correction <- Inf;
+                }
+                else{
+                    correction <- 2*nParam*obsNonzero/(obsNonzero-nParam-1) - 2*llikelihood;
+                }
             }
             else if(ic=="BIC"){
-                llikelihood <- (nParam*log(obsNonzero) - icValue)/2;
-                correction <- nParamNew*log(obsNonzero) - 2*llikelihood;
+                correction <- nParam*log(obsNonzero) - 2*llikelihood;
             }
             else if(ic=="BICc"){
-                llikelihood <- ((nParam*log(obsNonzero)*obsNonzero)/(obsNonzero-nParam-1) - icValue)/2;
-                correction <- (nParamNew*log(obsNonzero)*obsNonzero)/(obsNonzero-nParamNew-1) - 2*llikelihood;
+                if(nParam>=obsNonzero-1){
+                    correction <- Inf;
+                }
+                else{
+                    correction <- (nParam*log(obsNonzero)*obsNonzero)/(obsNonzero-nParam-1) - 2*llikelihood;
+                }
             }
 
             return(correction);
@@ -358,7 +366,7 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
                                   persistence, phi, initial,
                                   occurrence, ic, bounds, fast,
                                   silent, xreg, xregDo, testModelETS, ...){
-            silentDebug <- TRUE;
+            silentDebug <- FALSE;
 
             # Save the original values
             modelOriginal <- model;
@@ -432,6 +440,7 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
                     cat(paste0(rep("\b",nchar(round(m/nModelsARIMA,2)*100)+1),collapse=""));
                     cat(paste0(round((m)/nModelsARIMA,2)*100,"%"));
                 }
+                nParamInitial <- 0;
                 # If differences are zero, skip this step
                 if(!all(iOrders[d,]==0)){
                     # Run the model for differences
@@ -442,6 +451,7 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
                                       persistence=persistence, phi=phi, initial=initial,
                                       occurrence=occurrence, ic=ic, bounds=bounds,
                                       xreg=xreg, xregDo=xregDo, silent=TRUE, ...);
+                    nParamInitial[] <- (initial=="optimal") * (iOrders[d,] %*% lags);
                 }
                 # Extract Information criteria
                 ICValue <- ICFunction(testModel);
@@ -489,10 +499,14 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
                                                   persistence=NULL, phi=NULL, initial=initial,
                                                   occurrence="none", ic=ic, bounds=bounds,
                                                   xreg=NULL, xregDo="use", silent=TRUE, ...);
-                                # Exclude the variance from the number of parameters
-                                nParamMA <- nparam(testModel)-1;
-                                nParamNew <- nParamOriginal + nParamMA;
-                                ICValue <- icCorrector(ICFunction(testModel), ic, nParamMA, obsNonzero, nParamNew);
+                                if(initial=="optimal" && (maTest %*% lags > nParamInitial)){
+                                    nParamInitial[] <-  (maTest %*% lags);
+                                }
+                                # Exclude the initials from the number of parameters
+                                nParamMA <- sum(maTest);
+                                ICValue <- icCorrector(logLik(testModel), ic,
+                                                       nParamOriginal + nParamMA + nParamInitial,
+                                                       obsNonzero);
                                 if(silentDebug){
                                     cat("MA: "); cat(maTest); cat(", "); cat(ICValue); cat("\n");
                                 }
@@ -542,10 +556,14 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
                                                                   persistence=NULL, phi=NULL, initial=initial,
                                                                   occurrence="none", ic=ic, bounds=bounds,
                                                                   xreg=NULL, xregDo="use", silent=TRUE, ...);
-                                                # Exclude the variance from the number of parameters
-                                                nParamAR <- nparam(testModel)-1;
-                                                nParamNew <- nParamOriginal + nParamMA + nParamAR;
-                                                ICValue <- icCorrector(ICFunction(testModel), ic, nParamAR, obsNonzero, nParamNew);
+                                                if(initial=="optimal" && (arTest %*% lags > nParamInitial)){
+                                                    nParamInitial[] <-  (arTest %*% lags);
+                                                }
+                                                # Exclude the initials (in order not to duplicate them)
+                                                nParamAR <- sum(arTest);
+                                                ICValue <- icCorrector(logLik(testModel), ic,
+                                                                       nParamOriginal + nParamMA + nParamAR + nParamInitial,
+                                                                       obsNonzero);
                                                 if(silentDebug){
                                                     cat("AR: "); cat(arTest); cat(", "); cat(ICValue); cat("\n");
                                                 }
@@ -592,8 +610,6 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
                                         cat(paste0(round((m)/nModelsARIMA,2)*100,"%"));
                                     }
                                     arTest[seasSelectAR] <- arMax[seasSelectAR] - arSelect + 1;
-                                    nParamAR <- sum(arTest);
-                                    nParamNew <- nParamOriginal + nParamAR;
 
                                     # Run the model for MA
                                     testModel <- adam(y=dataI, model="NNN", lags=lags,
@@ -603,7 +619,14 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
                                                       persistence=NULL, phi=NULL, initial=initial,
                                                       occurrence="none", ic=ic, bounds=bounds,
                                                       xreg=NULL, xregDo="use", silent=TRUE, ...);
-                                    ICValue <- icCorrector(ICFunction(testModel), ic, nParamAR, obsNonzero, nParamNew);
+                                    if(initial=="optimal" && (arTest %*% lags > nParamInitial)){
+                                        nParamInitial[] <-  (arTest %*% lags);
+                                    }
+                                    # Exclude the initials (in order not to duplicate them)
+                                    nParamAR <- sum(arTest);
+                                    ICValue <- icCorrector(logLik(testModel), ic,
+                                                           nParamOriginal + nParamAR + nParamInitial,
+                                                           obsNonzero);
                                     if(silentDebug){
                                         cat("AR: "); cat(arTest); cat(", "); cat(ICValue); cat("\n");
                                     }
