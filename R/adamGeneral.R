@@ -1628,6 +1628,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                 else{
                     xregData <- xregData[1:obsAll,-1,drop=FALSE];
                 }
+                if(!is.data.frame(xregData)){
+                    xregData <- as.data.frame(xregData);
+                }
                 obsXreg <- nrow(xregData);
 
                 # Expand xregData
