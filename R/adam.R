@@ -136,6 +136,9 @@
 #' \item \code{MSEh} - optimisation using only h-steps ahead error,
 #' \item \code{MSCE} - Mean Squared Cumulative Error.
 #' }
+#' In case of LASSO / RIDGE, the variables are not normalised prior to the estimation,
+#' but the parameters are divided by the mean values of explanatory variables.
+#'
 #' Note that model selection and combination works properly only for the default
 #' \code{loss="likelihood"}.
 #'
@@ -150,7 +153,7 @@
 #' \code{loss=lossFunction}
 #' @param h The forecast horizon. Mainly needed for the multistep loss functions.
 #' @param holdout Logical. If \code{TRUE}, then the holdout of the size \code{h}
-#' is taken from the data (can be used for the model testing purposes.
+#' is taken from the data (can be used for the model testing purposes).
 #' @param persistence Persistence vector \eqn{g}, containing smoothing
 #' parameters. If \code{NULL}, then estimated. Can be also passed as a names list of
 #' the type: \code{persistence=list(level=0.1, trend=0.05, seasonal=c(0.1,0.2),
@@ -209,7 +212,7 @@
 #' @param silent Specifies, whether to provide the progress of the function or not.
 #' If \code{TRUE}, then the function will print what it does and how much it has
 #' already done.
-#' @param ...  Other non-documented parameters. For example \code{FI=TRUE} will
+#' @param ...  Other non-documented parameters. For example, \code{FI=TRUE} will
 #' make the function also produce Fisher Information matrix, which then can be
 #' used to calculated variances of smoothing parameters and initial states of
 #' the model. This is used in the \link[stats]{vcov} method.
@@ -220,6 +223,7 @@
 #' \enumerate{
 #' \item All smoothing parameters (for the states and then for the explanatory variables);
 #' \item Damping parameter (if needed);
+#' \item ARMA parameters;
 #' \item All the initial values (for the states and then for the explanatory variables).
 #' }
 #' You can also pass parameters to the optimiser in order to fine tune its work:
@@ -235,6 +239,7 @@
 #' \item \code{algorithm} - the algorithm to use in optimisation
 #' (\code{"NLOPT_LN_SBPLX"} by default);
 #' \item \code{print_level} - the level of output for the optimiser (0 by default).
+#' If equal to 41, then the detailed results of the optimisation are returned.
 #' }
 #' You can read more about these parameters by running the function
 #' \link[nloptr]{nloptr.print.options}.
@@ -1909,15 +1914,12 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                     }
                 }
 
-                CFValue <- switch(loss,
-                                  "LASSO" = switch(Etype,
-                                                   "A"=(1-lambda)* sqrt(sum(adamFitted$errors^2))/obsInSample +
-                                                       lambda * sum(abs(B)),
-                                                   "M"=(1-lambda)* sqrt(sum(log(1+adamFitted$errors)^2))/obsInSample +
-                                                       lambda * sum(abs(B))),
-                                  "RIDGE" = switch(Etype,
-                                                   "A"=(1-lambda)* sqrt(sum(adamFitted$errors^2)) + lambda * sqrt(sum((B)^2)),
-                                                   "M"=(1-lambda)* sqrt(sum(log(1+adamFitted$errors)^2)) + lambda * sqrt(sum((B)^2))));
+                CFValue <- (switch(Etype,
+                                   "A"=(1-lambda)* sqrt(sum(adamFitted$errors^2))/obsInSample,
+                                   "M"=(1-lambda)* sqrt(sum(log(1+adamFitted$errors)^2))/obsInSample) +
+                                switch(loss,
+                                       "LASSO"=lambda * sum(abs(B)),
+                                       "RIDGE"=lambda * sqrt(sum((B)^2))));
             }
             else if(loss=="custom"){
                 CFValue <- lossFunction(actual=yInSample,fitted=adamFitted$yFitted,B=B);

@@ -117,6 +117,9 @@ likelihood of the function specified in \code{distribution};
 \item \code{MSEh} - optimisation using only h-steps ahead error,
 \item \code{MSCE} - Mean Squared Cumulative Error.
 }
+In case of LASSO / RIDGE, the variables are not normalised prior to the estimation,
+but the parameters are divided by the mean values of explanatory variables.
+
 Note that model selection and combination works properly only for the default
 \code{loss="likelihood"}.
 
@@ -133,7 +136,7 @@ example:
 \item{h}{The forecast horizon. Mainly needed for the multistep loss functions.}
 
 \item{holdout}{Logical. If \code{TRUE}, then the holdout of the size \code{h}
-is taken from the data (can be used for the model testing purposes.}
+is taken from the data (can be used for the model testing purposes).}
 
 \item{persistence}{Persistence vector \eqn{g}, containing smoothing
 parameters. If \code{NULL}, then estimated. Can be also passed as a names list of
@@ -203,7 +206,7 @@ explanatory variables.}
 If \code{TRUE}, then the function will print what it does and how much it has
 already done.}
 
-\item{...}{Other non-documented parameters. For example \code{FI=TRUE} will
+\item{...}{Other non-documented parameters. For example, \code{FI=TRUE} will
 make the function also produce Fisher Information matrix, which then can be
 used to calculated variances of smoothing parameters and initial states of
 the model. This is used in the \link[stats]{vcov} method.
@@ -214,6 +217,7 @@ to the number of parameters to estimate in the following order:
 \enumerate{
 \item All smoothing parameters (for the states and then for the explanatory variables);
 \item Damping parameter (if needed);
+\item ARMA parameters;
 \item All the initial values (for the states and then for the explanatory variables).
 }
 You can also pass parameters to the optimiser in order to fine tune its work:
@@ -229,6 +233,7 @@ function (the default is 0 - not used);
 \item \code{algorithm} - the algorithm to use in optimisation
 (\code{"NLOPT_LN_SBPLX"} by default);
 \item \code{print_level} - the level of output for the optimiser (0 by default).
+If equal to 41, then the detailed results of the optimisation are returned.
 }
 You can read more about these parameters by running the function
 \link[nloptr]{nloptr.print.options}.
