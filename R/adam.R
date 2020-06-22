@@ -3651,13 +3651,18 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         # Prepare the name of the model
         modelName <- "";
         if(etsModel){
-            modelName[] <- "ETS";
-            if(xregModel){
-                modelName[] <- paste0(modelName,"X");
+            if(model!="NNN"){
+                modelName[] <- "ETS";
+                if(xregModel){
+                    modelName[] <- paste0(modelName,"X");
+                }
+                modelName[] <- paste0(modelName,"(",model,")");
+                if(componentsNumberETSSeasonal>1){
+                    modelName[] <- paste0(modelName,"[",paste0(lags[lags!=1], collapse=", "),"]");
+                }
             }
-            modelName[] <- paste0(modelName,"(",model,")");
-            if(componentsNumberETSSeasonal>1){
-                modelName[] <- paste0(modelName,"[",paste0(lags[lags!=1], collapse=", "),"]");
+            else{
+                modelName[] <- "Constant level";
             }
         }
         if(arimaModel){

@@ -2255,11 +2255,13 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         modelsPool <- NULL;
         persistenceLevel <- 0;
         persistenceEstimate <- persistenceLevelEstimate <- FALSE;
-        initialLevel <- mean(yInSample);
+        initialLevel <- NULL;
         initialType <- "provided";
-        initialEstimate <- initialLevelEstimate <- FALSE;
-        modelDo <- "use";
-        model <- "ANN";
+        initialEstimate <- initialLevelEstimate <- TRUE;
+        model <- "NNN";
+        if(is.null(B)){
+            modelDo <- "estimate";
+        }
         Etype <- "A";
         Ttype <- "N";
         Stype <- "N";
