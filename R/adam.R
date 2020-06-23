@@ -458,7 +458,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
     #### Return regression if it is pure ####
     if(is.alm(checkerReturn)){
         obsInSample <- nobs(checkerReturn);
-        nParam <- nparam(checkerReturn)-1;
+        nParam <- length(checkerReturn$coefficient);
+
         if(!is.null(dim(y))){
             xreg <- y[,-1,drop=FALSE];
         }
@@ -550,8 +551,9 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         modelReturned$xreg <- checkerReturn$data[,-1,drop=FALSE];
         modelReturned$formula <- formula(checkerReturn);
         modelReturned$xregDo <- "use";
-        modelReturned$loss <- "likelihood";
-        modelReturned$lossValue <- logLik(checkerReturn);
+        modelReturned$loss <- checkerReturn$loss;
+        modelReturned$lossValue <- checkerReturn$lossValue;
+        modelReturned$lossFunction <- checkerReturn$lossFunction;
         modelReturned$logLik <- logLik(checkerReturn);
         modelReturned$distribution <- checkerReturn$distribution;
         modelReturned$scale <- checkerReturn$scale;
@@ -559,12 +561,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         modelReturned$B <- coef(checkerReturn);
         modelReturned$lags <- 1;
         modelReturned$lagsAll <- rep(1,nParam);
-        if(!is.null(checkerReturn$vcov)){
-            modelReturned$FI <- chol2inv(chol(checkerReturn$vcov));
-        }
-        else{
-            modelReturned$FI <- NULL;
-        }
+        modelReturned$FI <- checkerReturn$FI;
         if(holdout){
             modelReturned$accuracy <- measures(modelReturned$holdout,modelReturned$forecast,modelReturned$y)
         }
@@ -2416,12 +2413,22 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 persistenceXregEstimate[] <- persistenceXregEstimateOriginal;
                 xregData <- xregDataOriginal[,xregNames,drop=FALSE];
 
+                # Redefine loss for ALM
+                lossNew <- switch(loss,
+                                  "MSEh"=,"TMSE"=,"GTMSE"=,"MSCE"="MSE",
+                                  "MAEh"=,"TMAE"=,"GTMAE"=,"MACE"="MAE",
+                                  "HAMh"=,"THAM"=,"GTHAM"=,"CHAM"="HAM",
+                                  loss);
+                if(lossNew=="custom"){
+                    lossNew <- lossFunction;
+                }
+
                 # Estimate alm again in order to get proper initials
                 almModel <- do.call(alm,list(formula=as.formula("y~."),
                                              data=matrix(c(yInSample,xregData[1:obsInSample,,drop=FALSE]),
                                                          obsInSample,xregNumber+1,
                                                          dimnames=list(NULL,c("y",xregNames))),
-                                             distribution=distributionNew, occurrence=oesModel));
+                                             distribution=distributionNew, loss=lossNew, occurrence=oesModel));
                 xregModelInitials[[xregIndex]]$initialXreg <- coef(almModel)[-1];
 
                 return(estimator(etsModel, Etype, Ttype, Stype, lags, lagsModelSeasonal, lagsModelARIMA,
@@ -4544,11 +4551,19 @@ print.adam <- function(x, digits=4, ...){
     if(is.occurrence(x$occurrence)){
         distrib <- paste0("Mixture of Bernoulli and ", distrib);
     }
-    cat(paste0("\nDistribution assumed in the model: ", distrib,"\n"));
+    cat(paste0("\nDistribution assumed in the model: ", distrib));
+
+    cat(paste0("\nLoss function type: ",x$loss));
+    if(!is.null(x$lossValue)){
+        cat(paste0("; Loss function value: ",round(x$lossValue,digits)));
+        if(any(x$loss==c("LASSO","RIDGE"))){
+            cat(paste0("; lambda=",x$lambda));
+        }
+    }
 
     if(etsModel){
         if(!is.null(x$persistence)){
-            cat(paste0("Persistence vector g"));
+            cat(paste0("\nPersistence vector g"));
             if(!is.null(x$xreg)){
                 cat(" (excluding xreg):\n");
             }
@@ -4564,14 +4579,14 @@ print.adam <- function(x, digits=4, ...){
 
         if(!is.null(x$phi)){
             if(gregexpr("d",x$model)!=-1){
-                cat(paste0("Damping parameter: ", round(x$phi,digits),"\n"));
+                cat(paste0("Damping parameter: ", round(x$phi,digits)));
             }
         }
     }
 
     # If this is ARIMA model
     if(!is.null(x$arma) && (!is.null(x$arma$ar) || !is.null(x$arma$ma))){
-        cat(paste0("ARMA parameters of the model:\n"));
+        cat(paste0("\nARMA parameters of the model:\n"));
         if(!is.null(x$arma$ar)){
             cat("AR:\n")
             print(round(x$arma$ar,digits));
@@ -4582,17 +4597,12 @@ print.adam <- function(x, digits=4, ...){
         }
     }
 
-    cat(paste0("\nLoss function type: ",x$loss));
-    if(!is.null(x$lossValue)){
-        cat(paste0("; Loss function value: ",round(x$lossValue,digits)));
-        if(any(x$loss==c("LASSO","RIDGE"))){
-            cat(paste0("; lambda=",x$lambda));
-        }
-    }
-
     cat("\nSample size: "); cat(nobs(x));
     cat("\nNumber of estimated parameters: "); cat(nparam(x));
     cat("\nNumber of degrees of freedom: "); cat(nobs(x)-nparam(x));
+    if(x$nParam[2,4]>0){
+        cat("\nNumber of provided parameters: "); cat(x$nParam[2,4]);
+    }
 
     if(x$loss=="likelihood" ||
        (any(x$loss==c("MSE","MSEh","MSCE","GPL")) & any(x$distribution==c("dnorm","dlnorm"))) ||
@@ -4641,9 +4651,9 @@ print.adam <- function(x, digits=4, ...){
 print.adamCombined <- function(x, digits=4, ...){
     cat(paste0("Time elapsed: ",round(as.numeric(x$timeElapsed,units="secs"),2)," seconds"));
     cat(paste0("\nModel estimated: ",x$model));
+    cat(paste0("\nLoss function type: ",x$models[[1]]$loss));
 
     cat(paste0("\n\nNumber of models combined: ", length(x$ICw)));
-    cat(paste0("\nLoss function type: ",x$models[[1]]$loss));
     cat("\nSample size: "); cat(nobs(x));
     cat("\nAverage number of estimated parameters: "); cat(round(nparam(x),digits=digits));
     cat("\nAverage number of degrees of freedom: "); cat(round(nobs(x)-nparam(x),digits=digits));
@@ -4765,6 +4775,7 @@ summary.adam <- function(object, level=0.95, ...){
     ourReturn$lossValue <- object$lossValue;
     ourReturn$nobs <- nobs(object);
     ourReturn$nparam <- nparam(object);
+    ourReturn$nParam <- object$nParam;
 
     if(object$loss=="likelihood" ||
        (any(object$loss==c("MSE","MSEh","MSCE")) & any(object$distribution==c("dnorm","dlnorm"))) ||
@@ -4817,11 +4828,6 @@ print.summary.adam <- function(x, ...){
     }
     cat(paste0("\nDistribution used in the estimation: ", distrib));
 
-    if(!is.null(x$coefficients)){
-        cat("\nCoefficients:\n");
-        print(round(x$coefficients,digits));
-    }
-
     cat(paste0("\nLoss function type: ",x$loss));
     if(!is.null(x$lossValue)){
         cat(paste0("; Loss function value: ",round(x$lossValue,digits)));
@@ -4830,9 +4836,17 @@ print.summary.adam <- function(x, ...){
         }
     }
 
+    if(!is.null(x$coefficients)){
+        cat("\nCoefficients:\n");
+        print(round(x$coefficients,digits));
+    }
+
     cat("\nSample size: "); cat(x$nobs);
     cat("\nNumber of estimated parameters: "); cat(x$nparam);
     cat("\nNumber of degrees of freedom: "); cat(x$nobs-x$nparam);
+    if(x$nParam[2,4]>0){
+        cat("\nNumber of provided parameters: "); cat(x$nParam[2,4]);
+    }
 
     if(x$loss=="likelihood" ||
        (any(x$loss==c("MSE","MSEh","MSCE")) & any(x$distribution==c("dnorm","dlnorm"))) ||

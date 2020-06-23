@@ -1415,7 +1415,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
             }
 
             #### If this is just a regression, use stepwise / ALM
-            if((!etsModel && !arimaModel) && xregDo!="adapt" && loss=="likelihood"){
+            if((!etsModel && !arimaModel) && xregDo!="adapt"){
                 # Return the estimated model based on the provided xreg
                 if(is.null(formulaProvided)){
                     formulaProvided <- as.formula(paste0("`",responseName,"`~."));
@@ -1424,20 +1424,32 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                     distribution[] <- "dnorm";
                 }
 
+                # Redefine loss for ALM
+                loss <- switch(loss,
+                               "MSEh"=,"TMSE"=,"GTMSE"=,"MSCE"="MSE",
+                               "MAEh"=,"TMAE"=,"GTMAE"=,"MACE"="MAE",
+                               "HAMh"=,"THAM"=,"GTHAM"=,"CHAM"="HAM",
+                               loss);
+                lossOriginal <- loss;
+                if(loss=="custom"){
+                    loss <- lossFunction;
+                }
+
                 # Either use or select the model via greybox functions
                 if(xregDo=="use"){
                     warning("The specified model is just a regression. It is recommended to use alm() from greybox instead.",
                             call.=FALSE);
                     # Fisher Information
                     if(is.null(ellipsis$FI)){
-                        vcovProduce <- FALSE;
+                        FI <- FALSE;
                     }
                     else{
-                        vcovProduce <- ellipsis$FI;
+                        FI <- ellipsis$FI;
                     }
                     almModel <- do.call("alm", list(formula=formulaProvided, data=xregData,
-                                                    distribution=distribution, subset=which(subset),
-                                                    occurrence=occurrence,vcovProduce=vcovProduce));
+                                                    distribution=distribution, loss=loss,
+                                                    subset=which(subset),
+                                                    occurrence=occurrence,FI=FI));
                     almModel$call$data <- as.name(yName);
                     return(almModel);
                 }
@@ -1445,6 +1457,11 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                     warning(paste0("The specified model is just a stepwise regression. ",
                                    "It is advised to use stepwise() function from greybox instead."),
                             call.=FALSE);
+                    if(lossOriginal!="likelihood"){
+                        warning("Stepwise only works with loss='likelihood'. Switching to it.",
+                                call.=FALSE);
+                        loss <- "likelihood"
+                    }
                     almModel <- stepwise(xregData, distribution=distribution, subset=which(subset), occurrence=occurrence);
                     # almModel <- do.call("alm", list(formula=formula(almModel), data=xregData,
                     #                                 distribution=distribution, subset=c(1:obsInSample),
@@ -1540,7 +1557,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         }
         else{
             #### If this is just a regression, then this must be the reuse of alm.
-            if((!etsModel && !arimaModel) && xregDo!="adapt" && loss=="likelihood"){
+            if((!etsModel && !arimaModel) && xregDo!="adapt"){
                 # Return the estimated model based on the provided xreg
                 if(is.null(formulaProvided)){
                     formulaProvided <- as.formula(paste0("`",responseName,"`~."));
@@ -1548,6 +1565,17 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                 if(distribution=="default"){
                     distribution[] <- "dnorm";
                 }
+                # Redefine loss for ALM
+                loss <- switch(loss,
+                               "MSEh"=,"TMSE"=,"GTMSE"=,"MSCE"="MSE",
+                               "MAEh"=,"TMAE"=,"GTMAE"=,"MACE"="MAE",
+                               "HAMh"=,"THAM"=,"GTHAM"=,"CHAM"="HAM",
+                               loss);
+                lossOriginal <- loss;
+                if(loss=="custom"){
+                    loss <- lossFunction;
+                }
+
                 if(is.null(xregData)){
                     xregData <- matrix(c(y,xreg),nrow=obsAll,ncol=ncol(xreg)+1,
                                        dimnames=list(NULL,c(responseName,colnames(xreg))));
@@ -1562,10 +1590,10 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                 }
                 # Fisher Information
                 if(is.null(ellipsis$FI)){
-                    vcovProduce <- FALSE;
+                    FI <- FALSE;
                 }
                 else{
-                    vcovProduce <- ellipsis$FI;
+                    FI <- ellipsis$FI;
                 }
                 if(is.null(ellipsis$B)){
                     B <- initialXreg;
@@ -1574,18 +1602,18 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                     B <- ellipsis$B;
                 }
                 almModel <- do.call("alm", list(formula=formulaProvided, data=xregData,
-                                                distribution=distribution, subset=1:obsInSample,
-                                                occurrence=occurrence,vcovProduce=vcovProduce,
+                                                distribution=distribution, loss=loss, subset=which(subset),
+                                                occurrence=occurrence,FI=FI,
                                                 parameters=B,fast=TRUE));
                 almModel$call$data <- as.name("xreg");
-                # For some reason, this does not work with the normal distribution... So calculate it analytically
-                if(vcovProduce && distribution=="dnorm"){
-                    xregData[,1] <- 1;
-                    colnames(xregData)[1] <- "(Intercept)";
-                    xregData <- crossprod(xregData);
-                    vcovMatrix <- chol2inv(chol(xregData));
-                    almModel$vcov <- sigma(almModel, all=FALSE)^2 * vcovMatrix;
-                }
+                # # For some reason, this does not work with the normal distribution... So calculate it analytically
+                # if(vcovProduce && distribution=="dnorm"){
+                #     xregData[,1] <- 1;
+                #     colnames(xregData)[1] <- "(Intercept)";
+                #     xregData <- crossprod(xregData);
+                #     vcovMatrix <- chol2inv(chol(xregData));
+                #     almModel$vcov <- sigma(almModel, all=FALSE)^2 * vcovMatrix;
+                # }
                 return(almModel);
             }
             else{
