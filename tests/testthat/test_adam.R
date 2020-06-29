@@ -51,6 +51,12 @@ test_that("ADAM ETS(MAN) with asymmetric Laplace on N1234", {
     expect_match(testModel$distribution, "dalaplace");
 })
 
+# ADAM with GN distribution
+testModel <- adam(Mcomp::M3[[1234]], "MAN", distribution="dgnorm");
+test_that("ADAM ETS(MAN) with Generalised Normal on N1234", {
+    expect_match(testModel$distribution, "dgnorm");
+})
+
 # ADAM with MSE
 testModel <- adam(Mcomp::M3[[1234]], "MAN", loss="MSE");
 test_that("ADAM ETS(MAN) with MSE on N1234", {
@@ -158,7 +164,7 @@ test_that("ADAM ETSX(MMN) on N2568", {
 # ETSX selection on N2568
 testModel <- adam(Mcomp::M3[[2568]]$x, "ZZZ", h=18, holdout=TRUE, xreg=xreg, xregDo="select");
 test_that("ADAM ETSX(ZZZ) + xreg selection on N2568", {
-    expect_match(testModel$xregDo, "select");
+    expect_match(testModel$xregDo, "use");
 })
 
 # ETSX adaption on N2568

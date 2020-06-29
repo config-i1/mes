@@ -27,14 +27,16 @@
 #' \item \code{default} - Normal distribution is used for the Additive error models,
 #' Inverse Gaussian is used for the Multiplicative error models.
 #' \item \link[stats]{dnorm} - Normal distribution,
-#' \item \link[stats]{dlogis} - Logistic Distribution,
 #' \item \link[greybox]{dlaplace} - Laplace distribution,
+#' \item \link[greybox]{ds} - S distribution,
+#' \item \link[gnorm]{dgnorm} - Generalised Normal distribution,
+#' \item \link[stats]{dlogis} - Logistic Distribution,
+#' \item \link[stats]{dt} - T distribution,
 #' \item \link[greybox]{dalaplace} - Asymmetric Laplace distribution,
-#' \item \link[stats]{dt} - T-distribution,
-#' \item \link[greybox]{ds} - S-distribution,
 #' \item \link[stats]{dlnorm} - Log normal distribution,
 #' \item dllaplace - Log Laplace distribution,
-#' \item ds - Log S distribution,
+#' \item dls - Log S distribution,
+#' \item dlgnorm - Log Generalised Normal distribution,
 # \item \link[greybox]{dbcnorm} - Box-Cox normal distribution,
 #' \item \link[statmod]{dinvgauss} - Inverse Gaussian distribution,
 #' }
@@ -302,6 +304,7 @@
 #' @importFrom greybox dlaplace dalaplace ds stepwise alm is.occurrence polyprod
 #' @importFrom stats dnorm dlogis dt dlnorm frequency
 #' @importFrom statmod dinvgauss
+#' @importFrom gnorm dgnorm
 #' @importFrom nloptr nloptr
 #' @importFrom pracma hessian
 #' @importFrom zoo zoo
@@ -309,8 +312,8 @@
 #' @rdname adam
 #' @export adam
 adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c(0),ma=c(0)), formula=NULL,
-                 distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
-                                "dlnorm","dllaplace","dls","dinvgauss"),
+                 distribution=c("default","dnorm","dlaplace","ds","dgnorm","dlogis","dt","dalaplace",
+                                "dlnorm","dllaplace","dls","dlgnorm","dinvgauss"),
                  loss=c("likelihood","MSE","MAE","HAM","LASSO","RIDGE","MSEh","TMSE","GTMSE","MSCE"),
                  h=0, holdout=FALSE,
                  persistence=NULL, phi=NULL, initial=c("optimal","backcasting"), arma=NULL,
@@ -353,7 +356,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         occurrence <- model$occurrence;
         ic <- model$ic;
         bounds <- model$bounds;
-        lambda <- model$lambda;
+        ellipsis$lambda <- model$lambda;
         ellipsis$B <- model$B;
         CFValue <- model$lossValue;
         logLikADAMValue <- logLik(model);
@@ -1419,7 +1422,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                     # initials of ARIMA
                                     (initialType!="backcasting")*arimaModel*initialArimaNumber*initialArimaEstimate +
                                     # initials of xreg
-                                    (initialType!="backcasting")*xregModel*initialXregEstimate*xregNumber+lambdaEstimate);
+                                    (initialType!="backcasting")*xregModel*initialXregEstimate*xregNumber+
+                                    lambdaEstimate);
 
         j <- 0;
         if(etsModel){
@@ -1595,7 +1599,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         if(initialType!="backcasting" && arimaModel && initialArimaEstimate){
             B[j+1:initialArimaNumber] <- tail(matVt[componentsNumberETS+componentsNumberARIMA,1:lagsModelMax],initialArimaNumber);
             names(B)[j+1:initialArimaNumber] <- paste0("ARIMAState",1:initialArimaNumber);
-            j <- j+initialArimaNumber;
+            j[] <- j+initialArimaNumber;
         }
 
         # Initials of the xreg
@@ -1610,12 +1614,13 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 Bl[j+1:xregNumber] <- -Inf;
                 Bu[j+1:xregNumber] <- Inf;
             }
-            j <- j+xregNumber;
+            j[] <- j+xregNumber;
         }
 
         # Add lambda if it is needed
         if(lambdaEstimate){
-            B[j] <- 0.5;
+            j[] <- j+1;
+            B[j] <- lambda;
             names(B)[j] <- "lambda";
             Bl[j] <- 1e-10;
             Bu[j] <- Inf;
@@ -1629,10 +1634,11 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         # as.complex() is needed in order to make the optimiser work in exotic cases
         scale <- switch(distribution,
                         "dnorm"=,
-                        "dt"=sqrt(sum(errors^2)/obsInSample),
-                        "dlogis"=sqrt(sum(errors^2)/obsInSample * 3 / pi^2),
                         "dlaplace"=sum(abs(errors))/obsInSample,
                         "ds"=sum(sqrt(abs(errors))) / (obsInSample*2),
+                        "dgnorm"=(lambda*sum(abs(errors)^lambda)/obsInSample)^{1/lambda},
+                        "dlogis"=sqrt(sum(errors^2)/obsInSample * 3 / pi^2),
+                        "dt"=sqrt(sum(errors^2)/obsInSample),
                         "dalaplace"=sum(errors*(lambda-(errors<=0)*1))/obsInSample,
                         "dlnorm"=switch(Etype,
                                         "A"=Re(sqrt(sum(log(as.complex(1+errors/yFitted))^2)/obsInSample)),
@@ -1643,6 +1649,9 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                         "dls"=switch(Etype,
                                      "A"=Re(sum(sqrt(abs(log(as.complex(1+errors/yFitted))))/obsInSample)),
                                      "M"=sum(sqrt(abs(log(1+errors)))/obsInSample)),
+                        "dlgnorm"=switch(Etype,
+                                         "A"=Re((lambda*sum(abs(log(as.complex(1+errors/yFitted)))^lambda)/obsInSample)^{1/lambda}),
+                                         "M"=(lambda*sum(abs(log(as.complex(1+errors)))^lambda)/obsInSample)^{1/lambda}),
                         "dinvgauss"=switch(Etype,
                                            "A"=sum((errors/yFitted)^2/(1+errors/yFitted))/obsInSample,
                                            "M"=sum((errors)^2/(1+errors))/obsInSample),
@@ -1691,7 +1700,11 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
         # If we estimate lambda, take it from the B vector
         if(lambdaEstimate){
-            lambda[] <- B[length(B)];
+            # Take absolute value, just to be on safe side. We don't need negatives anyway.
+            lambda[] <- abs(B[length(B)]);
+            if(any(distribution==c("dgnorm","dlgnorm")) && lambda==0){
+                return(1E+100);
+            }
         }
 
         # Check the bounds, classical restrictions
@@ -1803,25 +1816,33 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                                                 sd=scale, log=TRUE),
                                                       "M"=dnorm(x=yInSample[otLogical], mean=adamFitted$yFitted[otLogical],
                                                                 sd=scale*adamFitted$yFitted[otLogical], log=TRUE)),
-                                       "dlogis"=switch(Etype,
-                                                       "A"=dlogis(x=yInSample[otLogical], location=adamFitted$yFitted[otLogical],
-                                                                  scale=scale, log=TRUE),
-                                                       "M"=dlogis(x=yInSample[otLogical], location=adamFitted$yFitted[otLogical],
-                                                                  scale=scale*adamFitted$yFitted[otLogical], log=TRUE)),
                                        "dlaplace"=switch(Etype,
                                                          "A"=dlaplace(q=yInSample[otLogical], mu=adamFitted$yFitted[otLogical],
                                                                       scale=scale, log=TRUE),
                                                          "M"=dlaplace(q=yInSample[otLogical], mu=adamFitted$yFitted[otLogical],
                                                                       scale=scale*adamFitted$yFitted[otLogical], log=TRUE)),
-                                       "dt"=switch(Etype,
-                                                   "A"=dt(adamFitted$errors[otLogical], df=abs(lambda), log=TRUE),
-                                                   "M"=dt(adamFitted$errors[otLogical]*adamFitted$yFitted[otLogical],
-                                                          df=abs(lambda), log=TRUE)),
                                        "ds"=switch(Etype,
                                                    "A"=ds(q=yInSample[otLogical],mu=adamFitted$yFitted[otLogical],
                                                           scale=scale, log=TRUE),
                                                    "M"=ds(q=yInSample[otLogical],mu=adamFitted$yFitted[otLogical],
                                                           scale=scale*sqrt(adamFitted$yFitted[otLogical]), log=TRUE)),
+                                       "dgnorm"=switch(Etype,
+                                                       "A"=dgnorm(x=yInSample[otLogical],mu=adamFitted$yFitted[otLogical],
+                                                                  alpha=scale, beta=lambda, log=TRUE),
+                                                       # Suppres Warnings is needed, because the check is done for scalar alpha
+                                                       "M"=suppressWarnings(dgnorm(x=yInSample[otLogical],
+                                                                                   mu=adamFitted$yFitted[otLogical],
+                                                                                   alpha=scale*adamFitted$yFitted[otLogical],
+                                                                                   beta=lambda, log=TRUE))),
+                                       "dlogis"=switch(Etype,
+                                                       "A"=dlogis(x=yInSample[otLogical], location=adamFitted$yFitted[otLogical],
+                                                                  scale=scale, log=TRUE),
+                                                       "M"=dlogis(x=yInSample[otLogical], location=adamFitted$yFitted[otLogical],
+                                                                  scale=scale*adamFitted$yFitted[otLogical], log=TRUE)),
+                                       "dt"=switch(Etype,
+                                                   "A"=dt(adamFitted$errors[otLogical], df=abs(lambda), log=TRUE),
+                                                   "M"=dt(adamFitted$errors[otLogical]*adamFitted$yFitted[otLogical],
+                                                          df=abs(lambda), log=TRUE)),
                                        "dalaplace"=switch(Etype,
                                                           "A"=dalaplace(q=yInSample[otLogical], mu=adamFitted$yFitted[otLogical],
                                                                         scale=scale, alpha=lambda, log=TRUE),
@@ -1830,9 +1851,11 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                        "dlnorm"=dlnorm(x=yInSample[otLogical], meanlog=Re(log(as.complex(adamFitted$yFitted[otLogical]))),
                                                        sdlog=scale, log=TRUE),
                                        "dllaplace"=dlaplace(q=log(yInSample[otLogical]), mu=Re(log(as.complex(adamFitted$yFitted[otLogical]))),
-                                                            scale=scale, log=TRUE)-log(yInSample[otLogical]),
+                                                            scale=scale, log=TRUE) -log(yInSample[otLogical]),
                                        "dls"=ds(q=log(yInSample[otLogical]), mu=Re(log(as.complex(adamFitted$yFitted[otLogical]))),
-                                                scale=scale, log=TRUE)-log(yInSample[otLogical]),
+                                                scale=scale, log=TRUE) -log(yInSample[otLogical]),
+                                       "dlgnorm"=dgnorm(x=log(yInSample[otLogical]),mu=Re(log(as.complex(adamFitted$yFitted[otLogical]))),
+                                                        alpha=scale, beta=lambda, log=TRUE) -log(yInSample[otLogical]),
                                        # "dinvgauss"=dinvgauss(x=1+adamFitted$errors, mean=1,
                                        #                       dispersion=scale, log=TRUE)));
                                        # "dinvgauss"=dinvgauss(x=yInSampleNew, mean=adamFitted$yFitted,
@@ -1849,11 +1872,13 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                                 "dlaplace" =,
                                                 "dllaplace" =,
                                                 "dalaplace" = obsZero*(1 + log(2*scale)),
+                                                "ds" =,
+                                                "dls" = obsZero*(2 + 2*log(2*scale)),
+                                                "dgnorm" =,
+                                                "dlgnorm" = obsZero*(1/lambda-log(lambda/(2*scale*gamma(1/lambda)))),
                                                 "dt" = obsZero*((scale+1)/2 *
                                                                     (digamma((scale+1)/2)-digamma(scale/2)) +
                                                                     log(sqrt(scale) * beta(scale/2,0.5))),
-                                                "ds" =,
-                                                "dls" = obsZero*(2 + 2*log(2*scale)),
                                                 # "dinvgauss" = obsZero*(0.5*(log(pi/2)+1+suppressWarnings(log(scale)))));
                                                 # "dinvgauss" =0);
                                                 "dinvgauss" = 0.5*(obsZero*(log(pi/2)+1+suppressWarnings(log(scale)))-
@@ -2385,14 +2410,14 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
             # Extract the errors corrrectly
             errors <- switch(distribution,
-                            "dlnorm"=, "dllaplace"=, "dls"=, "dinvgauss"=switch(Etype,
-                                                                                "A"=1+adamFitted$errors/adamFitted$yFitted,
-                                                                                "M"=adamFitted$errors),
-                            "dnorm"=, "dt"=, "dlogis"=, "dlaplace"=, "ds"=, "dalaplace"=,adamFitted$errors);
+                             "dlnorm"=, "dllaplace"=, "dls"=, "dlgnorm"=, "dinvgauss"=switch(Etype,
+                                                                                             "A"=1+adamFitted$errors/adamFitted$yFitted,
+                                                                                             "M"=adamFitted$errors),
+                             "dnorm"=, "dlaplace"=, "ds"=, "dgnorm"=, "dlogis"=, "dt"=, "dalaplace"=,adamFitted$errors);
             # Extract the errors and amend them to correspond to the distribution
             errors[] <- errors + switch(Etype,"A"=0,"M"=1);
 
-            if(any(distribution==c("dlnorm","dllaplace","dls")) && Etype=="A" && any(errors<0)){
+            if(any(distribution==c("dlnorm","dllaplace","dls","dlgnorm")) && Etype=="A" && any(errors<0)){
                 errors[errors<0] <- 1e-100;
             }
 
@@ -3907,7 +3932,7 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
         # Get the actuals and the fitted values
         ellipsis$y <- as.vector(actuals(x));
         if(is.occurrence(x)){
-            if(any(x$distribution==c("plogis","pnorm"))){
+            if(any(x$distribution==c("plogis","pnorm")) || x$occurrence!="none"){
                 ellipsis$y <- (ellipsis$y!=0)*1;
             }
         }
@@ -3986,7 +4011,7 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
 
         # Main, labs etc
         if(!any(names(ellipsis)=="main")){
-            if(any(x$distribution==c("dinvgauss","dlnorm","dllaplace","dls"))){
+            if(any(x$distribution==c("dinvgauss","dlnorm","dllaplace","dls","dlgnorm"))){
                 ellipsis$main <- paste0("log(",yName," Residuals) vs Fitted");
             }
             else{
@@ -4018,6 +4043,8 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
                           "dt"=qt(c((1-level)/2, (1+level)/2), nobs(x)-nparam(x)),
                           "ds"=,
                           "dls"=qs(c((1-level)/2, (1+level)/2), 0, 1),
+                          "dgnorm"=,
+                          "dlgnorm"=qgnorm(c((1-level)/2, (1+level)/2), 0, 1, x$lambda),
                           # In the next one, the scale is debiased, taking n-k into account
                           "dinvgauss"=qinvgauss(c((1-level)/2, (1+level)/2), mean=1,
                                                 dispersion=x$scale * nobs(x) / (nobs(x)-nparam(x))),
@@ -4028,7 +4055,7 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
             ellipsis$y[] <- log(ellipsis$y);
             zValues <- log(zValues);
         }
-        else if(any(x$distribution==c("dllaplace","dls"))){
+        else if(any(x$distribution==c("dllaplace","dls","dlgnorm"))){
             ellipsis$y[] <- log(ellipsis$y);
         }
         outliers <- which(ellipsis$y >zValues[2] | ellipsis$y <zValues[1]);
@@ -4084,7 +4111,7 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
 
         ellipsis$x <- as.vector(fitted(x));
         ellipsis$y <- as.vector(residuals(x));
-        if(any(x$distribution==c("dinvgauss","dlnorm","dllaplace","dls"))){
+        if(any(x$distribution==c("dinvgauss","dlnorm","dllaplace","dls","dlgnorm"))){
             ellipsis$y[] <- log(ellipsis$y);
         }
         if(type=="abs"){
@@ -4106,7 +4133,7 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
 
         if(!any(names(ellipsis)=="main")){
             if(type=="abs"){
-                if(any(x$distribution==c("dinvgauss","dlnorm","dllaplace","dls"))){
+                if(any(x$distribution==c("dinvgauss","dlnorm","dllaplace","dls","dlgnorm"))){
                     ellipsis$main <- "|log(Residuals)| vs Fitted";
                 }
                 else{
@@ -4114,7 +4141,7 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
                 }
             }
             else{
-                if(any(x$distribution==c("dinvgauss","dlnorm","dllaplace","dls"))){
+                if(any(x$distribution==c("dinvgauss","dlnorm","dllaplace","dls","dlgnorm"))){
                     ellipsis$main <- "log(Residuals)^2 vs Fitted";
                 }
                 else{
@@ -4193,24 +4220,6 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
             do.call(qqplot, ellipsis);
             qqline(ellipsis$y, distribution=function(p) exp(qlaplace(p, mu=0, scale=x$scale)));
         }
-        else if(x$distribution=="dalaplace"){
-            if(!any(names(ellipsis)=="main")){
-                ellipsis$main <- paste0("QQ-plot of Asymmetric Laplace with alpha=",round(x$lambda,3));
-            }
-            ellipsis$x <- qalaplace(ppoints(500), mu=0, scale=x$scale, alpha=x$lambda);
-
-            do.call(qqplot, ellipsis);
-            qqline(ellipsis$y, distribution=function(p) qalaplace(p, mu=0, scale=x$scale, alpha=x$lambda));
-        }
-        else if(x$distribution=="dlogis"){
-            if(!any(names(ellipsis)=="main")){
-                ellipsis$main <- "QQ-plot of Logistic distribution";
-            }
-            ellipsis$x <- qlogis(ppoints(500), location=0, scale=x$scale);
-
-            do.call(qqplot, ellipsis);
-            qqline(ellipsis$y, distribution=function(p) qlogis(p, location=0, scale=x$scale));
-        }
         else if(x$distribution=="ds"){
             if(!any(names(ellipsis)=="main")){
                 ellipsis$main <- "QQ-plot of S distribution";
@@ -4229,6 +4238,33 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
             do.call(qqplot, ellipsis);
             qqline(ellipsis$y, distribution=function(p) exp(qs(p, mu=0, scale=x$scale)));
         }
+        else if(x$distribution=="dgnorm"){
+            if(!any(names(ellipsis)=="main")){
+                ellipsis$main <- "QQ-plot of Generalised Normal distribution";
+            }
+            ellipsis$x <- qgnorm(ppoints(500), mu=0, alpha=x$scale, beta=x$lambda);
+
+            do.call(qqplot, ellipsis);
+            qqline(ellipsis$y, distribution=function(p) qgnorm(p, mu=0, alpha=x$scale, beta=x$lambda));
+        }
+        else if(x$distribution=="dlgnorm"){
+            if(!any(names(ellipsis)=="main")){
+                ellipsis$main <- "QQ-plot of Log Generalised Normal distribution";
+            }
+            ellipsis$x <- exp(qgnorm(ppoints(500), mu=0, lpha=x$scale, beta=x$lambda));
+
+            do.call(qqplot, ellipsis);
+            qqline(ellipsis$y, distribution=function(p) exp(qgnorm(p, mu=0, lpha=x$scale, beta=x$lambda)));
+        }
+        else if(x$distribution=="dlogis"){
+            if(!any(names(ellipsis)=="main")){
+                ellipsis$main <- "QQ-plot of Logistic distribution";
+            }
+            ellipsis$x <- qlogis(ppoints(500), location=0, scale=x$scale);
+
+            do.call(qqplot, ellipsis);
+            qqline(ellipsis$y, distribution=function(p) qlogis(p, location=0, scale=x$scale));
+        }
         else if(x$distribution=="dt"){
             # Standardise residuals
             ellipsis$y[] <- ellipsis$y / sd(ellipsis$y);
@@ -4239,6 +4275,15 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
 
             do.call(qqplot, ellipsis);
             qqline(ellipsis$y, distribution=function(p) qt(p, df=x$scale));
+        }
+        else if(x$distribution=="dalaplace"){
+            if(!any(names(ellipsis)=="main")){
+                ellipsis$main <- paste0("QQ-plot of Asymmetric Laplace with alpha=",round(x$lambda,3));
+            }
+            ellipsis$x <- qalaplace(ppoints(500), mu=0, scale=x$scale, alpha=x$lambda);
+
+            do.call(qqplot, ellipsis);
+            qqline(ellipsis$y, distribution=function(p) qalaplace(p, mu=0, scale=x$scale, alpha=x$lambda));
         }
         else if(x$distribution=="dinvgauss"){
             # Transform residuals for something meaningful
@@ -4314,24 +4359,26 @@ plot.adam <- function(x, which=c(1,2,4,6), level=0.95, legend=FALSE,
         }
 
         zValues <- switch(x$distribution,
+                          "dlnorm"=qlnorm(c((1-level)/2, (1+level)/2), 0, 1),
                           "dlaplace"=,
                           "dllaplace"=qlaplace(c((1-level)/2, (1+level)/2), 0, 1),
-                          "dalaplace"=qalaplace(c((1-level)/2, (1+level)/2), 0, 1, x$lambda),
-                          "dlogis"=qlogis(c((1-level)/2, (1+level)/2), 0, 1),
-                          "dt"=qt(c((1-level)/2, (1+level)/2), nobs(x)-nparam(x)),
                           "ds"=,
                           "dls"=qs(c((1-level)/2, (1+level)/2), 0, 1),
+                          "dgnorm"=,
+                          "dlgnorm"=qgnorm(c((1-level)/2, (1+level)/2), 0, 1, x$lambda),
+                          "dlogis"=qlogis(c((1-level)/2, (1+level)/2), 0, 1),
+                          "dt"=qt(c((1-level)/2, (1+level)/2), nobs(x)-nparam(x)),
+                          "dalaplace"=qalaplace(c((1-level)/2, (1+level)/2), 0, 1, x$lambda),
                           # In the next one, the scale is debiased, taking n-k into account
                           "dinvgauss"=qinvgauss(c((1-level)/2, (1+level)/2), mean=1,
                                                 dispersion=x$scale * nobs(x) / (nobs(x)-nparam(x))),
-                          "dlnorm"=qlnorm(c((1-level)/2, (1+level)/2), 0, 1),
                           qnorm(c((1-level)/2, (1+level)/2), 0, 1));
         # Analyse stuff in logarithms if the error is multiplicative
         if(any(x$distribution==c("dinvgauss","dlnorm"))){
             ellipsis$x[] <- log(ellipsis$x);
             zValues <- log(zValues);
         }
-        else if(any(x$distribution==c("dllaplace","dls"))){
+        else if(any(x$distribution==c("dllaplace","dls","dlgnorm"))){
             ellipsis$x[] <- log(ellipsis$x);
         }
         outliers <- which(ellipsis$x >zValues[2] | ellipsis$x <zValues[1]);
@@ -4537,14 +4584,16 @@ print.adam <- function(x, digits=4, ...){
 
     distrib <- switch(x$distribution,
                       "dnorm" = "Normal",
-                      "dlogis" = "Logistic",
                       "dlaplace" = "Laplace",
-                      "dalaplace" = paste0("Asymmetric Laplace with lambda=",round(x$lambda,digits)),
-                      "dt" = paste0("Student t with df=",round(x$lambda, digits)),
                       "ds" = "S",
+                      "dgnorm" = "Generalised Normal",
+                      "dlogis" = "Logistic",
+                      "dt" = paste0("Student t with df=",round(x$lambda, digits)),
+                      "dalaplace" = paste0("Asymmetric Laplace with lambda=",round(x$lambda,digits)),
                       "dlnorm" = "Log Normal",
                       "dllaplace" = "Log Laplace",
                       "dls" = "Log S",
+                      "dlgnorm" = "Log Generalised Normal",
                       # "dbcnorm" = paste0("Box-Cox Normal with lambda=",round(x$other$lambda,2)),
                       "dinvgauss" = "Inverse Gaussian"
     );
@@ -4717,14 +4766,16 @@ sigma.adam <- function(object, ...){
     }
     return(sqrt(switch(object$distribution,
                        "dnorm"=,
-                       "dlogis"=,
                        "dlaplace"=,
-                       "dt"=,
                        "ds"=,
+                       "dgnorm"=,
+                       "dt"=,
+                       "dlogis"=,
                        "dalaplace"=sum(residuals(object)^2),
                        "dlnorm"=,
                        "dllaplace"=,
-                       "dls"=sum(log(residuals(object))^2),
+                       "dls"=,
+                       "dlgnorm"=sum(log(residuals(object))^2),
                        "dinvgauss"=sum((residuals(object)-1)^2))
                 /df));
 }
@@ -4812,14 +4863,16 @@ print.summary.adam <- function(x, ...){
 
     distrib <- switch(x$distribution,
                       "dnorm" = "Normal",
-                      "dlogis" = "Logistic",
                       "dlaplace" = "Laplace",
-                      "dalaplace" = paste0("Asymmetric Laplace with lambda=",round(x$lambda,digits)),
-                      "dt" = paste0("Student t with df=",round(x$lambda, digits)),
                       "ds" = "S",
+                      "dgnorm" = "Generalised Normal",
+                      "dlogis" = "Logistic",
+                      "dt" = paste0("Student t with df=",round(x$lambda, digits)),
+                      "dalaplace" = paste0("Asymmetric Laplace with lambda=",round(x$lambda,digits)),
                       "dlnorm" = "Log Normal",
                       "dllaplace" = "Log Laplace",
                       "dls" = "Log S",
+                      "dlgnorm" = "Log Generalised Normal",
                       # "dbcnorm" = paste0("Box-Cox Normal with lambda=",round(x$other$lambda,2)),
                       "dinvgauss" = "Inverse Gaussian"
     );
@@ -4909,14 +4962,16 @@ residuals.adam <- function(object, ...){
                   "dlnorm"=,
                   "dllaplace"=,
                   "dls"=,
+                  "dlgnorm"=,
                   "dinvgauss"=switch(errorType(object),
                                      "A"=1+object$residuals/fitted(object),
                                      "M"=1+object$residuals),
                   "dnorm"=,
-                  "dlogis"=,
                   "dlaplace"=,
-                  "dt"=,
                   "ds"=,
+                  "dgnorm"=,
+                  "dlogis"=,
+                  "dt"=,
                   "dalaplace"=,
                   object$residuals));
 }
@@ -5042,6 +5097,13 @@ rstandard.adam <- function(model, ...){
         errors[] <- log(errors);
         return(exp((errors - mean(errors[residsToGo])) / (model$scale * obs / df)^2));
     }
+    else if(model$distribution=="dgnorm"){
+        return((errors - mean(errors[residsToGo])) / (model$scale^model$lambda * obs / df)^{1/model$lambda});
+    }
+    else if(model$distribution=="dlgnorm"){
+        errors[] <- log(errors);
+        return(exp((errors - mean(errors[residsToGo])) / (model$scale^model$lambda * obs / df)^{1/model$lambda}));
+    }
     else if(model$distribution=="dinvgauss"){
         return(errors / mean(errors[residsToGo]));
     }
@@ -5078,6 +5140,24 @@ rstudent.adam <- function(model, ...){
             rstudentised[i] <- errors[i] / sqrt(sum(errors[-i]^2,na.rm=TRUE) / df);
         }
     }
+    else if(model$distribution=="dlaplace"){
+        errors[] <- errors - mean(errors);
+        for(i in residsToGo){
+            rstudentised[i] <- errors[i] / (sum(abs(errors[-i]),na.rm=TRUE) / df);
+        }
+    }
+    else if(model$distribution=="dlnorm"){
+        errors[] <- log(errors) - mean(log(errors));
+        for(i in residsToGo){
+            rstudentised[i] <- exp(errors[i] / sqrt(sum(errors[-i]^2,na.rm=TRUE) / df));
+        }
+    }
+    else if(model$distribution=="dllaplace"){
+        errors[] <- log(errors) - mean(log(errors));
+        for(i in residsToGo){
+            rstudentised[i] <- exp(errors[i] / (sum(abs(errors[-i]),na.rm=TRUE) / df));
+        }
+    }
     else if(model$distribution=="ds"){
         errors[] <- errors - mean(errors);
         for(i in residsToGo){
@@ -5090,16 +5170,16 @@ rstudent.adam <- function(model, ...){
             rstudentised[i] <- exp(errors[i] / (sum(sqrt(abs(errors[-i])),na.rm=TRUE) / (2*df))^2);
         }
     }
-    else if(model$distribution=="dlaplace"){
+    else if(model$distribution=="dgnorm"){
         errors[] <- errors - mean(errors);
         for(i in residsToGo){
-            rstudentised[i] <- errors[i] / (sum(abs(errors[-i]),na.rm=TRUE) / df);
+            rstudentised[i] <- errors[i] /  (sum(abs(errors[-i])^model$lambda) * (model$lambda/df))^{1/model$lambda};
         }
     }
-    else if(model$distribution=="dllaplace"){
+    else if(model$distribution=="dlgnorm"){
         errors[] <- log(errors) - mean(log(errors));
         for(i in residsToGo){
-            rstudentised[i] <- exp(errors[i] / (sum(abs(errors[-i]),na.rm=TRUE) / df));
+            rstudentised[i] <- errors[i] /  (sum(abs(errors[-i])^model$lambda) * (model$lambda/df))^{1/model$lambda};
         }
     }
     else if(model$distribution=="dalaplace"){
@@ -5111,12 +5191,6 @@ rstudent.adam <- function(model, ...){
         errors[] <- errors - mean(errors);
         for(i in residsToGo){
             rstudentised[i] <- errors[i] / (sqrt(sum(errors[-i]^2,na.rm=TRUE) / df) * sqrt(3) / pi);
-        }
-    }
-    else if(model$distribution=="dlnorm"){
-        errors[] <- log(errors) - mean(log(errors));
-        for(i in residsToGo){
-            rstudentised[i] <- exp(errors[i] / sqrt(sum(errors[-i]^2,na.rm=TRUE) / df));
         }
     }
     else if(model$distribution=="dinvgauss"){
@@ -5248,16 +5322,6 @@ predict.adam <- function(object, newxreg=NULL, interval=c("none", "confidence", 
             yUpper[] <- qnorm(levelUp, 1, sqrt(s2));
         }
     }
-    else if(object$distribution=="dlogis"){
-        if(Etype=="A"){
-            yLower[] <- qlogis(levelLow, 0, sqrt(s2*3)/pi);
-            yUpper[] <- qlogis(levelUp, 0, sqrt(s2*3)/pi);
-        }
-        else{
-            yLower[] <- qlogis(levelLow, 1, sqrt(s2*3)/pi);
-            yUpper[] <- qlogis(levelUp, 1, sqrt(s2*3)/pi);
-        }
-    }
     else if(object$distribution=="dlaplace"){
         if(Etype=="A"){
             yLower[] <- qlaplace(levelLow, 0, sqrt(s2/2));
@@ -5266,6 +5330,37 @@ predict.adam <- function(object, newxreg=NULL, interval=c("none", "confidence", 
         else{
             yLower[] <- qlaplace(levelLow, 1, sqrt(s2/2));
             yUpper[] <- qlaplace(levelUp, 1, sqrt(s2/2));
+        }
+    }
+    else if(object$distribution=="ds"){
+        if(Etype=="A"){
+            yLower[] <- qs(levelLow, 0, (s2/120)^0.25);
+            yUpper[] <- qs(levelUp, 0, (s2/120)^0.25);
+        }
+        else{
+            yLower[] <- qs(levelLow, 1, (s2/120)^0.25);
+            yUpper[] <- qs(levelUp, 1, (s2/120)^0.25);
+        }
+    }
+    else if(object$distribution=="dgnorm"){
+        alpha <- sqrt(s2*(gamma(1/object$lambda)/gamma(3/object$lambda)));
+        if(Etype=="A"){
+            yLower[] <- suppressWarnings(qgnorm(levelLow, 0, alpha, object$lambda));
+            yUpper[] <- suppressWarnings(qgnorm(levelUp, 0, alpha, object$lambda));
+        }
+        else{
+            yLower[] <- suppressWarnings(qgnorm(levelLow, 1, alpha, object$lambda));
+            yUpper[] <- suppressWarnings(qgnorm(levelUp, 1, alpha, object$lambda));
+        }
+    }
+    else if(object$distribution=="dlogis"){
+        if(Etype=="A"){
+            yLower[] <- qlogis(levelLow, 0, sqrt(s2*3)/pi);
+            yUpper[] <- qlogis(levelUp, 0, sqrt(s2*3)/pi);
+        }
+        else{
+            yLower[] <- qlogis(levelLow, 1, sqrt(s2*3)/pi);
+            yUpper[] <- qlogis(levelUp, 1, sqrt(s2*3)/pi);
         }
     }
     else if(object$distribution=="dt"){
@@ -5277,16 +5372,6 @@ predict.adam <- function(object, newxreg=NULL, interval=c("none", "confidence", 
         else{
             yLower[] <- (1 + sqrt(s2)*qt(levelLow, df));
             yUpper[] <- (1 + sqrt(s2)*qt(levelUp, df));
-        }
-    }
-    else if(object$distribution=="ds"){
-        if(Etype=="A"){
-            yLower[] <- qs(levelLow, 0, (s2/120)^0.25);
-            yUpper[] <- qs(levelUp, 0, (s2/120)^0.25);
-        }
-        else{
-            yLower[] <- qs(levelLow, 1, (s2/120)^0.25);
-            yUpper[] <- qs(levelUp, 1, (s2/120)^0.25);
         }
     }
     else if(object$distribution=="dalaplace"){
@@ -5315,6 +5400,11 @@ predict.adam <- function(object, newxreg=NULL, interval=c("none", "confidence", 
     else if(object$distribution=="dls"){
         yLower[] <- exp(qs(levelLow, 0, (s2/120)^0.25));
         yUpper[] <- exp(qs(levelUp, 0, (s2/120)^0.25));
+    }
+    else if(object$distribution=="dlgnorm"){
+        alpha <- sqrt(s2*(gamma(1/object$lambda)/gamma(3/object$lambda)));
+        yLower[] <- suppressWarnings(exp(qgnorm(levelLow, 0, alpha, object$lambda)));
+        yUpper[] <- suppressWarnings(exp(qgnorm(levelUp, 0, alpha, object$lambda)));
     }
     else if(object$distribution=="dinvgauss"){
         yLower[] <- qinvgauss(levelLow, 1, dispersion=s2);
@@ -5635,18 +5725,20 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
         sigmaValue <- sigma(object);
         matErrors <- matrix(switch(object$distribution,
                                    "dnorm"=rnorm(h*nsim, 0, sigmaValue),
-                                   "dlogis"=rlogis(h*nsim, 0, sigmaValue*sqrt(3)/pi),
                                    "dlaplace"=rlaplace(h*nsim, 0, sigmaValue/2),
-                                   "dt"=rt(h*nsim, obsInSample-nparam(object)),
                                    "ds"=rs(h*nsim, 0, (sigmaValue^2/120)^0.25),
+                                   "dgnorm"=rgnorm(h*nsim, 0, sigmaValue*sqrt(gamma(1/object$lambda)/gamma(3/object$lambda))),
+                                   "dlogis"=rlogis(h*nsim, 0, sigmaValue*sqrt(3)/pi),
+                                   "dt"=rt(h*nsim, obsInSample-nparam(object)),
                                    "dalaplace"=ralaplace(h*nsim, 0,
                                                          sqrt(sigmaValue^2*object$lambda^2*(1-object$lambda)^2/
                                                                   (object$lambda^2+(1-object$lambda)^2)),
                                                          object$lambda),
                                    "dlnorm"=rlnorm(h*nsim, 0, sigmaValue)-1,
                                    "dinvgauss"=rinvgauss(h*nsim, 1, dispersion=sigmaValue^2)-1,
+                                   "dllaplace"=exp(rlaplace(h*nsim, 0, sigmaValue/2))-1,
                                    "dls"=exp(rs(h*nsim, 0, (sigmaValue^2/120)^0.25))-1,
-                                   "dllaplace"=exp(rlaplace(h*nsim, 0, sigmaValue/2))-1
+                                   "dlgnorm"=exp(rgnorm(h*nsim, 0, sigmaValue*sqrt(gamma(1/object$lambda)/gamma(3/object$lambda))))-1
                                    ),
                             h,nsim);
         # This stuff is needed in order to produce adequate values for weird models
@@ -5693,9 +5785,9 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
         if(any(interval==c("approximate","confidence"))){
             s2 <- sigma(object)^2;
             # IG and Lnorm can use approximations from the multiplications
-            if(any(object$distribution==c("dinvgauss","dlnorm","dls","dllaplace")) && Etype=="M"){
+            if(any(object$distribution==c("dinvgauss","dlnorm","dllaplace","dls","dlgnorm")) && Etype=="M"){
                 vcovMulti <- adamVarAnal(lagsModelAll, h, matWt[1,,drop=FALSE], matF, vecG, s2);
-                if(any(object$distribution==c("dlnorm","dls","dllaplace"))){
+                if(any(object$distribution==c("dlnorm","dls","dllaplace","dlgnorm"))){
                     vcovMulti[] <- log(1+vcovMulti);
                 }
 
@@ -5732,7 +5824,7 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
             if(h>1){
                 adamErrors <- as.matrix(rmultistep(object, h=h));
 
-                if(any(object$distribution==c("dinvgauss","dlnorm","dls","dllaplace")) && (Etype=="A")){
+                if(any(object$distribution==c("dinvgauss","dlnorm","dls","dllaplace","dlgnorm")) && (Etype=="A")){
                     yFittedMatrix <- adamErrors;
                     for(i in 1:h){
                         yFittedMatrix[,i] <- fitted(object)[1:(obsInSample-h)+i];
@@ -5774,16 +5866,6 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                     yUpper[] <- qnorm(levelUp, 1, sqrt(vcovMulti));
                 }
             }
-            else if(object$distribution=="dlogis"){
-                if(Etype=="A"){
-                    yLower[] <- qlogis(levelLow, 0, sqrt(vcovMulti*3)/pi);
-                    yUpper[] <- qlogis(levelUp, 0, sqrt(vcovMulti*3)/pi);
-                }
-                else{
-                    yLower[] <- qlogis(levelLow, 1, sqrt(vcovMulti*3)/pi);
-                    yUpper[] <- qlogis(levelUp, 1, sqrt(vcovMulti*3)/pi);
-                }
-            }
             else if(object$distribution=="dlaplace"){
                 if(Etype=="A"){
                     yLower[] <- qlaplace(levelLow, 0, sqrt(vcovMulti/2));
@@ -5792,6 +5874,37 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                 else{
                     yLower[] <- qlaplace(levelLow, 1, sqrt(vcovMulti/2));
                     yUpper[] <- qlaplace(levelUp, 1, sqrt(vcovMulti/2));
+                }
+            }
+            else if(object$distribution=="ds"){
+                if(Etype=="A"){
+                    yLower[] <- qs(levelLow, 0, (vcovMulti/120)^0.25);
+                    yUpper[] <- qs(levelUp, 0, (vcovMulti/120)^0.25);
+                }
+                else{
+                    yLower[] <- qs(levelLow, 1, (vcovMulti/120)^0.25);
+                    yUpper[] <- qs(levelUp, 1, (vcovMulti/120)^0.25);
+                }
+            }
+            else if(object$distribution=="dgnorm"){
+                alpha <- sqrt(vcovMulti*(gamma(1/object$lambda)/gamma(3/object$lambda)));
+                if(Etype=="A"){
+                    yLower[] <- suppressWarnings(qgnorm(levelLow, 0, alpha, object$lambda));
+                    yUpper[] <- suppressWarnings(qgnorm(levelUp, 0, alpha, object$lambda));
+                }
+                else{
+                    yLower[] <- suppressWarnings(qgnorm(levelLow, 1, alpha, object$lambda));
+                    yUpper[] <- suppressWarnings(qgnorm(levelUp, 1, alpha, object$lambda));
+                }
+            }
+            else if(object$distribution=="dlogis"){
+                if(Etype=="A"){
+                    yLower[] <- qlogis(levelLow, 0, sqrt(vcovMulti*3)/pi);
+                    yUpper[] <- qlogis(levelUp, 0, sqrt(vcovMulti*3)/pi);
+                }
+                else{
+                    yLower[] <- qlogis(levelLow, 1, sqrt(vcovMulti*3)/pi);
+                    yUpper[] <- qlogis(levelUp, 1, sqrt(vcovMulti*3)/pi);
                 }
             }
             else if(object$distribution=="dt"){
@@ -5803,16 +5916,6 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                 else{
                     yLower[] <- (1 + sqrt(vcovMulti)*qt(levelLow, df));
                     yUpper[] <- (1 + sqrt(vcovMulti)*qt(levelUp, df));
-                }
-            }
-            else if(object$distribution=="ds"){
-                if(Etype=="A"){
-                    yLower[] <- qs(levelLow, 0, (vcovMulti/120)^0.25);
-                    yUpper[] <- qs(levelUp, 0, (vcovMulti/120)^0.25);
-                }
-                else{
-                    yLower[] <- qs(levelLow, 1, (vcovMulti/120)^0.25);
-                    yUpper[] <- qs(levelUp, 1, (vcovMulti/120)^0.25);
                 }
             }
             else if(object$distribution=="dalaplace"){
@@ -5853,6 +5956,11 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                     yLower[] <- (yLower-1)*yForecast;
                     yUpper[] <-(yUpper-1)*yForecast;
                 }
+            }
+            else if(object$distribution=="dlgnorm"){
+                alpha <- sqrt(vcovMulti*(gamma(1/object$lambda)/gamma(3/object$lambda)));
+                yLower[] <- suppressWarnings(exp(qgnorm(levelLow, 0, alpha, object$lambda)));
+                yUpper[] <- suppressWarnings(exp(qgnorm(levelUp, 0, alpha, object$lambda)));
             }
             else if(object$distribution=="dinvgauss"){
                 yLower[] <- qinvgauss(levelLow, 1, dispersion=vcovMulti);
@@ -5920,7 +6028,7 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                 yLower[] <- 1+yLower;
                 yUpper[] <- 1+yUpper;
             }
-            else if(Etype=="A" & any(object$distribution==c("dinvgauss","dlnorm","dllaplace","dls"))){
+            else if(Etype=="A" & any(object$distribution==c("dinvgauss","dlnorm","dllaplace","dls","dlgnorm"))){
                 yLower[] <- yLower*yForecast;
                 yUpper[] <- yUpper*yForecast;
             }
@@ -6123,12 +6231,14 @@ plot.adam.forecast <- function(x, ...){
                           "dnorm" = "Normal",
                           "dlogis" = "Logistic",
                           "dlaplace" = "Laplace",
+                          "ds" = "S",
+                          "dgnorm" = "Generalised Normal",
                           "dalaplace" = paste0("Asymmetric Laplace with lambda=",round(x$model$lambda,digits)),
                           "dt" = paste0("Student t with df=",round(x$model$lambda, digits)),
-                          "ds" = "S",
                           "dlnorm" = "Log Normal",
                           "dllaplace" = "Log Laplace",
                           "dls" = "Log S",
+                          "dgnorm" = "Log Generalised Normal",
                           # "dbcnorm" = paste0("Box-Cox Normal with lambda=",round(x$other$lambda,2)),
                           "dinvgauss" = "Inverse Gaussian"
         );
@@ -6216,6 +6326,7 @@ pointLik.adam <- function(object, ...){
         yFitted <- fitted(object);
     }
     scale <- object$scale;
+    lambda <- object$lambda;
     Etype <- errorType(object);
 
     likValues <- vector("numeric",obsInSample);
@@ -6225,25 +6336,31 @@ pointLik.adam <- function(object, ...){
                                                             sd=scale, log=TRUE),
                                                   "M"=dnorm(x=yInSample[otLogical], mean=yFitted[otLogical],
                                                             sd=scale*yFitted[otLogical], log=TRUE)),
-                                   "dlogis"=switch(Etype,
-                                                   "A"=dlogis(x=yInSample[otLogical], location=yFitted[otLogical],
-                                                              scale=scale, log=TRUE),
-                                                   "M"=dlogis(x=yInSample[otLogical], location=yFitted[otLogical],
-                                                              scale=scale*yFitted[otLogical], log=TRUE)),
                                    "dlaplace"=switch(Etype,
                                                      "A"=dlaplace(q=yInSample[otLogical], mu=yFitted[otLogical],
                                                                   scale=scale, log=TRUE),
                                                      "M"=dlaplace(q=yInSample[otLogical], mu=yFitted[otLogical],
                                                                   scale=scale*yFitted[otLogical], log=TRUE)),
-                                   "dt"=switch(Etype,
-                                               "A"=dt(adamFitted$errors[otLogical], df=abs(lambda), log=TRUE),
-                                               "M"=dt(adamFitted$errors[otLogical]*yFitted[otLogical],
-                                                      df=abs(lambda), log=TRUE)),
                                    "ds"=switch(Etype,
                                                "A"=ds(q=yInSample[otLogical],mu=yFitted[otLogical],
                                                       scale=scale, log=TRUE),
                                                "M"=ds(q=yInSample[otLogical],mu=yFitted[otLogical],
                                                       scale=scale*sqrt(yFitted[otLogical]), log=TRUE)),
+                                   "dgnorm"=switch(Etype,
+                                                  "A"=dgnorm(x=yInSample[otLogical], mu=yFitted[otLogical],
+                                                            alpha=scale, beta=lambda, log=TRUE),
+                                                  "M"=suppressWarnings(dgnorm(x=yInSample[otLogical], mu=yFitted[otLogical],
+                                                                              alpha=scale*yFitted[otLogical], beta=lambda,
+                                                                              log=TRUE))),
+                                   "dlogis"=switch(Etype,
+                                                   "A"=dlogis(x=yInSample[otLogical], location=yFitted[otLogical],
+                                                              scale=scale, log=TRUE),
+                                                   "M"=dlogis(x=yInSample[otLogical], location=yFitted[otLogical],
+                                                              scale=scale*yFitted[otLogical], log=TRUE)),
+                                   "dt"=switch(Etype,
+                                               "A"=dt(adamFitted$errors[otLogical], df=abs(lambda), log=TRUE),
+                                               "M"=dt(adamFitted$errors[otLogical]*yFitted[otLogical],
+                                                      df=abs(lambda), log=TRUE)),
                                    "dalaplace"=switch(Etype,
                                                       "A"=dalaplace(q=yInSample[otLogical], mu=yFitted[otLogical],
                                                                     scale=scale, alpha=lambda, log=TRUE),
@@ -6252,11 +6369,16 @@ pointLik.adam <- function(object, ...){
                                    "dlnorm"=dlnorm(x=yInSample[otLogical], meanlog=log(yFitted[otLogical]),
                                                    sdlog=scale, log=TRUE),
                                    "dllaplace"=dlaplace(q=log(yInSample[otLogical]), mu=log(yFitted[otLogical]),
-                                                        scale=scale, log=TRUE)-log(yInSample[otLogical]),
+                                                        scale=scale, log=TRUE),
                                    "dls"=ds(q=log(yInSample[otLogical]), mu=log(yFitted[otLogical]),
-                                            scale=scale, log=TRUE)-log(yInSample[otLogical]),
+                                            scale=scale, log=TRUE),
+                                   "dgnorm"=dgnorm(x=log(yInSample[otLogical]), mu=log(yFitted[otLogical]),
+                                                   alpha=scale, beta=lambda, log=TRUE),
                                    "dinvgauss"=dinvgauss(x=yInSample[otLogical], mean=yFitted[otLogical],
-                                                         dispersion=scale/yFitted[otLogical], log=TRUE))
+                                                         dispersion=scale/yFitted[otLogical], log=TRUE));
+    if(any(distribution==c("dllaplace","dls","dlgnorm"))){
+        likValues[otLogical] <- likValues[otLogical] - log(yInSample[otLogical]);
+    }
 
     # If this is a mixture model, take the respective probabilities into account (differential entropy)
     if(is.occurrence(object$occurrence)){
@@ -6271,6 +6393,8 @@ pointLik.adam <- function(object, ...){
                                                      log(sqrt(scale) * beta(scale/2,0.5))),
                                          "ds" =,
                                          "dls" = (2 + 2*log(2*scale)),
+                                         "dgnorm" =,
+                                         "dlgnorm" = 1/lambda-log(lambda/(2*scale*gamma(1/lambda))),
                                          "dinvgauss" = (0.5*(log(pi/2)+1+log(scale))));
 
         likValues[] <- likValues + pointLik(object$occurrence);
@@ -6302,8 +6426,8 @@ errorType.adam <- function(object, ...){
     model <- modelType(object);
     if(model=="NNN"){
         return(switch(object$distribution,
-                      "dnorm"=,"dlogis"=,"dlaplace"=,"dt"=,"ds"=,"dalaplace"="A",
-                      "dlnorm"=,"dllaplace"=,"dls"=,"dinvgauss"="M"));
+                      "dnorm"=,"dlaplace"=,"ds"=,"dgnorm"=,"dlogis"=,"dt"=,"dalaplace"="A",
+                      "dlnorm"=,"dllaplace"=,"dls"=,"dlgnorm"=,"dinvgauss"="M"));
     }
     else{
         return(substr(model,1,1));

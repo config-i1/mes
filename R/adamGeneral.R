@@ -1,7 +1,7 @@
 parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                               persistence, phi, initial,
-                              distribution=c("default","dnorm","dlogis","dlaplace","dt","ds","dalaplace",
-                                             "dlnorm","dllaplace","dls","dinvgauss"),
+                              distribution=c("default","dnorm","dlaplace","ds","dgnorm","dlogis","dt","dalaplace",
+                                             "dlnorm","dllaplace","dls","dlgnorm","dinvgauss"),
                               loss, h, holdout,occurrence,
                               ic=c("AICc","AIC","BIC","BICc"), bounds=c("traditional","admissible","none"),
                               xreg, xregDo, yName,
@@ -1167,7 +1167,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
 
         # If ETS is switched off, set error to whatever, based on the used distribution
         Etype[] <- switch(distribution,
-                          "dinvgauss"=,"dlnorm"=,"dllaplace"=,"dls"="M",
+                          "dinvgauss"=,"dlnorm"=,"dllaplace"=,"dls"=,"dlgnorm"="M",
                           "A");
     }
 
@@ -1347,9 +1347,13 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                     distribution <- "ds";
                     Etype <- "M";
                 }
+                else if(distribution=="dlgnorm"){
+                    distribution <- "dgnorm";
+                    Etype <- "M";
+                }
                 # Return the estimated model based on the provided xreg
                 if(is.null(formulaProvided)){
-                    if(Etype=="M" && any(distribution==c("dnorm","dlogis","dlaplace","dt","ds","dalaplace"))){
+                    if(Etype=="M" && any(distribution==c("dnorm","dlaplace","ds","dgnorm","dlogis","dt","dalaplace"))){
                         formulaProvided <- as.formula(paste0("log(`",responseName,"`)~."));
                     }
                     else{
@@ -1755,7 +1759,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         xregNumber <- 0;
         xregNames <- NULL;
         if(is.null(formulaProvided)){
-            if(Etype=="M" && any(distribution==c("dnorm","dlogis","dlaplace","dt","ds","dalaplace"))){
+            if(Etype=="M" && any(distribution==c("dnorm","dlaplace","ds","dgnorm","dlogis","dt","dalaplace"))){
                 formulaProvided <- as.formula(paste0("log(`",responseName,"`)~."));
             }
             else{
@@ -1840,7 +1844,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         }
     }
 
-    if(any(yInSample<=0) && any(distribution==c("dinvgauss","dlnorm","dls","dllaplace"))){
+    if(any(yInSample<=0) && any(distribution==c("dinvgauss","dlnorm","dllaplace","dls","dlgnorm"))){
         warning(paste0("You have non-positive values in the data. ",
                        "The distribution ",distribution," does not support that. ",
                        "This might lead to problems in the estimation."),
@@ -2246,15 +2250,21 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     else{
         B <- ellipsis$B;
     }
-    # Additional parameter for dalaplace, LASSO and dt
+    # Additional parameter for dalaplace, dt, dgnorm, dlgnorm and LASSO
     if(is.null(ellipsis$lambda)){
-        if(loss=="likelihood" && any(distribution==c("dt","dalaplace"))){
+        if(loss=="likelihood" && any(distribution==c("dt","dalaplace","dgnorm","dlgnorm"))){
             lambdaEstimate <- TRUE;
+            if(distribution=="dalaplace"){
+                lambda <- 0.5;
+            }
+            else{
+                lambda <- 2;
+            }
         }
         else{
             lambdaEstimate <- FALSE;
+            lambda <- 0.5;
         }
-        lambda <- 0.5;
     }
     else{
         lambdaEstimate <- FALSE;

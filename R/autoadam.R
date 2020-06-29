@@ -10,8 +10,8 @@
 #' @rdname adam
 #' @export
 auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0),ma=c(0),select=FALSE),
-                      distribution=c("dnorm","dlogis","dlaplace","ds",
-                                     "dlnorm","dllaplace","dls","dinvgauss"),
+                      distribution=c("dnorm","dlaplace","ds","dgnorm",
+                                     "dlnorm","dllaplace","dls","dlgnorm","dinvgauss"),
                       h=0, holdout=FALSE,
                       persistence=NULL, phi=NULL, initial=c("optimal","backcasting"), arma=NULL,
                       occurrence=c("none","auto","fixed","general","odds-ratio","inverse-odds-ratio","direct"),

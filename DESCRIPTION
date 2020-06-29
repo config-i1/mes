@@ -26,6 +26,7 @@ Imports:
     utils,
     pracma,
     statmod,
+    gnorm (>=1.0.1),
     zoo
 LinkingTo: Rcpp, RcppArmadillo (>= 0.8.100.0.0)
 Suggests:
