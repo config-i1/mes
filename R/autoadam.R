@@ -3,7 +3,8 @@
 #' WARNING! Packages \code{foreach} and either \code{doMC} (Linux and Mac only)
 #' or \code{doParallel} are needed in order to run the function in parallel.
 #' @param fast If \code{TRUE}, then some of the orders of ARIMA are
-#' skipped in the order selection. This is not advised for models with \code{lags} greater than 12.#'
+#' skipped in the order selection. This is not advised for models with \code{lags} greater than 12.
+#'
 #' @examples
 #' ourModel <- auto.adam(rnorm(100,100,10), model="ZZN", lags=c(1,4), orders=list(ar=c(2,2),ma=c(2,2),select=TRUE))
 #'
