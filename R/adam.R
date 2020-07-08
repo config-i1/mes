@@ -3059,7 +3059,9 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             armaParametersList <- NULL;
         }
 
-        scale <- scaler(distribution, Etype, errors[otLogical], yFitted[otLogical], obsInSample, lambda);
+        # which() is needed in order to overcome weird behaviour of zoo
+        scale <- scaler(distribution, Etype, errors[which(otLogical)], yFitted[which(otLogical)], obsInSample, lambda);
+
         # Amend the class of state matrix
         if(any(yClasses=="ts")){
             matVt <- ts(t(matVt), start=(time(y)[1]-deltat(y)*lagsModelMax), frequency=yFrequency);
