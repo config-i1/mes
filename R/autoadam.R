@@ -59,61 +59,33 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
         y <- ts(c(y$x,y$xx),start=start(y$x),frequency=frequency(y$x));
     }
 
-    # Extract index from the object in order to use it later
-    ### tsibble has its own index function, so shit happens becaus of it...
-    if(inherits(y,"tbl_ts")){
-        yIndex <- y[[1]];
-        if(any(duplicated(yIndex))){
-            warning(paste0("You have duplicated time stamps in the variable ",responseName,
-                           ". We will refactor this."),call.=FALSE);
-            yIndex <- yIndex[1] + c(1:length(y[[1]])) * diff(tail(yIndex,2));
-        }
+    # If this is a vector, use length
+    if(is.null(dim(y))){
+        obsInSample <- length(y) - holdout*h;
     }
     else{
-        yIndex <- try(time(y),silent=TRUE);
-        # If we cannot extract time, do something
-        if(inherits(yIndex,"try-error")){
-            if(!is.null(dim(y))){
-                yIndex <- as.POSIXct(rownames(y));
-            }
-            else{
-                yIndex <- c(1:length(y));
-            }
-        }
-    }
-    yClasses <- class(y);
-
-    # If this is something like a matrix
-    if(!is.null(ncol(y))){
-        # If we deal with data.table / tibble / data.frame, the syntax is different.
-        # We don't want to import specific classes, so just use inherits()
-        if(inherits(y,"tbl_ts")){
-            # With tsibble we cannot extract explanatory variables easily...
-            y <- y$value;
-        }
-        else if(inherits(y,"data.table") || inherits(y,"tbl") || inherits(y,"data.frame")){
-            if(ncol(y)>1){
-                xreg <- y[,-1];
-            }
-            y <- y[[1]];
-        }
-        else if(inherits(y,"zoo")){
-            if(ncol(y)>1){
-                xreg <- as.data.frame(y[,-1]);
-            }
-            y <- zoo(y[,1],order.by=time(y));
-        }
-        else{
-            if(ncol(y)>1){
-                xreg <- y[,-1];
-            }
-            y <- y[,1];
-        }
+        obsInSample <- nrow(y) - holdout*h;
     }
 
-    #### Create logical, determining, what we are dealing with
+    #### Create logical, determining, what we are dealing with ####
     # ETS
     etsModel <- all(model!="NNN");
+    # These values are needed for number of degrees of freedom check
+    Etype <- substr(model,1,1);
+    Ttype <- substr(model,2,2);
+    Stype <- substr(model,nchar(model),nchar(model));
+    damped <- (nchar(model)==4);
+    if(length(Etype)>1){
+        Etype <- "Z";
+    }
+    if(length(Ttype)>1){
+        Ttype <- "Z";
+        damped <- TRUE;
+    }
+    if(length(Stype)>1){
+        Stype <- "Z";
+    }
+
     # ARIMA + ARIMA select
     if(is.list(orders)){
         arimaModel <- any(c(orders$ar,orders$i,orders$ma)>0);
@@ -121,6 +93,20 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
     else{
         arimaModel <- any(orders>0);
     }
+
+    # xreg - either as a separate variable or as a matrix for y
+    xregModel <- !is.null(xreg) || (!is.null(dim(y)) && ncol(y>1));
+    xregNumber <- 0;
+    if(xregModel){
+        if(!is.null(xreg)){
+            xregNumber[] <- ncol(xreg);
+        }
+        else if(!is.null(dim(y)) && ncol(y>1)){
+            xregNumber[] <- ncol(y)-1;
+        }
+    }
+    xregDo <- match.arg(xregDo);
+
     #### Checks of provided parameters for ARIMA selection ####
     if(arimaModel && is.list(orders)){
         arimaModelSelect <- orders$select;
@@ -193,14 +179,80 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
         iMax <- iMax[order(lags,decreasing=FALSE)];
         maMax <- maMax[order(lags,decreasing=FALSE)];
         lags <- sort(lags,decreasing=FALSE);
+        initialArimaNumber <- max((arMax + iMax) %*% lags, maMax %*% lags);
     }
     else{
         arMax <- iMax <- maMax <- NULL;
         arimaModelSelect <- FALSE;
+        initialArimaNumber <- 0;
     }
-    # xreg - either as a separate variable or as a matrix for y
-    xregModel <- !is.null(xreg) || (!is.null(dim(y)) && ncol(y>0));
 
+    #### Maximum number of parameters to estimate ####
+    nParamMax <- (1 +
+                      # ETS model
+                      etsModel*((Etype!="N") + (Ttype!="N") + (Stype!="N")*length(lags) + damped +
+                                    (initial=="optimal") * ((Etype!="N") + (Ttype!="N") + (Stype!="N")*sum(lags))) +
+                      # ARIMA components: initials + parameters
+                      arimaModel*((initial=="optimal")*initialArimaNumber + sum(arMax) + sum(maMax)) +
+                      # Xreg initials and smoothing parameters
+                      xregModel*(xregNumber*(1+xregDo=="adapt")));
+
+    # Do something in order to make sure that the stuff works
+    if((nParamMax > obsInSample) && arimaModelSelect){
+        # If this is ARIMA, remove some orders
+        if(arimaModel){
+            nParamMaxNonARIMA <- nParamMax - ((initial=="optimal")*initialArimaNumber + sum(arMax) + sum(maMax));
+            if(obsInSample > nParamMaxNonARIMA){
+                # Drop out some ARIMA orders, start with seasonal
+                # Reduce maximum order of AR
+                while(nParamMax > obsInSample){
+                    arimaTail <- max(tail(which(arMax!=0),1),tail(which(iMax!=0),1),tail(which(maMax!=0),1));
+                    if(arMax[arimaTail]>0){
+                        arMax[arimaTail] <- arMax[arimaTail]-1;
+                        initialArimaNumber[] <- max((arMax + iMax) %*% lags, maMax %*% lags);
+                        nParamMax[] <- (1 +
+                                            # ETS model
+                                            etsModel*((Etype!="N") + (Ttype!="N") + (Stype!="N")*length(lags) + damped +
+                                                          (initial=="optimal") * ((Etype!="N") + (Ttype!="N") + (Stype!="N")*sum(lags))) +
+                                            # ARIMA components: initials + parameters
+                                            arimaModel*((initial=="optimal")*initialArimaNumber + sum(arMax) + sum(maMax)) +
+                                            # Xreg initials and smoothing parameters
+                                            xregModel*(xregNumber*(1+xregDo=="adapt")));
+                    }
+
+                    # Reduce maximum order of I
+                    if(nParamMax > obsInSample && iMax[arimaTail]>0){
+                        iMax[arimaTail] <- iMax[arimaTail]-1;
+                        initialArimaNumber[] <- max((arMax + iMax) %*% lags, maMax %*% lags);
+                        nParamMax[] <- (1 +
+                                            # ETS model
+                                            etsModel*((Etype!="N") + (Ttype!="N") + (Stype!="N")*length(lags) + damped +
+                                                          (initial=="optimal") * ((Etype!="N") + (Ttype!="N") + (Stype!="N")*sum(lags))) +
+                                            # ARIMA components: initials + parameters
+                                            arimaModel*((initial=="optimal")*initialArimaNumber + sum(arMax) + sum(maMax)) +
+                                            # Xreg initials and smoothing parameters
+                                            xregModel*(xregNumber*(1+xregDo=="adapt")));
+                    }
+
+                    # Reduce maximum order of MA
+                    if(nParamMax > obsInSample && maMax[arimaTail]>0){
+                        maMax[arimaTail] <- maMax[arimaTail]-1;
+                        initialArimaNumber[] <- max((arMax + iMax) %*% lags, maMax %*% lags);
+                        nParamMax[] <- (1 +
+                                            # ETS model
+                                            etsModel*((Etype!="N") + (Ttype!="N") + (Stype!="N")*length(lags) + damped +
+                                                          (initial=="optimal") * ((Etype!="N") + (Ttype!="N") + (Stype!="N")*sum(lags))) +
+                                            # ARIMA components: initials + parameters
+                                            arimaModel*((initial=="optimal")*initialArimaNumber + sum(arMax) + sum(maMax)) +
+                                            # Xreg initials and smoothing parameters
+                                            xregModel*(xregNumber*(1+xregDo=="adapt")));
+                    }
+                }
+            }
+        }
+    }
+
+    #### Parallel calculations ####
     # Check the parallel parameter and set the number of cores
     if(is.numeric(parallel)){
         nCores <- parallel;
