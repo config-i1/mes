@@ -195,7 +195,7 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
                       # ARIMA components: initials + parameters
                       arimaModel*((initial=="optimal")*initialArimaNumber + sum(arMax) + sum(maMax)) +
                       # Xreg initials and smoothing parameters
-                      xregModel*(xregNumber*(1+xregDo=="adapt")));
+                      xregModel*(xregNumber*(1+(xregDo=="adapt"))));
 
     # Do something in order to make sure that the stuff works
     if((nParamMax > obsInSample) && arimaModelSelect){
@@ -217,7 +217,7 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
                                             # ARIMA components: initials + parameters
                                             arimaModel*((initial=="optimal")*initialArimaNumber + sum(arMax) + sum(maMax)) +
                                             # Xreg initials and smoothing parameters
-                                            xregModel*(xregNumber*(1+xregDo=="adapt")));
+                                            xregModel*(xregNumber*(1+(xregDo=="adapt"))));
                     }
 
                     # Reduce maximum order of I
@@ -231,7 +231,7 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
                                             # ARIMA components: initials + parameters
                                             arimaModel*((initial=="optimal")*initialArimaNumber + sum(arMax) + sum(maMax)) +
                                             # Xreg initials and smoothing parameters
-                                            xregModel*(xregNumber*(1+xregDo=="adapt")));
+                                            xregModel*(xregNumber*(1+(xregDo=="adapt"))));
                     }
 
                     # Reduce maximum order of MA
@@ -245,7 +245,7 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
                                             # ARIMA components: initials + parameters
                                             arimaModel*((initial=="optimal")*initialArimaNumber + sum(arMax) + sum(maMax)) +
                                             # Xreg initials and smoothing parameters
-                                            xregModel*(xregNumber*(1+xregDo=="adapt")));
+                                            xregModel*(xregNumber*(1+(xregDo=="adapt"))));
                     }
                 }
             }
