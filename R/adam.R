@@ -1702,8 +1702,9 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         if(lambdaEstimate){
             # Take absolute value, just to be on safe side. We don't need negatives anyway.
             lambda[] <- abs(B[length(B)]);
-            if(any(distribution==c("dgnorm","dlgnorm")) && lambda==0){
-                return(1E+100);
+            # Lambda is restricted by 0.1 if it is optimised.
+            if(any(distribution==c("dgnorm","dlgnorm")) && lambda<0.1){
+                return(1E+10/lambda);
             }
         }
 
@@ -2846,9 +2847,9 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             list2env(adamElements, environment());
         }
 
-        # Write down lambda
+        # Write down lambda. It is always positive, so take abs
         if(lambdaEstimate){
-            lambda[] <- tail(B,1);
+            lambda[] <- abs(tail(B,1));
         }
 
         # Write down phi
