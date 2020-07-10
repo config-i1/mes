@@ -1898,22 +1898,46 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
             componentsNamesARIMA <- NULL;
             initialArimaNumber <- componentsNumberARIMA <- 0;
             lagsModelMax <- max(lagsModelAll);
-
-            nParamMax[] <- (1 +
-                                # ETS model
-                                etsModel*(persistenceLevelEstimate + modelIsTrendy*persistenceTrendEstimate +
-                                              modelIsSeasonal*sum(persistenceSeasonalEstimate) +
-                                              phiEstimate + (initialType=="optimal") *
-                                              (initialLevelEstimate + initialTrendEstimate + sum(initialSeasonalEstimate))) +
-                                # Xreg initials and smoothing parameters
-                                xregModel*(xregNumber*(initialXregEstimate+persistenceXregEstimate)));
         }
         else if(arimaModel && !etsModel){
-            stop(paste0("The number of parameter to estimate is ",nParamMax,
-                        ", while the number of observations is ",obsNonzero,
-                        ". Cannot proceed."), call.=FALSE);
+            # If the backacasting helps, switch to it.
+            if(initialType=="optimal" && (obsNonzero > (nParamMax - (initialType=="optimal")*initialArimaNumber))){
+                warning(paste0("The number of parameter to estimate is ",nParamMax,
+                            ", while the number of observations is ",obsNonzero,
+                            ". Switching initial to 'backcasting' to save some degrees of freedom."), call.=FALSE);
+                initialType <- "backcasting";
+            }
+            else{
+                warning(paste0("The number of parameter to estimate is ",nParamMax,
+                               ", while the number of observations is ",obsNonzero,
+                               ". Switching to ARIMA(0,1,1) model."), call.=FALSE);
+                # Add ARIMA(0,1,1) lags
+                lagsModelAll <- matrix(1,1,1);
+                arRequired <- FALSE;
+                iRequired <- maRequired <- arimaModel <- TRUE;
+                arOrders <- 0;
+                iOrders <- maOrders <- 1;
+                nonZeroARI <- nonZeroMA <- matrix(c(2,1),1,2);
+                lagsModelARIMA <- matrix(1,1,1);
+                componentsNamesARIMA <- 1;
+                initialArimaNumber <- componentsNumberARIMA <- 1;
+                lagsModelMax <- max(lagsModelAll);
+            }
         }
     }
+
+    # Recalculate the number of parameters
+    nParamMax[] <- (1 +
+                        # ETS model
+                        etsModel*(persistenceLevelEstimate + modelIsTrendy*persistenceTrendEstimate +
+                                      modelIsSeasonal*sum(persistenceSeasonalEstimate) +
+                                      phiEstimate + (initialType=="optimal") *
+                                      (initialLevelEstimate + initialTrendEstimate + sum(initialSeasonalEstimate*lagsModelSeasonal))) +
+                        # ARIMA components: initials + parameters
+                        arimaModel*((initialType=="optimal")*initialArimaNumber +
+                                        arRequired*arEstimate*sum(arOrders) + maRequired*maEstimate*sum(maOrders)) +
+                        # Xreg initials and smoothing parameters
+                        xregModel*(xregNumber*(initialXregEstimate+persistenceXregEstimate)));
 
     # If the sample is still smaller than the number of parameters (even after removing ARIMA)
     if(etsModel){
