@@ -1702,8 +1702,8 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
         if(lambdaEstimate){
             # Take absolute value, just to be on safe side. We don't need negatives anyway.
             lambda[] <- abs(B[length(B)]);
-            # Lambda is restricted by 0.1 if it is optimised.
-            if(any(distribution==c("dgnorm","dlgnorm")) && lambda<0.1){
+            # Lambda is restricted by 0.25 if it is optimised.
+            if(any(distribution==c("dgnorm","dlgnorm")) && lambda<0.25){
                 return(1E+10/lambda);
             }
         }
