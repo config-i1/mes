@@ -7,9 +7,9 @@
 \usage{
 adam(y, model = "ZXZ", lags = c(1, frequency(y)), orders = list(ar =
   c(0), i = c(0), ma = c(0)), formula = NULL, distribution = c("default",
-  "dnorm", "dlogis", "dlaplace", "dt", "ds", "dalaplace", "dlnorm",
-  "dllaplace", "dls", "dinvgauss"), loss = c("likelihood", "MSE", "MAE",
-  "HAM", "LASSO", "RIDGE", "MSEh", "TMSE", "GTMSE", "MSCE"), h = 0,
+  "dnorm", "dlaplace", "ds", "dgnorm", "dlogis", "dt", "dalaplace", "dlnorm",
+  "dllaplace", "dls", "dlgnorm", "dinvgauss"), loss = c("likelihood", "MSE",
+  "MAE", "HAM", "LASSO", "RIDGE", "MSEh", "TMSE", "GTMSE", "MSCE"), h = 0,
   holdout = FALSE, persistence = NULL, phi = NULL,
   initial = c("optimal", "backcasting"), arma = NULL,
   occurrence = c("none", "auto", "fixed", "general", "odds-ratio",
@@ -19,8 +19,8 @@ adam(y, model = "ZXZ", lags = c(1, frequency(y)), orders = list(ar =
 
 auto.adam(y, model = "ZXZ", lags = c(frequency(y)), orders = list(ar =
   c(0), i = c(0), ma = c(0), select = FALSE), distribution = c("dnorm",
-  "dlogis", "dlaplace", "ds", "dlnorm", "dllaplace", "dls", "dinvgauss"),
-  h = 0, holdout = FALSE, persistence = NULL, phi = NULL,
+  "dlaplace", "ds", "dlnorm", "dllaplace", "dls", "dinvgauss"), h = 0,
+  holdout = FALSE, persistence = NULL, phi = NULL,
   initial = c("optimal", "backcasting"), arma = NULL,
   occurrence = c("none", "auto", "fixed", "general", "odds-ratio",
   "inverse-odds-ratio", "direct"), ic = c("AICc", "AIC", "BIC", "BICc"),
@@ -246,7 +246,7 @@ WARNING! Packages \code{foreach} and either \code{doMC} (Linux and Mac only)
 or \code{doParallel} are needed in order to run the function in parallel.}
 
 \item{fast}{If \code{TRUE}, then some of the orders of ARIMA are
-skipped in the order selection. This is not advised for models with \code{lags} greater than 12.#'}
+skipped in the order selection. This is not advised for models with \code{lags} greater than 12.}
 }
 \value{
 Object of class "adam" is returned. It contains the list of the
@@ -316,14 +316,16 @@ are regulated via the \code{distribution} parameter. This includes:
 \item \code{default} - Normal distribution is used for the Additive error models,
 Inverse Gaussian is used for the Multiplicative error models.
 \item \link[stats]{dnorm} - Normal distribution,
-\item \link[stats]{dlogis} - Logistic Distribution,
 \item \link[greybox]{dlaplace} - Laplace distribution,
+\item \link[greybox]{ds} - S distribution,
+\item \link[gnorm]{dgnorm} - Generalised Normal distribution,
+\item \link[stats]{dlogis} - Logistic Distribution,
+\item \link[stats]{dt} - T distribution,
 \item \link[greybox]{dalaplace} - Asymmetric Laplace distribution,
-\item \link[stats]{dt} - T-distribution,
-\item \link[greybox]{ds} - S-distribution,
 \item \link[stats]{dlnorm} - Log normal distribution,
 \item dllaplace - Log Laplace distribution,
-\item ds - Log S distribution,
+\item dls - Log S distribution,
+\item dlgnorm - Log Generalised Normal distribution,
 \item \link[statmod]{dinvgauss} - Inverse Gaussian distribution,
 }
 
