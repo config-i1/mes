@@ -231,7 +231,7 @@
 #' You can also pass parameters to the optimiser in order to fine tune its work:
 #' \itemize{
 #' \item \code{maxeval} - maximum number of evaluations to carry out (default is 20 per
-#' estimated paramaeter). In case of pure ARIMA, by default this cannot be less than 1000;
+#' estimated paramaeter);
 #' \item \code{maxtime} - stop, when the optimisation time (in seconds) exceeds this;
 #' \item \code{xtol_rel} - the relative precision of the optimiser (the default is 1E-6);
 #' \item \code{xtol_abs} - the absolute precision of the optimiser (the default is 1E-8);
@@ -240,7 +240,7 @@
 #' \item \code{ftol_abs} - the stopping criterion in case of the absolute change in the loss
 #' function (the default is 0 - not used);
 #' \item \code{algorithm} - the algorithm to use in optimisation
-#' (\code{"NLOPT_LN_SBPLX"} by default);
+#' (by default, \code{"NLOPT_LN_SBPLX"} is used);
 #' \item \code{print_level} - the level of output for the optimiser (0 by default).
 #' If equal to 41, then the detailed results of the optimisation are returned.
 #' }
@@ -1027,6 +1027,11 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
 
                 # If this is just ARIMA with optimisation, refine the initials
                 if(!etsModel && initialType!="backcasting"){
+                    # This is needed in order to make the initial components more realistic
+                    # matVt[1:componentsNumberARIMA,
+                    #       1:lagsModelARIMA[componentsNumberARIMA]+(lagsModelMax-lagsModelARIMA[componentsNumberARIMA])] <-
+                    #     (yInSample[lagsModelMax:1]);
+
                     arimaPolynomials <- polynomialiser(rep(0.1,sum(c(arOrders,maOrders))), arOrders, iOrders, maOrders,
                                                        arRequired, maRequired, arEstimate, maEstimate, armaParameters, lags);
                     if(nrow(nonZeroARI)>0 && nrow(nonZeroARI)>=nrow(nonZeroMA)){
@@ -1517,7 +1522,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                         j[] <- j + arOrders[i];
                     }
                     if(maRequired && maEstimate && maOrders[i]>0){
-                        B[j+c(1:maOrders[i])] <- rep(0.1,maOrders[i]);
+                        B[j+c(1:maOrders[i])] <- rep(-0.1,maOrders[i]);
                         Bl[j+c(1:maOrders[i])] <- -5;
                         Bu[j+c(1:maOrders[i])] <- 5;
                         names(B)[j+1:maOrders[i]] <- paste0("theta",1:maOrders[i],"[",lags[i],"]");
@@ -1634,7 +1639,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
     scaler <- function(distribution, Etype, errors, yFitted, obsInSample, lambda){
         # as.complex() is needed in order to make the optimiser work in exotic cases
         scale <- switch(distribution,
-                        "dnorm"=,
+                        "dnorm"=sqrt(sum(errors^2)/obsInSample),
                         "dlaplace"=sum(abs(errors))/obsInSample,
                         "ds"=sum(sqrt(abs(errors))) / (obsInSample*2),
                         "dgnorm"=(lambda*sum(abs(errors)^lambda)/obsInSample)^{1/lambda},
@@ -2017,6 +2022,11 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                           "MAE"=switch(Etype,"A"="dlaplace","M"="dllaplace"),
                                           "HAM"=switch(Etype,"A"="ds","M"="dls"),
                                           distribution);
+
+                lossNew <- switch(loss,
+                                  "MSE"=,"MAE"=,"HAM"="likelihood",
+                                  loss)
+
                 # bounds="none" switches off the checks of parameters.
                 logLikReturn <- -CF(B,
                                     etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal, yInSample,
@@ -2033,7 +2043,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                     arimaModel, nonZeroARI, nonZeroMA, arEstimate, maEstimate, arimaPolynomials,
                                     arOrders, iOrders, maOrders, arRequired, maRequired, armaParameters,
                                     xregModel, xregNumber,
-                                    bounds="none", loss, lossFunction, distribution,
+                                    bounds="none", lossNew, lossFunction, distributionNew,
                                     horizon, multisteps, lambda, lambdaEstimate,
                                     arPolynomialMatrix, maPolynomialMatrix);
 
@@ -2319,7 +2329,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             }
             # print(B)
             res <- suppressWarnings(nloptr(B, CF, lb=lb, ub=ub,
-                                           opts=list(algorithm=algorithm, xtol_rel=xtol_rel,
+                                           opts=list(algorithm="NLOPT_LN_SBPLX", xtol_rel=xtol_rel,
                                                      ftol_rel=ftol_rel, ftol_abs=ftol_abs,
                                                      maxeval=maxeval, maxtime=maxtime, print_level=print_level),
                                            etsModel=etsModel, Etype=Etype, Ttype=Ttype, Stype=Stype, modelIsTrendy=modelIsTrendy,

@@ -223,7 +223,7 @@ to the number of parameters to estimate in the following order:
 You can also pass parameters to the optimiser in order to fine tune its work:
 \itemize{
 \item \code{maxeval} - maximum number of evaluations to carry out (default is 20 per
-estimated paramaeter). In case of pure ARIMA, by default this cannot be less than 1000;
+estimated paramaeter);
 \item \code{maxtime} - stop, when the optimisation time (in seconds) exceeds this;
 \item \code{xtol_rel} - the relative precision of the optimiser (the default is 1E-6);
 \item \code{xtol_abs} - the absolute precision of the optimiser (the default is 1E-8);
@@ -232,7 +232,7 @@ function (the default is 1E-4);
 \item \code{ftol_abs} - the stopping criterion in case of the absolute change in the loss
 function (the default is 0 - not used);
 \item \code{algorithm} - the algorithm to use in optimisation
-(\code{"NLOPT_LN_SBPLX"} by default);
+(by default, \code{"NLOPT_LN_SBPLX"} is used);
 \item \code{print_level} - the level of output for the optimiser (0 by default).
 If equal to 41, then the detailed results of the optimisation are returned.
 }

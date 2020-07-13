@@ -2190,9 +2190,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     # Parameters for the optimiser
     if(is.null(ellipsis$maxeval)){
         maxeval <- nParamMax * 20;
-        if(arimaModel && !etsModel){
-            maxeval <- max(1000,maxeval);
-        }
+        # if(arimaModel && !etsModel){
+        #     maxeval <- max(1000,maxeval);
+        # }
         # else{
         #     maxeval <- 200;
         # }
@@ -2239,8 +2239,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         ftol_abs <- ellipsis$ftol_abs;
     }
     if(is.null(ellipsis$algorithm)){
-        # if(xregModel){
-        #     algorithm <- "NLOPT_LN_NELDERMEAD";
+        # if(arimaModel){
+        #     algorithm <- "NLOPT_LN_BOBYQA";
         # }
         # else{
             algorithm <- "NLOPT_LN_SBPLX";
