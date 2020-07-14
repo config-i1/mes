@@ -1028,9 +1028,9 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 # If this is just ARIMA with optimisation, refine the initials
                 if(!etsModel && initialType!="backcasting"){
                     # This is needed in order to make the initial components more realistic
-                    matVt[1:componentsNumberARIMA,
-                          1:lagsModelARIMA[componentsNumberARIMA]+(lagsModelMax-lagsModelARIMA[componentsNumberARIMA])] <-
-                        yInSample[lagsModelMax:1];
+                    # matVt[1:componentsNumberARIMA,
+                    #       1:lagsModelARIMA[componentsNumberARIMA]+(lagsModelMax-lagsModelARIMA[componentsNumberARIMA])] <-
+                    #     yInSample[lagsModelMax:1];
 
                     arimaPolynomials <- polynomialiser(rep(0.1,sum(c(arOrders,maOrders))), arOrders, iOrders, maOrders,
                                                        arRequired, maRequired, arEstimate, maEstimate, armaParameters, lags);
