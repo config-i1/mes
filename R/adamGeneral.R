@@ -2315,7 +2315,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         modelDo <- "use";
     }
 
-    # If there is no model, stop
+    # If there is no model, return a constant level
     if(!etsModel && !arimaModel && !xregModel){
         etsModel <- TRUE;
         modelsPool <- NULL;
@@ -2328,7 +2328,9 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         if(is.null(B)){
             modelDo <- "estimate";
         }
-        Etype <- "A";
+        Etype <- switch(distribution,
+                        "default"=,"dnorm"=,"dlaplace"=,"ds"=,"dgnorm"=,"dlogis"=,"dt"=,"dalaplace"="A",
+                        "dlnorm"=,"dllaplace"=,"dls"=,"dlgnorm"=,"dinvgauss"="M");
         Ttype <- "N";
         Stype <- "N";
         phiEstimate <- FALSE;
