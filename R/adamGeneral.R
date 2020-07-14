@@ -119,7 +119,8 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     }
 
     # If this is just a numeric variable, use ts class
-    if(all(yClasses=="integer") || all(yClasses=="data.frame") || all(yClasses=="matrix")){
+    if(all(yClasses=="integer") || all(yClasses=="numeric") ||
+       all(yClasses=="data.frame") || all(yClasses=="matrix")){
         if(any(class(yIndex) %in% c("POSIXct","Date"))){
             yClasses <- "zoo";
         }
