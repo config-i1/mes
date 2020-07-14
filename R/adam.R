@@ -1030,7 +1030,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                     # This is needed in order to make the initial components more realistic
                     # matVt[1:componentsNumberARIMA,
                     #       1:lagsModelARIMA[componentsNumberARIMA]+(lagsModelMax-lagsModelARIMA[componentsNumberARIMA])] <-
-                    #     (yInSample[lagsModelMax:1]);
+                    #     yInSample[lagsModelMax:1];
 
                     arimaPolynomials <- polynomialiser(rep(0.1,sum(c(arOrders,maOrders))), arOrders, iOrders, maOrders,
                                                        arRequired, maRequired, arEstimate, maEstimate, armaParameters, lags);
@@ -1522,7 +1522,7 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                         j[] <- j + arOrders[i];
                     }
                     if(maRequired && maEstimate && maOrders[i]>0){
-                        B[j+c(1:maOrders[i])] <- rep(-0.1,maOrders[i]);
+                        B[j+c(1:maOrders[i])] <- rep(0.1,maOrders[i]);
                         Bl[j+c(1:maOrders[i])] <- -5;
                         Bu[j+c(1:maOrders[i])] <- 5;
                         names(B)[j+1:maOrders[i]] <- paste0("theta",1:maOrders[i],"[",lags[i],"]");
@@ -2212,12 +2212,12 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                                          lagsModelAll, Etype, Ttype, Stype, componentsNumberETS, componentsNumberETSSeasonal,
                                          componentsNumberARIMA, xregNumber, yInSample, ot, TRUE);
 
-            adamCreated$matVt[,1:lagsModelMax] <- adamFitted$matVt[,1:lagsModelMax];
+            adamElements$matVt[,1:lagsModelMax] <- adamFitted$matVt[,1:lagsModelMax];
             # Produce new initials
             BValuesNew <- initialiser(etsModel, Etype, Ttype, Stype, modelIsTrendy, modelIsSeasonal,
                                       componentsNumberETSNonSeasonal, componentsNumberETSSeasonal, componentsNumberETS,
                                       lags, lagsModel, lagsModelSeasonal, lagsModelARIMA, lagsModelMax,
-                                      adamCreated$matVt,
+                                      adamElements$matVt,
                                       persistenceEstimate, persistenceLevelEstimate, persistenceTrendEstimate,
                                       persistenceSeasonalEstimate, persistenceXregEstimate,
                                       phiEstimate, initialType, initialEstimate,
