@@ -34,7 +34,6 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
     else{
         modelDo <- "select";
     }
-    nModels <- length(distribution);
 
     ic <- match.arg(ic,c("AICc","AIC","BIC","BICc"));
     ICFunction <- switch(ic,
@@ -66,6 +65,16 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
     else{
         obsInSample <- nrow(y) - holdout*h;
     }
+
+    # If this is non-positive data and positive defined distributions are used, fix this
+    if(any(y[1:obsInSample]<=0) && any(c("dlnorm","dllaplace","dls","dinvgauss") %in% distribution)){
+        distributionToDrop <- c("dlnorm","dllaplace","dls","dinvgauss")[c("dlnorm","dllaplace","dls","dinvgauss") %in% distribution];
+        warning(paste0("The data is not strictly positive, so not all the distributions make sense. ",
+                       "Dropping ",paste0(distributionToDrop,collapse=", "),"."),
+                call.=FALSE);
+        distribution <- distribution[!(distribution %in% distributionToDrop)];
+    }
+    nModels <- length(distribution);
 
     #### Create logical, determining, what we are dealing with ####
     # ETS
