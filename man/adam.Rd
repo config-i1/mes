@@ -18,9 +18,9 @@ adam(y, model = "ZXZ", lags = c(1, frequency(y)), orders = list(ar =
   xregDo = c("use", "select", "adapt"), silent = TRUE, ...)
 
 auto.adam(y, model = "ZXZ", lags = c(frequency(y)), orders = list(ar =
-  c(0), i = c(0), ma = c(0), select = FALSE), distribution = c("dnorm",
-  "dlaplace", "ds", "dlnorm", "dllaplace", "dls", "dinvgauss"), h = 0,
-  holdout = FALSE, persistence = NULL, phi = NULL,
+  c(0), i = c(0), ma = c(0), select = FALSE), formula = NULL,
+  distribution = c("dnorm", "dlaplace", "ds", "dlnorm", "dllaplace", "dls",
+  "dinvgauss"), h = 0, holdout = FALSE, persistence = NULL, phi = NULL,
   initial = c("optimal", "backcasting"), arma = NULL,
   occurrence = c("none", "auto", "fixed", "general", "odds-ratio",
   "inverse-odds-ratio", "direct"), ic = c("AICc", "AIC", "BIC", "BICc"),

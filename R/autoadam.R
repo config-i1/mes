@@ -11,6 +11,7 @@
 #' @rdname adam
 #' @export
 auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0),ma=c(0),select=FALSE),
+                      formula=NULL,
                       distribution=c("dnorm","dlaplace","ds",
                                      "dlnorm","dllaplace","dls","dinvgauss"),
                       h=0, holdout=FALSE,
@@ -59,15 +60,23 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
     }
 
     # If this is a vector, use length
+    # yInSample is needed for checks only
     if(is.null(dim(y))){
         obsInSample <- length(y) - holdout*h;
+        yInSample <- y[1:obsInSample];
     }
     else{
         obsInSample <- nrow(y) - holdout*h;
+        if(!is.null(formula)){
+            yInSample <- y[1:obsInSample,formula[[2]]];
+        }
+        else{
+            yInSample <- y[1:obsInSample,1];
+        }
     }
 
     # If this is non-positive data and positive defined distributions are used, fix this
-    if(any(y[1:obsInSample]<=0) && any(c("dlnorm","dllaplace","dls","dinvgauss") %in% distribution)){
+    if(any(yInSample<=0) && any(c("dlnorm","dllaplace","dls","dinvgauss") %in% distribution)){
         distributionToDrop <- c("dlnorm","dllaplace","dls","dinvgauss")[c("dlnorm","dllaplace","dls","dinvgauss") %in% distribution];
         warning(paste0("The data is not strictly positive, so not all the distributions make sense. ",
                        "Dropping ",paste0(distributionToDrop,collapse=", "),"."),
