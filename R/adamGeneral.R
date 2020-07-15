@@ -1845,7 +1845,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         }
     }
 
-    if(any(yInSample<=0) && any(distribution==c("dinvgauss","dlnorm","dllaplace","dls","dlgnorm"))){
+    if(any(yInSample<=0) && any(distribution==c("dinvgauss","dlnorm","dllaplace","dls","dlgnorm")) && !occurrenceModel){
         warning(paste0("You have non-positive values in the data. ",
                        "The distribution ",distribution," does not support that. ",
                        "This might lead to problems in the estimation."),
