@@ -4600,14 +4600,14 @@ print.adam <- function(x, digits=4, ...){
                       "dnorm" = "Normal",
                       "dlaplace" = "Laplace",
                       "ds" = "S",
-                      "dgnorm" = "Generalised Normal",
+                      "dgnorm" = paste0("Generalised Normal with shape=",round(x$lambda, digits)),
                       "dlogis" = "Logistic",
                       "dt" = paste0("Student t with df=",round(x$lambda, digits)),
                       "dalaplace" = paste0("Asymmetric Laplace with lambda=",round(x$lambda,digits)),
                       "dlnorm" = "Log Normal",
                       "dllaplace" = "Log Laplace",
                       "dls" = "Log S",
-                      "dlgnorm" = "Log Generalised Normal",
+                      "dlgnorm" = paste0("Log Generalised Normal with shape=",round(x$lambda, digits)),
                       # "dbcnorm" = paste0("Box-Cox Normal with lambda=",round(x$other$lambda,2)),
                       "dinvgauss" = "Inverse Gaussian"
     );
