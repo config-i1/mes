@@ -2659,7 +2659,12 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
                 results[[i]]$Ttype <- Ttype;
                 results[[i]]$Stype <- Stype;
                 results[[i]]$phiEstimate <- phiEstimate;
-                results[[j]]$phi <- phi;
+                if(phiEstimate){
+                    results[[i]]$phi <- results[[i]]$B[names(results[[i]]$B)=="phi"];
+                }
+                else{
+                    results[[i]]$phi <- 1;
+                }
                 results[[i]]$model <- modelCurrent;
 
                 modelsTested <- c(modelsTested,modelCurrent);
@@ -5572,6 +5577,10 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
     # All the important matrices
     matVt <- t(object$states[obsStates-(lagsModelMax:1)+1,,drop=FALSE]);
     matWt <- tail(object$measurement,h);
+    # If the forecast horizon is higher than the in-sample, duplicate the last value in matWt
+    if(nrow(matWt)<h){
+        matWt <- matrix(tail(matWt,1), nrow=h, ncol=ncol(matWt), dimnames=list(NULL,colnames(matWt)), byrow=TRUE);
+    }
     vecG <- matrix(object$persistence, ncol=1);
 
     # Deal with explanatory variables
@@ -5782,6 +5791,7 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
         }
         else{
             for(i in 1:h){
+                yForecast[i] <- mean(ySimulated[i,],na.rm=T);
                 yLower[i,] <- quantile(ySimulated[i,],levelLow[i,],na.rm=T,type=7);
                 yUpper[i,] <- quantile(ySimulated[i,],levelUp[i,],na.rm=T,type=7);
             }
