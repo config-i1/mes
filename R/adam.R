@@ -5277,6 +5277,10 @@ predict.adam <- function(object, newxreg=NULL, interval=c("none", "confidence", 
                 call.=FALSE);
         level <- level[1];
     }
+    # Fix just in case a silly user used 95 etc instead of 0.95
+    if(level>1){
+        level[] <- level / 100;
+    }
 
     # Basic parameters
     model <- modelType(object);
