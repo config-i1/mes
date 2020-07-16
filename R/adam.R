@@ -3041,6 +3041,9 @@ adam <- function(y, model="ZXZ", lags=c(1,frequency(y)), orders=list(ar=c(0),i=c
             # We've selected the variables, so there's nothing to select anymore
             xregDo <- "use";
         }
+        else if(!xregModel){
+            xregDo <- NULL;
+        }
 
         if(arimaModel){
             armaParametersList <- vector("list",arRequired+maRequired);

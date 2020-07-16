@@ -164,7 +164,7 @@ test_that("ADAM ETSX(MMN) on N2568", {
 # ETSX selection on N2568
 testModel <- adam(Mcomp::M3[[2568]]$x, "ZZZ", h=18, holdout=TRUE, xreg=xreg, xregDo="select");
 test_that("ADAM ETSX(ZZZ) + xreg selection on N2568", {
-    expect_match(testModel$xregDo, "use");
+    expect_null(testModel$xregDo);
 })
 
 # ETSX adaption on N2568
