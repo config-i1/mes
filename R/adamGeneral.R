@@ -1653,8 +1653,12 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                         xregData <- xreg[1:obsAll,,drop=FALSE];
                     }
                     else{
-                        stop(paste0("xreg contains less observations than needed: ", obsXreg,
-                                    " instead of ", obsAll), call.=FALSE);
+                        warning(paste0("xreg contains less observations than needed: ", obsXreg,
+                                       " instead of ", obsAll,
+                                       ". Using the last values as future ones."), call.=FALSE);
+                        xregData <- matrix(0, obsAll, ncol(xreg));
+                        xregData[1:obsXreg,] <- xreg;
+                        xregData[(obsXreg+1):obsAll,] <- rep(tail(xreg,1), each=obsAll-obsXreg);
                     }
                     colnames(xregData) <- xregNames;
                 }
