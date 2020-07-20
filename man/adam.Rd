@@ -19,6 +19,7 @@ adam(y, model = "ZXZ", lags = c(1, frequency(y)), orders = list(ar =
 
 auto.adam(y, model = "ZXZ", lags = c(frequency(y)), orders = list(ar =
   c(0), i = c(0), ma = c(0), select = FALSE), formula = NULL,
+  outliers = c("ignore", "use", "select"), level = 0.999,
   distribution = c("dnorm", "dlaplace", "ds", "dlnorm", "dllaplace", "dls",
   "dinvgauss"), h = 0, holdout = FALSE, persistence = NULL, phi = NULL,
   initial = c("optimal", "backcasting"), arma = NULL,
@@ -240,6 +241,13 @@ You can read more about these parameters by running the function
 \link[nloptr]{nloptr.print.options}.
 Finally, the parameter \code{lambda} for LASSO / RIDGE, Asymmetric Laplace and df
 of Student's distribution can be provided here as well.}
+
+\item{outliers}{Defines what to do with outliers: \code{"ignore"}, so just returning the model,
+\code{"detect"} outliers based on specified \code{level} and include dummies for them in the model,
+or detect and \code{"select"} those of them that reduce \code{ic} value.}
+
+\item{level}{What confidence level to use for detection of outliers. The default is 99.9%. The statistics
+values depends on the distribution used in the model.}
 
 \item{parallel}{If TRUE, the estimation of ADAM models is done in parallel (used in \code{auto.adam} only).
 If the number is provided (e.g. \code{parallel=41}), then the specified number of cores is set up.
