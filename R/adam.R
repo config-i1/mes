@@ -5228,6 +5228,44 @@ rstudent.adam <- function(model, ...){
     return(rstudentised);
 }
 
+#' @importFrom greybox outlierdummy
+#' @export
+outlierdummy.adam <- function(object, level=0.999, type=c("rstandard","rstudent"), ...){
+    # Function returns the matrix of dummies with outliers
+    type <- match.arg(type);
+    errors <- switch(type,"rstandard"=rstandard(object),"rstudent"=rstudent(object));
+    statistic <- switch(object$distribution,
+                      "dlaplace"=,
+                      "dllaplace"=qlaplace(c((1-level)/2, (1+level)/2), 0, 1),
+                      "dalaplace"=qalaplace(c((1-level)/2, (1+level)/2), 0, 1, object$other$alpha),
+                      "dlogis"=qlogis(c((1-level)/2, (1+level)/2), 0, 1),
+                      "dt"=qt(c((1-level)/2, (1+level)/2), nobs(object)-nparam(object)),
+                      "dgnorm"=,
+                      "dlgnorm"=qgnorm(c((1-level)/2, (1+level)/2), 0, 1, object$other$beta),
+                      "ds"=,
+                      "dls"=qs(c((1-level)/2, (1+level)/2), 0, 1),
+                      # In the next one, the scale is debiased, taking n-k into account
+                      "dinvgauss"=qinvgauss(c((1-level)/2, (1+level)/2), mean=1,
+                                            dispersion=object$scale * nobs(object) /
+                                                (nobs(object)-nparam(object))),
+                      qnorm(c((1-level)/2, (1+level)/2), 0, 1));
+    outliersID <- which(errors>statistic[2] | errors<statistic[1]);
+    outliersNumber <- length(outliersID);
+    if(outliersNumber>0){
+        outliers <- matrix(0, nobs(object), outliersNumber,
+                           dimnames=list(rownames(object$data),
+                                         paste0("outlier",c(1:outliersNumber))));
+        outliers[cbind(outliersID,c(1:outliersNumber))] <- 1;
+    }
+    else{
+        outliers <- NULL;
+    }
+
+    return(structure(list(outliers=outliers, statistic=statistic, id=outliersID,
+                          level=level, type=type),
+                     class="outlierdummy"));
+}
+
 #### Predict and forecast functions ####
 #' @export
 predict.adam <- function(object, newxreg=NULL, interval=c("none", "confidence", "prediction"),
