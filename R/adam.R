@@ -5681,23 +5681,23 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
     matF <- object$transition;
 
     # Produce point forecasts for additive error model
-    # if(Etype=="A"){
+    if(Etype=="A"){
     adamForecast <- adamForecasterWrap(matVt, matWt, matF,
                                        lagsModelAll, Etype, Ttype, Stype,
                                        componentsNumberETS, componentsNumberETSSeasonal,
                                        componentsNumberARIMA, xregNumber,
                                        h);
-    # }
-    # # If this is the multiplicative error model and we do simulations, leave it for later
-    # else if(Etype=="M" && interval=="simulated"){
-    #     adamForecast <- rep(0, h);
-    # }
-    # # If this is the multiplicative error model, correct the expectation. It is not very precise though...
-    # else{
-    #     adamForecast <- forecast(object, h=h, newxreg=newxreg, occurrence=occurrence,
-    #                              interval="simulated",
-    #                              level=level, side="both", cumulative=cumulative, nsim=50*h, ...)$mean;
-    # }
+    }
+    # If this is the multiplicative error model and we do simulations, leave it for later
+    else if(Etype=="M" && interval=="simulated"){
+        adamForecast <- rep(0, h);
+    }
+    # If this is the multiplicative error model, correct the expectation. It is not very precise though...
+    else{
+        adamForecast <- forecast(object, h=h, newxreg=newxreg, occurrence=occurrence,
+                                 interval="simulated",
+                                 level=level, side="both", cumulative=cumulative, nsim=nsim, ...)$mean;
+    }
 
     #### Make safety checks
     # If there are NaN values
