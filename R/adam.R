@@ -4986,7 +4986,8 @@ residuals.adam <- function(object, ...){
                   "dls"=,
                   "dlgnorm"=,
                   "dinvgauss"=switch(errorType(object),
-                                     "A"=1+object$residuals/fitted(object),
+                                     # abs() is needed in order to avoid the weird cases
+                                     "A"=abs(1+object$residuals/fitted(object)),
                                      "M"=1+object$residuals),
                   "dnorm"=,
                   "dlaplace"=,
@@ -5682,11 +5683,11 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
 
     # Produce point forecasts for additive error model
     if(Etype=="A"){
-    adamForecast <- adamForecasterWrap(matVt, matWt, matF,
-                                       lagsModelAll, Etype, Ttype, Stype,
-                                       componentsNumberETS, componentsNumberETSSeasonal,
-                                       componentsNumberARIMA, xregNumber,
-                                       h);
+        adamForecast <- adamForecasterWrap(matVt, matWt, matF,
+                                           lagsModelAll, Etype, Ttype, Stype,
+                                           componentsNumberETS, componentsNumberETSSeasonal,
+                                           componentsNumberARIMA, xregNumber,
+                                           h);
     }
     # If this is the multiplicative error model and we do simulations, leave it for later
     else if(Etype=="M" && interval=="simulated"){
@@ -6202,7 +6203,9 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
 forecast.adamCombined <- function(object, h=10, newxreg=NULL,
                                   interval=c("none", "simulated", "approximate", "semiparametric", "nonparametric"),
                                   level=0.95, side=c("both","upper","lower"), cumulative=FALSE, nsim=5000, ...){
-    interval <- match.arg(interval);
+
+    interval <- match.arg(interval[1],c("none", "simulated", "approximate", "semiparametric",
+                                        "nonparametric", "confidence", "parametric","prediction"));
     side <- match.arg(side);
 
     yClasses <- class(actuals(object));
