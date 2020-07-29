@@ -5846,7 +5846,12 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
         }
         else{
             for(i in 1:h){
-                yForecast[i] <- mean(ySimulated[i,],na.rm=T);
+                if(Etype=="A"){
+                    yForecast[i] <- mean(ySimulated[i,],na.rm=T);
+                }
+                else{
+                    yForecast[i] <- exp(mean(log(ySimulated[i,]),na.rm=T));
+                }
                 yLower[i,] <- quantile(ySimulated[i,],levelLow[i,],na.rm=T,type=7);
                 yUpper[i,] <- quantile(ySimulated[i,],levelUp[i,],na.rm=T,type=7);
             }
