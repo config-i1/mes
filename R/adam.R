@@ -5846,13 +5846,7 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
         }
         else{
             for(i in 1:h){
-                if(Etype=="A"){
-                    yForecast[i] <- mean(ySimulated[i,],na.rm=T);
-                }
-                else{
-                    # as.complex() is needed to overcome the issues with mixed models
-                    yForecast[i] <- Re(exp(mean(log(as.complex(ySimulated[i,])),na.rm=T)));
-                }
+                yForecast[i] <- mean(ySimulated[i,],na.rm=T);
                 yLower[i,] <- quantile(ySimulated[i,],levelLow[i,],na.rm=T,type=7);
                 yUpper[i,] <- quantile(ySimulated[i,],levelUp[i,],na.rm=T,type=7);
             }
