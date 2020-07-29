@@ -5850,7 +5850,8 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                     yForecast[i] <- mean(ySimulated[i,],na.rm=T);
                 }
                 else{
-                    yForecast[i] <- exp(mean(log(ySimulated[i,]),na.rm=T));
+                    # as.complex() is needed to overcome the issues with mixed models
+                    yForecast[i] <- Re(exp(mean(log(as.complex(ySimulated[i,])),na.rm=T)));
                 }
                 yLower[i,] <- quantile(ySimulated[i,],levelLow[i,],na.rm=T,type=7);
                 yUpper[i,] <- quantile(ySimulated[i,],levelUp[i,],na.rm=T,type=7);
@@ -6335,7 +6336,8 @@ plot.adam.forecast <- function(x, ...){
                           "dls" = "Log S",
                           "dgnorm" = "Log Generalised Normal",
                           # "dbcnorm" = paste0("Box-Cox Normal with lambda=",round(x$other$lambda,2)),
-                          "dinvgauss" = "Inverse Gaussian"
+                          "dinvgauss" = "Inverse Gaussian",
+                          "default"
         );
         ellipsis$main <- paste0("Forecast from ",x$model$model," with ",distrib," distribution");
     }
