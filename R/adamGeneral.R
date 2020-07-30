@@ -2214,7 +2214,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
             warning(paste0("The estimation of ARIMA model with initial='optimal' on high frequency data might ",
                            "take more time to converge to the optimum. Consider either setting maxeval parameter ",
                            "to a higher value (e.g. maxeval=10000, which will take ~25 times more time than this) ",
-                           "or using backcasting."),
+                           "or using initial='backcasting'."),
                     call.=FALSE);
         }
     }
