@@ -965,6 +965,35 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     obsNonzero <- sum(ot);
     obsZero <- obsInSample - obsNonzero;
 
+    # Check if multiplicative models can be fitted
+    allowMultiplicative <- !((any(yInSample<=0) && !occurrenceModel) || (occurrenceModel && any(yInSample<0)));
+
+    if(etsModel){
+        # Clean the pool of models if only additive are allowed
+        if(!allowMultiplicative && !is.null(modelsPool)){
+            modelsPoolMultiplicative <- ((substr(modelsPool,1,1)=="M") |
+                                             substr(modelsPool,2,2)=="M" |
+                                             substr(modelsPool,nchar(modelsPool),nchar(modelsPool))=="M");
+            if(any(modelsPoolMultiplicative)){
+                modelsPool <- modelsPool[!modelsPoolMultiplicative];
+
+                if(!any(model==c("PPP","FFF"))){
+                    warning("Only additive models are allowed for your data. Amending the pool.",
+                            call.=FALSE);
+                }
+            }
+        }
+        if(any(model==c("PPP","FFF")) && !allowMultiplicative){
+            model <- "XXX";
+            Etype <- "A";
+            modelsPool <- NULL;
+            warning("Only additive models are allowed for your data. Amending the pool.",
+                    call.=FALSE);
+        }
+        else if(any(model==c("PPP","FFF")) && allowMultiplicative){
+            model <- "ZZZ";
+        }
+    }
 
     #### Initial values ####
     # Vectors for initials of different components
@@ -1832,30 +1861,6 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     obsStates <- obsInSample + lagsModelMax*switch(initialType,
                                                    "backcasting"=2,
                                                    1);
-
-
-    # Check if multiplicative models can be fitted
-    allowMultiplicative <- !((any(yInSample<=0) && !occurrenceModel) || (occurrenceModel && any(yInSample<0)));
-
-    if(etsModel){
-        # Clean the pool of models if only additive are allowed
-        if(!allowMultiplicative && !is.null(modelsPool)){
-            modelsPoolMultiplicative <- ((substr(modelsPool,1,1)=="M") |
-                                             substr(modelsPool,2,2)=="M" |
-                                             substr(modelsPool,nchar(modelsPool),nchar(modelsPool))=="M");
-            if(any(modelsPoolMultiplicative)){
-                modelsPool <- modelsPool[!modelsPoolMultiplicative];
-
-                if(!any(model==c("PPP","FFF"))){
-                    warning("Only additive models are allowed for your data. Amending the pool.",
-                            call.=FALSE);
-                }
-            }
-        }
-        if(any(model==c("PPP","FFF"))){
-            model <- "ZZZ";
-        }
-    }
 
     if(any(yInSample<=0) && any(distribution==c("dinvgauss","dlnorm","dllaplace","dls","dlgnorm")) && !occurrenceModel){
         warning(paste0("You have non-positive values in the data. ",
