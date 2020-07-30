@@ -5632,13 +5632,16 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
     # Deal with explanatory variables
     if(!is.null(object$xreg)){
         xregNumber <- ncol(object$xreg);
-        if(is.null(newxreg)){
+        if(is.null(newxreg) && (nrow(object$xreg)<(obsInSample+h))){
             warning("The newxreg is not provided. Predicting the explanatory variables based on what we have in-sample.",
                     call.=FALSE);
             newxreg <- matrix(NA,h,xregNumber);
             for(i in 1:xregNumber){
                 newxreg[,i] <- adam(object$xreg[,i],h=h,silent=TRUE)$forecast;
             }
+        }
+        else if(is.null(newxreg) && (nrow(object$xreg)>=(obsInSample+h))){
+            newxreg <- object$xreg[obsInSample+c(1:h),,drop=FALSE];
         }
         else{
             # If this is not a matrix / data.frame, then convert to one
@@ -5870,7 +5873,7 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
         if(any(interval==c("approximate","confidence"))){
             s2 <- sigma(object)^2;
             if(xregNumber>0){
-                vecGFull <- cbind(vecG,rep(0,xregNumber));
+                vecGFull <- rbind(vecG,rep(0,xregNumber));
             }
             else{
                 vecGFull <- vecG;
