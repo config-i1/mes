@@ -5250,6 +5250,9 @@ outlierdummy.adam <- function(object, level=0.999, type=c("rstandard","rstudent"
                                             dispersion=object$scale * nobs(object) /
                                                 (nobs(object)-nparam(object))),
                       qnorm(c((1-level)/2, (1+level)/2), 0, 1));
+    if(any(object$distribution==c("dlnorm","dllaplace","dls","dlgnorm"))){
+        errors[] <- log(errors);
+    }
     outliersID <- which(errors>statistic[2] | errors<statistic[1]);
     outliersNumber <- length(outliersID);
     if(outliersNumber>0){
