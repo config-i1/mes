@@ -648,81 +648,81 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     # persistence of seasonal is a vector, not a scalar, because we can have several lags
     persistenceSeasonalEstimate <- rep(TRUE,componentsNumberETSSeasonal);
     if(!is.null(persistence)){
-        # If it is a list
-        if(is.list(persistence)){
-            # If this is a named list, then extract stuff using names
-            if(!is.null(names(persistence))){
-                if(!is.null(persistence$level)){
-                    persistenceLevel <- persistence$level;
-                }
-                else if(!is.null(persistence$alpha)){
-                    persistenceLevel <- persistence$alpha;
-                }
-                if(!is.null(persistence$trend)){
-                    persistenceTrend <- persistence$trend;
-                }
-                else if(!is.null(persistence$beta)){
-                    persistenceTrend <- persistence$beta;
-                }
-                if(!is.null(persistence$seasonal)){
-                    persistenceSeasonal <- persistence$seasonal;
-                }
-                else if(!is.null(persistence$gamma)){
-                    persistenceSeasonal <- persistence$gamma;
-                }
-                if(!is.null(persistence$xreg)){
-                    persistenceXreg <- persistence$xreg;
-                }
-                else if(!is.null(persistence$delta)){
-                    persistenceXreg <- persistence$delta;
-                }
-            }
-            else{
-                if(!is.null(persistence[[1]])){
-                    persistenceLevel <- persistence[[1]];
-                }
-                if(!is.null(persistence[[2]])){
-                    persistenceTrend <- persistence[[2]];
-                }
-                if(!is.null(persistence[[3]])){
-                    persistenceSeasonal <- persistence[[3]];
-                }
-                if(!is.null(persistence[[4]])){
-                    persistenceXreg <- persistence[[4]];
-                }
-            }
-            # Define estimate variables
-            if(!is.null(persistenceLevel)){
-                persistenceLevelEstimate[] <- FALSE;
-                parametersNumber[2,1] <- parametersNumber[2,1] + 1;
-            }
-            if(!is.null(persistenceTrend)){
-                persistenceTrendEstimate[] <- FALSE;
-                parametersNumber[2,1] <- parametersNumber[2,1] + 1;
-            }
-            if(!is.null(persistenceSeasonal)){
-                if(is.list(persistenceSeasonal)){
-                    persistenceSeasonalEstimate[] <- length(persistenceSeasonal)==length(lagsModelSeasonal);
+        if(all(modelDo!=c("estimate","use"))){
+            warning(paste0("Predefined persistence can only be used with ",
+                           "preselected ETS model.\n",
+                           "Changing to estimation of persistence values."),call.=FALSE);
+            persistence <- NULL;
+            persistenceEstimate <- TRUE;
+        }
+        else{
+            # If it is a list
+            if(is.list(persistence)){
+                # If this is a named list, then extract stuff using names
+                if(!is.null(names(persistence))){
+                    if(!is.null(persistence$level)){
+                        persistenceLevel <- persistence$level;
+                    }
+                    else if(!is.null(persistence$alpha)){
+                        persistenceLevel <- persistence$alpha;
+                    }
+                    if(!is.null(persistence$trend)){
+                        persistenceTrend <- persistence$trend;
+                    }
+                    else if(!is.null(persistence$beta)){
+                        persistenceTrend <- persistence$beta;
+                    }
+                    if(!is.null(persistence$seasonal)){
+                        persistenceSeasonal <- persistence$seasonal;
+                    }
+                    else if(!is.null(persistence$gamma)){
+                        persistenceSeasonal <- persistence$gamma;
+                    }
+                    if(!is.null(persistence$xreg)){
+                        persistenceXreg <- persistence$xreg;
+                    }
+                    else if(!is.null(persistence$delta)){
+                        persistenceXreg <- persistence$delta;
+                    }
                 }
                 else{
-                    persistenceSeasonalEstimate[] <- FALSE;
+                    if(!is.null(persistence[[1]])){
+                        persistenceLevel <- persistence[[1]];
+                    }
+                    if(!is.null(persistence[[2]])){
+                        persistenceTrend <- persistence[[2]];
+                    }
+                    if(!is.null(persistence[[3]])){
+                        persistenceSeasonal <- persistence[[3]];
+                    }
+                    if(!is.null(persistence[[4]])){
+                        persistenceXreg <- persistence[[4]];
+                    }
                 }
-                parametersNumber[2,1] <- parametersNumber[2,1] + length(unlist(persistenceSeasonal));
+                # Define estimate variables
+                if(!is.null(persistenceLevel)){
+                    persistenceLevelEstimate[] <- FALSE;
+                    parametersNumber[2,1] <- parametersNumber[2,1] + 1;
+                }
+                if(!is.null(persistenceTrend)){
+                    persistenceTrendEstimate[] <- FALSE;
+                    parametersNumber[2,1] <- parametersNumber[2,1] + 1;
+                }
+                if(!is.null(persistenceSeasonal)){
+                    if(is.list(persistenceSeasonal)){
+                        persistenceSeasonalEstimate[] <- length(persistenceSeasonal)==length(lagsModelSeasonal);
+                    }
+                    else{
+                        persistenceSeasonalEstimate[] <- FALSE;
+                    }
+                    parametersNumber[2,1] <- parametersNumber[2,1] + length(unlist(persistenceSeasonal));
+                }
+                if(!is.null(persistenceXreg)){
+                    persistenceXregEstimate[] <- FALSE;
+                    parametersNumber[2,1] <- parametersNumber[2,1] + length(persistenceXreg);
+                }
             }
-            if(!is.null(persistenceXreg)){
-                persistenceXregEstimate[] <- FALSE;
-                parametersNumber[2,1] <- parametersNumber[2,1] + length(persistenceXreg);
-            }
-        }
-        else if(is.numeric(persistence)){
-            if(modelDo!="estimate"){
-                warning(paste0("Predefined persistence vector can only be used with ",
-                               "preselected ETS model.\n",
-                               "Changing to estimation of persistence vector values."),call.=FALSE);
-                persistence <- NULL;
-                persistenceEstimate <- TRUE;
-            }
-            else{
+            else if(is.numeric(persistence)){
                 # If it is smaller... We don't know the length of xreg yet at this stage
                 if(length(persistence)<lagsLength){
                     warning(paste0("Length of persistence vector is wrong! ",
@@ -774,12 +774,12 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                     bounds <- "n";
                 }
             }
-        }
-        else{
-            warning(paste0("Persistence is not a numeric vector!\n",
-                           "Changing to estimation of persistence vector values."),call.=FALSE);
-            persistence <- NULL;
-            persistenceEstimate <- TRUE;
+            else{
+                warning(paste0("Persistence is not a numeric vector!\n",
+                               "Changing to estimation of persistence vector values."),call.=FALSE);
+                persistence <- NULL;
+                persistenceEstimate <- TRUE;
+            }
         }
     }
     else{
@@ -806,22 +806,30 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
     #### Phi ####
     if(etsModel){
         if(!is.null(phi)){
-            if(!is.numeric(phi) & (damped)){
-                warning(paste0("Provided value of phi is meaningless. phi will be estimated."),
-                        call.=FALSE);
+            if(all(modelDo!=c("estimate","use"))){
+                warning(paste0("Predefined phi can only be used with preselected ETS model.\n",
+                               "Changing to estimation."),call.=FALSE);
                 phi <- 0.95;
                 phiEstimate <- TRUE;
             }
-            else if(is.numeric(phi) & (phi<0 | phi>2)){
-                warning(paste0("Damping parameter should lie in (0, 2) region. ",
-                               "Changing to the estimation of phi."),call.=FALSE);
-                phi[] <- 0.95;
-                phiEstimate <- TRUE;
-            }
             else{
-                phiEstimate <- FALSE;
-                if(damped){
-                    parametersNumber[2,1] <- parametersNumber[2,1] + 1;
+                if(!is.numeric(phi) & (damped)){
+                    warning(paste0("Provided value of phi is meaningless. phi will be estimated."),
+                            call.=FALSE);
+                    phi <- 0.95;
+                    phiEstimate <- TRUE;
+                }
+                else if(is.numeric(phi) & (phi<0 | phi>2)){
+                    warning(paste0("Damping parameter should lie in (0, 2) region. ",
+                                   "Changing to the estimation of phi."),call.=FALSE);
+                    phi[] <- 0.95;
+                    phiEstimate <- TRUE;
+                }
+                else{
+                    phiEstimate <- FALSE;
+                    if(damped){
+                        parametersNumber[2,1] <- parametersNumber[2,1] + 1;
+                    }
                 }
             }
         }
@@ -985,7 +993,7 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
         initialType[] <- "optimal";
     }
     else if(!is.null(initial)){
-        if(modelDo!="estimate"){
+        if(all(modelDo!=c("estimate","use"))){
             warning(paste0("Predefined initials vector can only be used with preselected ETS model.\n",
                            "Changing to estimation of initials."),call.=FALSE);
             initialType[] <- "optimal";
