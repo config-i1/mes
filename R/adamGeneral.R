@@ -983,11 +983,11 @@ parametersChecker <- function(y, model, lags, formulaProvided, orders, arma,
                 }
             }
         }
-        if(any(model==c("PPP","FFF")) && !allowMultiplicative){
+        if((any(model==c("PPP","FFF")) || any(unlist(strsplit(model,""))=="Z")) && !allowMultiplicative){
             model <- "XXX";
             Etype <- "A";
             modelsPool <- NULL;
-            warning("Only additive models are allowed for your data. Amending the pool.",
+            warning("Only additive models are allowed for your data. Changing the selection mechanism.",
                     call.=FALSE);
         }
         else if(any(model==c("PPP","FFF")) && allowMultiplicative){
