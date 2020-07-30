@@ -415,10 +415,23 @@ test_that("Best auto.adam ETS(ZZZ) on N2568, in parallel", {
     expect_equal(testModel$persistence,testModel2$persistence);
 })
 
+# Outliers detection for ETS on series N291 of M1 in parallel
+testModel <- auto.adam(Mcomp::M1[[291]], "ZZZ", outliers="use", parallel=TRUE);
+test_that("Detect outliers for ETS(ZZZ) on N291, in parallel", {
+    expect_false(is.null(testModel$xreg));
+})
+
 # Best ARIMA on the 2568
 testModel <- auto.adam(Mcomp::M3[[2568]], "NNN", orders=list(ar=c(3,2),i=c(2,1),ma=c(3,2),select=TRUE), parallel=TRUE);
 test_that("Best auto.adam ARIMA on N2568, in parallel", {
     expect_match(testModel$loss, "likelihood");
+})
+
+# Outliers detection for ARIMA on series N291 of M1 in parallel
+testModel <- auto.adam(Mcomp::M1[[291]], "NNN", orders=list(ar=c(3,2),i=c(2,1),ma=c(3,2),select=TRUE),
+                       outliers="use", parallel=TRUE);
+test_that("Detect outliers for ARIMA on N291, in parallel", {
+    expect_false(is.null(testModel$xreg));
 })
 
 # Best ETS+ARIMA+Regression on the 2568
@@ -431,5 +444,13 @@ test_that("Best auto.adam ETS+ARIMA+Regression on N2568, in parallel", {
 # Summary of the best model
 testSummary <- summary(testModel);
 test_that("Summary of the produced ADAM model", {
+    expect_match(testModel$loss, "likelihood");
+})
+
+# Best ETS+ARIMA+Regression on the 2568
+testModel <- auto.adam(Mcomp::M3[[2568]]$x, "ZZZ", orders=list(ar=c(3,2),i=c(2,1),ma=c(3,2),select=TRUE),
+                       outliers="use",
+                       xreg=temporaldummy(Mcomp::M3[[2568]]$x), xregDo="use", initial="back", parallel=TRUE);
+test_that("Best auto.adam ETS+ARIMA+Regression+outliers on N2568, in parallel", {
     expect_match(testModel$loss, "likelihood");
 })

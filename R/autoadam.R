@@ -2,6 +2,11 @@
 #' If the number is provided (e.g. \code{parallel=41}), then the specified number of cores is set up.
 #' WARNING! Packages \code{foreach} and either \code{doMC} (Linux and Mac only)
 #' or \code{doParallel} are needed in order to run the function in parallel.
+#' @param outliers Defines what to do with outliers: \code{"ignore"}, so just returning the model,
+#' \code{"detect"} outliers based on specified \code{level} and include dummies for them in the model,
+#' or detect and \code{"select"} those of them that reduce \code{ic} value.
+#' @param level What confidence level to use for detection of outliers. The default is 99.9%. The statistics
+#' values depends on the distribution used in the model.
 #' @param fast If \code{TRUE}, then some of the orders of ARIMA are
 #' skipped in the order selection. This is not advised for models with \code{lags} greater than 12.
 #'
@@ -11,7 +16,7 @@
 #' @rdname adam
 #' @export
 auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),i=c(0),ma=c(0),select=FALSE),
-                      formula=NULL,
+                      formula=NULL, outliers=c("ignore","use","select"), level=0.99,
                       distribution=c("dnorm","dlaplace","ds",
                                      "dlnorm","dllaplace","dls","dinvgauss"),
                       h=0, holdout=FALSE,
@@ -44,6 +49,20 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
                          "BICc"=BICc);
 
     initial <- match.arg(initial);
+    outliers <- match.arg(outliers);
+
+    # Check the provided level value.
+    if(length(level)>1){
+        warning(paste0("Sorry, but we only support scalar for the level, ",
+                       "when constructing in-sample prediction interval. ",
+                       "Using the first provided value."),
+                call.=FALSE);
+        level <- level[1];
+    }
+    # Fix just in case a silly user used 95 etc instead of 0.95
+    if(level>1){
+        level[] <- level / 100;
+    }
 
     # The function checks the provided parameters of adam and/or oes
     ##### data #####
@@ -327,7 +346,7 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
             cat("Evaluating models with different distributions... ");
         }
         else{
-            cat(paste0("Working..."));
+            cat(paste0("Working... "));
         }
     }
 
@@ -751,6 +770,81 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
         }
     }
 
+    #### The function that extracts outliers and refits the model with the selection ####
+    # Outliers types to include: additive outlier (AO) and level shift (LS).
+    # Introduce leads and lags of outliers in case of "select"
+    outlierDetector <- function(adamModel, outliers="use"){
+        if(outliers=="ignore"){
+            return(adamModel);
+        }
+        else{
+            outliersModel <- outlierdummy(adamModel, level=level);
+            if(length(outliersModel$id)>0){
+                if(!silent){
+                    cat("Dealing with outliers: ");
+                }
+                # Create a proper xreg matrix
+                if(h>0){
+                    outliersXreg <- rbind(outliersModel$outliers, matrix(0,nrow=h,length(outliersModel$id)));
+                }
+                else{
+                    outliersXreg <- outliersModel$outliers;
+                }
+                # If select outliers, then introduce lags and leads
+                if(outliers=="select"){
+                    outliersXreg <- xregExpander(outliersXreg,c(-1:1),gaps="zero");
+                }
+                outliersDo <- outliers;
+                # Form new xreg matrix (check y and xreg)
+                if(xregModel){
+                    if(!is.null(xreg)){
+                        xregNames <- c(colnames(xreg),colnames(outliersXreg));
+                        if(nrow(xreg)!=nrow(outliersXreg)){
+                            obsXreg <- min(nrow(xreg),nrow(outliersXreg));
+                            xregNew <- cbind(xreg[1:obsXreg,,drop=FALSE],
+                                             outliersXreg[1:obsXreg,,drop=FALSE]);
+                        }
+                        else{
+                            xregNew <- cbind(xreg,outliersXreg);
+                        }
+                        colnames(xregNew) <- xregNames;
+                    }
+                    # If y is a matrix, add columns
+                    else if(!is.null(dim(y)) && ncol(y>1)){
+                        y <- cbind(y,outliersXreg);
+                        xregNew <- NULL;
+                    }
+                    # Update formula if it is provided
+                    if(!is.null(formula)){
+                        formula <- update(as.formula(formula),
+                                          as.formula(paste0("~.+",paste0(colnames(outliersXreg),collapse="+"))));
+                    }
+                    outliersDo <- xregDo;
+                    adamModel <- suppressWarnings(auto.adam(y, model, lags=lags, orders=orders,
+                                                            distribution=distribution, h=h, holdout=holdout,
+                                                            persistence=persistence, phi=phi, initial=initial, arma=arma,
+                                                            occurrence=occurrence, ic=ic, bounds=bounds,
+                                                            xreg=xregNew, xregDo=outliersDo,
+                                                            silent=silent, parallel=parallel, fast=fast));
+                }
+                else{
+                    adamModel <- suppressWarnings(auto.adam(y, model, lags=lags, orders=orders,
+                                                            distribution=distribution, h=h, holdout=holdout,
+                                                            persistence=persistence, phi=phi, initial=initial, arma=arma,
+                                                            occurrence=occurrence, ic=ic, bounds=bounds,
+                                                            xreg=outliersXreg, xregDo=outliersDo,
+                                                            silent=silent, parallel=parallel, fast=fast));
+                }
+            }
+            else{
+                if(!silent){
+                    cat("No outliers detected.\n");
+                }
+            }
+            return(adamModel);
+        }
+    }
+
     #### A simple loop, no ARIMA orders selection ####
     if(!arimaModelSelect){
         selectedModels <- adamReturner(y, model, lags, orders,
@@ -803,10 +897,6 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
         }
     }
 
-    if(!silent){
-        cat("Done!\n");
-    }
-
     if(modelDo=="select"){
         ICValues <- sapply(selectedModels, ICFunction);
     }
@@ -818,15 +908,23 @@ auto.adam <- function(y, model="ZXZ", lags=c(frequency(y)), orders=list(ar=c(0),
         }
     }
 
-    if(!silent){
-        plot(selectedModels[[which.min(ICValues)]],7);
-    }
     selectedModels[[which.min(ICValues)]]$timeElapsed <- Sys.time()-startTime;
     selectedModels[[which.min(ICValues)]]$formula <- as.formula(do.call("substitute",
                                                                         list(expr=selectedModels[[which.min(ICValues)]]$formula,
                                                                              env=list(y=as.name(responseName)))));
     # names(ICValues) <- sapply(selectedModels, modelType);
     # selectedModels[[which.min(ICValues)]]$ICValues <- ICValues;
+
+    if(outliers!="ignore"){
+        selectedModels[[which.min(ICValues)]] <- outlierDetector(selectedModels[[which.min(ICValues)]], outliers=outliers);
+    }
+
+    if(!silent){
+        if(outliers=="ignore"){
+            cat("Done!\n");
+        }
+        plot(selectedModels[[which.min(ICValues)]],7);
+    }
 
     return(selectedModels[[which.min(ICValues)]]);
 }
