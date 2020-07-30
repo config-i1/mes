@@ -5681,6 +5681,10 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
         }
 
         matWt[,componentsNumberETS+componentsNumberARIMA+c(1:xregNumber)] <- newxreg;
+        # If this is not "adapt", then fill in the matrix with zeroes
+        if(object$xregDo!="adapt"){
+            vecG <- matrix(c(vecG,rep(0,xregNumber)),ncol=1);
+        }
     }
     else{
         xregNumber <- 0;
@@ -5872,15 +5876,9 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
         # Produce covatiance matrix and use it
         if(any(interval==c("approximate","confidence"))){
             s2 <- sigma(object)^2;
-            if(xregNumber>0){
-                vecGFull <- rbind(vecG,rep(0,xregNumber));
-            }
-            else{
-                vecGFull <- vecG;
-            }
             # IG and Lnorm can use approximations from the multiplications
             if(any(object$distribution==c("dinvgauss","dlnorm","dllaplace","dls","dlgnorm")) && Etype=="M"){
-                vcovMulti <- adamVarAnal(lagsModelAll, h, matWt[1,,drop=FALSE], matF, vecGFull, s2);
+                vcovMulti <- adamVarAnal(lagsModelAll, h, matWt[1,,drop=FALSE], matF, vecG, s2);
                 if(any(object$distribution==c("dlnorm","dls","dllaplace","dlgnorm"))){
                     vcovMulti[] <- log(1+vcovMulti);
                 }
@@ -5896,7 +5894,7 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
                 }
             }
             else{
-                vcovMulti <- covarAnal(lagsModelAll, h, matWt[1,,drop=FALSE], matF, vecGFull, s2);
+                vcovMulti <- covarAnal(lagsModelAll, h, matWt[1,,drop=FALSE], matF, vecG, s2);
 
                 # The confidence interval relies on the assumption that initial level is known
                 if(interval=="confidence"){
