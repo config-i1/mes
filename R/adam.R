@@ -5692,7 +5692,7 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
     matF <- object$transition;
 
     # Produce point forecasts for additive error model
-    if(Etype=="A"){
+    if(Etype=="A" || (Etype=="M" && Ttype!="M" && Stype!="M")){
         adamForecast <- adamForecasterWrap(matVt, matWt, matF,
                                            lagsModelAll, Etype, Ttype, Stype,
                                            componentsNumberETS, componentsNumberETSSeasonal,
@@ -5856,7 +5856,9 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
         }
         else{
             for(i in 1:h){
-                yForecast[i] <- mean(ySimulated[i,],na.rm=T);
+                if(Etype=="M" && (Ttype=="M" || Stype=="M")){
+                    yForecast[i] <- mean(ySimulated[i,],na.rm=T);
+                }
                 yLower[i,] <- quantile(ySimulated[i,],levelLow[i,],na.rm=T,type=7);
                 yUpper[i,] <- quantile(ySimulated[i,],levelUp[i,],na.rm=T,type=7);
             }
