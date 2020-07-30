@@ -5691,23 +5691,25 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
     }
     matF <- object$transition;
 
-    # Produce point forecasts for additive error model
-    if(Etype=="A" || (Etype=="M" && Ttype!="M" && Stype!="M")){
+    # Produce point forecasts for non-multiplicative trend / seasonality
+    if(Ttype!="M" && Stype!="M"){
         adamForecast <- adamForecasterWrap(matVt, matWt, matF,
                                            lagsModelAll, Etype, Ttype, Stype,
                                            componentsNumberETS, componentsNumberETSSeasonal,
                                            componentsNumberARIMA, xregNumber,
                                            h);
     }
-    # If this is the multiplicative error model and we do simulations, leave it for later
-    else if(Etype=="M" && interval=="simulated"){
-        adamForecast <- rep(0, h);
-    }
-    # If this is the multiplicative error model, correct the expectation. It is not very precise though...
     else{
-        adamForecast <- forecast(object, h=h, newxreg=newxreg, occurrence=occurrence,
-                                 interval="simulated",
-                                 level=level, side="both", cumulative=cumulative, nsim=nsim, ...)$mean;
+        # If we do simulations, leave it for later
+        if(interval=="simulated"){
+            adamForecast <- rep(0, h);
+        }
+        # If we don't do simulations to get mean
+        else{
+            adamForecast <- forecast(object, h=h, newxreg=newxreg, occurrence=occurrence,
+                                     interval="simulated",
+                                     level=level, side="both", cumulative=cumulative, nsim=nsim, ...)$mean;
+        }
     }
 
     #### Make safety checks
@@ -5856,7 +5858,7 @@ forecast.adam <- function(object, h=10, newxreg=NULL, occurrence=NULL,
         }
         else{
             for(i in 1:h){
-                if(Etype=="M" && (Ttype=="M" || Stype=="M")){
+                if(Ttype=="M" || Stype=="M"){
                     yForecast[i] <- mean(ySimulated[i,],na.rm=T);
                 }
                 yLower[i,] <- quantile(ySimulated[i,],levelLow[i,],na.rm=T,type=7);
